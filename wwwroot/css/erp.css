@@ -1,0 +1,232 @@
+/* ERP shell — subtle, theme-variable driven. Independent of purged Tailwind. */
+
+.erp-shell {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--background);
+    color: var(--foreground);
+}
+
+/* ---------- Sidebar ---------- */
+.erp-sidebar {
+    width: 15rem;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    background: var(--sidebar);
+    border-right: 1px solid var(--sidebar-border);
+}
+
+.erp-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    height: 3.5rem;
+    flex: 0 0 auto;
+    padding: 0 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    border-bottom: 1px solid var(--sidebar-border);
+}
+
+.erp-brand img {
+    height: 1.7rem;
+    width: 1.7rem;
+    object-fit: cover;
+    border-radius: 0.4rem;
+}
+
+.erp-nav {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0.75rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.erp-nav-section {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted-foreground);
+    padding: 0.75rem 0.75rem 0.35rem;
+}
+
+.erp-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 0;
+    background: transparent;
+    color: var(--sidebar-foreground);
+    font-size: 0.875rem;
+    font-family: inherit;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.erp-nav-item:hover {
+    background: var(--sidebar-accent);
+    color: var(--sidebar-accent-foreground);
+}
+
+.erp-nav-item.active {
+    background: var(--sidebar-accent);
+    color: var(--sidebar-accent-foreground);
+    font-weight: 500;
+}
+
+.erp-nav-item svg { flex: 0 0 auto; opacity: 0.85; }
+
+.erp-sidebar-foot {
+    flex: 0 0 auto;
+    border-top: 1px solid var(--sidebar-border);
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.erp-user-name { font-size: 0.8rem; font-weight: 500; line-height: 1.1; }
+.erp-user-role { font-size: 0.72rem; color: var(--muted-foreground); }
+
+/* ---------- Main / topbar ---------- */
+.erp-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.erp-topbar {
+    height: 3.5rem;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0 1.25rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.erp-topbar-title { font-size: 0.95rem; font-weight: 600; }
+.erp-topbar-sub { font-size: 0.8rem; color: var(--muted-foreground); }
+
+.erp-topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+
+.erp-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2rem;
+    width: 2rem;
+    border-radius: 0.5rem;
+    border: 0;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.erp-icon-btn:hover { background: var(--accent); color: var(--accent-foreground); }
+
+/* ---------- Dock area ---------- */
+.erp-dock-area {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.erp-dock-area > * { flex: 1; min-height: 0; }
+
+.erp-empty {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: var(--muted-foreground);
+}
+
+.erp-empty h3 { font-size: 0.95rem; font-weight: 600; color: var(--foreground); }
+.erp-empty p { font-size: 0.85rem; }
+
+/* ---------- Module content ---------- */
+.mod {
+    height: 100%;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+
+.mod-head { margin-bottom: 1.25rem; }
+.mod-head h2 { font-size: 1.2rem; font-weight: 600; letter-spacing: -0.01em; }
+.mod-head p { font-size: 0.875rem; color: var(--muted-foreground); margin-top: 0.2rem; }
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.kpi-label { font-size: 0.8rem; color: var(--muted-foreground); }
+.kpi-value { font-size: 1.55rem; font-weight: 600; letter-spacing: -0.02em; margin: 0.35rem 0 0.25rem; }
+.kpi-delta { font-size: 0.75rem; }
+.kpi-delta.up { color: var(--alert-success); }
+.kpi-delta.down { color: var(--destructive); }
+
+.section-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0 0 0.75rem;
+}
+
+.erp-table-wrap {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.erp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.erp-table th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.6rem 0.9rem;
+    background: var(--muted);
+    border-bottom: 1px solid var(--border);
+}
+
+.erp-table td {
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.erp-table tbody tr:last-child td { border-bottom: 0; }
+.erp-table tbody tr:hover { background: var(--accent); }
+.erp-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.mod-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.muted { color: var(--muted-foreground); }

@@ -1,0 +1,71 @@
+# ---------- .NET / Blazor build output ----------
+bin/
+obj/
+out/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+build/
+publish/
+[Pp]ublish[Pp]rofiles/*.pubxml.user
+
+# ---------- Static web assets cache ----------
+**/wwwroot/dist/
+*.staticwebassets.runtime.json
+compilerconfig.json.defaults
+
+# ---------- User-specific / IDE ----------
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+launchSettings.local.json
+
+# ---------- Rider ----------
+*.DotSettings.user
+
+# ---------- Test / coverage ----------
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.coveragexml
+TestResults/
+
+# ---------- NuGet ----------
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+.nuget/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ---------- MSBuild / logs ----------
+*.binlog
+*.log
+msbuild.log
+*.tlog
+
+# ---------- Secrets / environment ----------
+appsettings.*.local.json
+secrets.json
+*.pfx
+*.key
+
+# ---------- OS files ----------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/

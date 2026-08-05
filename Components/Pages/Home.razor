@@ -1,0 +1,174 @@
+@page "/"
+@page "/login"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject NavigationManager Nav
+
+<PageTitle>wisp · Entrar</PageTitle>
+
+<div class="login-wrap">
+    <!-- Left column - image carousel -->
+    <aside class="login-aside">
+        @for (var i = 0; i < _slides.Length; i++)
+        {
+            var slide = _slides[i];
+            <div class="slide @(i == _current ? "active" : "")" style="background-image: @slide.Gradient;">
+                <LucideIcon Name="@slide.Icon" Size="380" StrokeWidth="1.1"
+                            Color="rgba(255,255,255,0.14)" Class="slide-icon" />
+                <div class="slide-overlay"></div>
+            </div>
+        }
+
+        <div class="brand">
+            @WispMark
+            <span>wisp</span>
+        </div>
+
+        <div class="caption">
+            <div>
+                <div class="caption-kicker">
+                    <LucideIcon Name="@_slides[_current].Icon" Size="16" />
+                    <span>@_slides[_current].Kicker</span>
+                </div>
+                <h2>@_slides[_current].Title</h2>
+                <p>@_slides[_current].Description</p>
+            </div>
+            <div class="dots">
+                @for (var i = 0; i < _slides.Length; i++)
+                {
+                    var index = i;
+                    <button type="button" aria-label="@_slides[index].Title"
+                            class="dot @(index == _current ? "active" : "")"
+                            @onclick="() => Go(index)"></button>
+                }
+            </div>
+        </div>
+    </aside>
+
+    <!-- Right column - form -->
+    <main class="login-main">
+        <div class="brand-mobile">
+            @WispMark
+            <span>wisp</span>
+        </div>
+
+        <div class="login-form">
+            <div class="login-head">
+                <h1>Bem-vindo de volta</h1>
+                <p>Entre com suas credenciais para acessar sua conta</p>
+            </div>
+
+            <div class="login-body">
+                <div class="field">
+                    <BbLabel For="email">E-mail</BbLabel>
+                    <BbInput Id="email" Type="InputType.Email" Placeholder="nome@exemplo.com" @bind-Value="_email" />
+                </div>
+
+                <div class="field">
+                    <BbLabel For="password">Senha</BbLabel>
+                    <BbInput Id="password" Type="InputType.Password" @bind-Value="_password" />
+                </div>
+
+                <div class="row-between">
+                    <div class="checkbox-row">
+                        <BbCheckbox Id="remember" @bind-Checked="_remember" />
+                        <BbLabel For="remember">Lembrar de mim</BbLabel>
+                    </div>
+                    <a href="#" class="link-muted">Esqueceu a senha?</a>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_message))
+                {
+                    <p class="error-text">@_message</p>
+                }
+
+                <BbButton Class="w-full" Loading="_loading" LoadingText="Entrando..." OnClick="HandleSignIn">
+                    Entrar
+                </BbButton>
+
+                <div class="divider">Ou continue com</div>
+
+                <div class="oauth-grid">
+                    <BbButton Variant="ButtonVariant.Outline">Google</BbButton>
+                    <BbButton Variant="ButtonVariant.Outline">GitHub</BbButton>
+                </div>
+            </div>
+
+            <div class="login-foot">
+                Não tem uma conta? <a href="#">Cadastre-se</a>
+            </div>
+        </div>
+    </main>
+</div>
+
+@code {
+    private record Slide(string Kicker, string Title, string Description, string Icon, string Gradient);
+
+    // Each sector shown with its matching Lucide icon over an on-theme gradient.
+    private readonly Slide[] _slides =
+    {
+        new("Varejo",      "Varejo conectado",      "Do PDV ao e-commerce, uma visão única de cada venda.",          "store",   "linear-gradient(135deg, #4f46e5, #7c3aed)"),
+        new("Indústria",   "Indústria 4.0",         "Chão de fábrica integrado, produção monitorada em tempo real.", "factory", "linear-gradient(135deg, #334155, #0f172a)"),
+        new("Logística",   "Logística inteligente", "Estoque, expedição e frete orquestrados de ponta a ponta.",     "truck",   "linear-gradient(135deg, #0d9488, #0891b2)"),
+        new("Tecnologia",  "Plataforma em nuvem",   "Dados seguros e escaláveis para toda a operação.",              "cpu",     "linear-gradient(135deg, #2563eb, #1e3a8a)"),
+        new("Agronegócio", "Do campo ao mercado",   "Rastreabilidade e gestão para toda a cadeia produtiva.",        "sprout",  "linear-gradient(135deg, #16a34a, #065f46)"),
+    };
+
+    private static readonly RenderFragment WispMark =
+        @<img class="brand-logo" src="favicon.png" alt="wisp" />;
+
+    private int _current;
+    private System.Timers.Timer? _timer;
+
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private bool _remember;
+    private string? _message;
+    private bool _loading;
+
+    protected override void OnInitialized()
+    {
+        _timer = new System.Timers.Timer(5000);
+        _timer.Elapsed += (_, _) => _ = InvokeAsync(Next);
+        _timer.AutoReset = true;
+        _timer.Start();
+    }
+
+    private void Next()
+    {
+        _current = (_current + 1) % _slides.Length;
+        StateHasChanged();
+    }
+
+    private void Go(int index)
+    {
+        _current = index;
+        _timer?.Stop();
+        _timer?.Start(); // reset the interval after a manual jump
+        StateHasChanged();
+    }
+
+    private async Task HandleSignIn()
+    {
+        _message = null;
+
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        {
+            _message = "Informe seu e-mail e sua senha.";
+            return;
+        }
+
+        _loading = true;
+        StateHasChanged();
+
+        // Simulated authentication delay, then into the ERP.
+        await Task.Delay(800);
+
+        Nav.NavigateTo("/home");
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+}
