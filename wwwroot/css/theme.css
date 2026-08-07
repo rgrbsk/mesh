@@ -20,6 +20,11 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
 
+  /* Brand (logo wisp 👻) */
+  --brand-500: #227FFF;
+  --brand-400: #3AAAFF;
+  --brand-300: #68C3FF;
+
   /* Alert colors */
   --alert-success: oklch(0.55 0.20 142);
   --alert-success-foreground: oklch(0.30 0.09 142);
@@ -53,7 +58,8 @@
 
   /* Typography & Layout */
   --radius: 0.625rem;
-  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Poppins', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, serif;
   --font-mono: ui-monospace, monospace;
 

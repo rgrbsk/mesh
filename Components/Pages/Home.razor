@@ -19,11 +19,6 @@
             </div>
         }
 
-        <div class="brand">
-            @WispMark
-            <span>wisp</span>
-        </div>
-
         <div class="caption">
             <div>
                 <div class="caption-kicker">
@@ -53,6 +48,11 @@
         </div>
 
         <div class="login-form">
+            <div class="form-brand">
+                <span class="form-brand-text">wisp cloud</span>
+                <img class="form-brand-mark" src="favicon.png" alt="wisp cloud" />
+            </div>
+
             <div class="login-head">
                 <h1>Bem-vindo de volta</h1>
                 <p>Entre com suas credenciais para acessar sua conta</p>
@@ -107,11 +107,11 @@
     // Each sector shown with its matching Lucide icon over an on-theme gradient.
     private readonly Slide[] _slides =
     {
-        new("Varejo",      "Varejo conectado",      "Do PDV ao e-commerce, uma visão única de cada venda.",          "store",   "linear-gradient(135deg, #4f46e5, #7c3aed)"),
-        new("Indústria",   "Indústria 4.0",         "Chão de fábrica integrado, produção monitorada em tempo real.", "factory", "linear-gradient(135deg, #334155, #0f172a)"),
-        new("Logística",   "Logística inteligente", "Estoque, expedição e frete orquestrados de ponta a ponta.",     "truck",   "linear-gradient(135deg, #0d9488, #0891b2)"),
-        new("Tecnologia",  "Plataforma em nuvem",   "Dados seguros e escaláveis para toda a operação.",              "cpu",     "linear-gradient(135deg, #2563eb, #1e3a8a)"),
-        new("Agronegócio", "Do campo ao mercado",   "Rastreabilidade e gestão para toda a cadeia produtiva.",        "sprout",  "linear-gradient(135deg, #16a34a, #065f46)"),
+        new("Varejo",      "Varejo conectado",      "Do PDV ao e-commerce, uma visão única de cada venda.",          "store",   "linear-gradient(135deg, #1673E6, #3AAAFF)"),
+        new("Indústria",   "Indústria 4.0",         "Chão de fábrica integrado, produção monitorada em tempo real.", "factory", "linear-gradient(135deg, #1673E6, #3AAAFF)"),
+        new("Logística",   "Logística inteligente", "Estoque, expedição e frete orquestrados de ponta a ponta.",     "truck",   "linear-gradient(135deg, #1673E6, #3AAAFF)"),
+        new("Tecnologia",  "Plataforma em nuvem",   "Dados seguros e escaláveis para toda a operação.",              "cloudy",     "linear-gradient(135deg, #1673E6, #3AAAFF)"),
+        new("Têxtil", "Têxtil sob medida", "Da malha ao acabamento, produção sob controle total.", "shirt", "linear-gradient(135deg, #1673E6, #3AAAFF)"),
     };
 
     private static readonly RenderFragment WispMark =

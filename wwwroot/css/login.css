@@ -158,6 +158,73 @@
     gap: 1.5rem;
 }
 
+/* Alterna entre o wordmark "wisp cloud" e a logo a cada 10s (ciclo de 20s).
+   Os dois ficam empilhados no mesmo lugar; só a opacidade cruza. */
+.form-brand {
+    position: relative;
+    align-self: center;
+    width: 100%;
+    height: 8rem;
+}
+
+.form-brand-text,
+.form-brand-mark {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.form-brand-text {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 2.5rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    background: linear-gradient(120deg, #227FFF, #3AAAFF, #227FFF);
+    background-size: 200% auto;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation:
+        brand-alt-text 20s ease-in-out infinite,
+        brand-shimmer 5s linear infinite;
+}
+
+.form-brand-mark {
+    height: 12rem;
+    width: 12rem;
+    object-fit: contain;
+    filter: drop-shadow(0 6px 22px rgba(34, 127, 255, 0.28));
+    opacity: 0;
+    animation: brand-alt-mark 20s ease-in-out infinite;
+}
+
+/* Texto visível na 1ª metade (0–10s), logo na 2ª metade (10–20s). */
+@keyframes brand-alt-text {
+    0%, 45%   { opacity: 1; }
+    50%, 95%  { opacity: 0; }
+    100%      { opacity: 1; }
+}
+
+@keyframes brand-alt-mark {
+    0%, 45%   { opacity: 0; }
+    50%, 95%  { opacity: 1; }
+    100%      { opacity: 0; }
+}
+
+@keyframes brand-shimmer {
+    to { background-position: 200% center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .form-brand-text { animation: none; opacity: 1; }
+    .form-brand-mark { animation: none; opacity: 0; }
+}
+
 .login-head h1 {
     font-size: 1.5rem;
     font-weight: 700;

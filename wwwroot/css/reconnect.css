@@ -1,0 +1,141 @@
+/* Reconnect modal — CSS GLOBAL (não-scoped) para funcionar junto com os
+   componentes BlazorBlueprint (BbAlert/BbButton) renderizados dentro do dialog.
+   Os ids e as classes "components-reconnect-*" são exigidos pelo runtime do
+   Blazor / pelo ReconnectModal.razor.js — não renomear. */
+
+/* Todos os blocos de estado começam escondidos */
+.components-reconnect-first-attempt-visible,
+.components-reconnect-repeated-attempt-visible,
+.components-reconnect-failed-visible,
+.components-pause-visible,
+.components-resume-failed-visible,
+.components-rejoining-animation {
+    display: none;
+}
+
+/* O Blazor liga uma classe de estado no dialog; mostramos o bloco correspondente */
+#components-reconnect-modal.components-reconnect-show .components-reconnect-first-attempt-visible,
+#components-reconnect-modal.components-reconnect-show .components-rejoining-animation,
+#components-reconnect-modal.components-reconnect-retrying .components-reconnect-repeated-attempt-visible,
+#components-reconnect-modal.components-reconnect-retrying .components-rejoining-animation,
+#components-reconnect-modal.components-reconnect-paused .components-pause-visible,
+#components-reconnect-modal.components-reconnect-resume-failed .components-resume-failed-visible,
+#components-reconnect-modal.components-reconnect-failed .components-reconnect-failed-visible {
+    display: flex;
+}
+
+/* ---- Dialog ---- */
+#components-reconnect-modal {
+    width: min(22rem, calc(100vw - 2rem));
+    margin: 20vh auto;
+    padding: 1.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background-color: var(--card);
+    color: var(--foreground);
+    box-shadow: 0 10px 30px -6px rgba(2, 6, 23, 0.35);
+    opacity: 0;
+    transition: display 0.4s allow-discrete, overlay 0.4s allow-discrete;
+    animation: components-reconnect-modal-fadeOut 0.4s both;
+}
+
+#components-reconnect-modal[open] {
+    animation:
+        components-reconnect-modal-slideUp 1.2s cubic-bezier(.05, .89, .25, 1.02) 0.2s,
+        components-reconnect-modal-fadeIn 0.4s ease-in-out 0.2s;
+    animation-fill-mode: both;
+}
+
+#components-reconnect-modal::backdrop {
+    background-color: rgba(2, 6, 23, 0.55);
+    backdrop-filter: blur(2px);
+    animation: components-reconnect-modal-fadeIn 0.4s ease-in-out;
+    opacity: 1;
+}
+
+/* ---- Conteúdo ---- */
+.components-reconnect-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.reconnect-block {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    text-align: center;
+}
+
+
+.reconnect-title {
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.975rem;
+    color: var(--foreground);
+}
+
+.reconnect-muted {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--muted-foreground);
+}
+
+#components-seconds-to-next-attempt {
+    font-weight: 700;
+    color: var(--brand-500);
+}
+
+/* ---- Ripple de "reconectando" no azul da marca ---- */
+.components-rejoining-animation {
+    position: relative;
+    width: 72px;
+    height: 72px;
+}
+
+.components-rejoining-animation div {
+    position: absolute;
+    box-sizing: border-box;
+    border: 3px solid var(--brand-500);
+    border-radius: 50%;
+    opacity: 1;
+    animation: components-rejoining-animation 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+.components-rejoining-animation div:nth-child(2) {
+    animation-delay: -0.5s;
+}
+
+/* ---- Keyframes ---- */
+@keyframes components-rejoining-animation {
+    0%   { top: 36px; left: 36px; width: 0; height: 0; opacity: 0; }
+    4.9% { top: 36px; left: 36px; width: 0; height: 0; opacity: 0; }
+    5%   { top: 36px; left: 36px; width: 0; height: 0; opacity: 1; }
+    100% { top: 0; left: 0; width: 72px; height: 72px; opacity: 0; }
+}
+
+@keyframes components-reconnect-modal-slideUp {
+    0%   { transform: translateY(30px) scale(0.97); }
+    100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes components-reconnect-modal-fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes components-reconnect-modal-fadeOut {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #components-reconnect-modal,
+    #components-reconnect-modal[open],
+    #components-reconnect-modal::backdrop,
+    .components-rejoining-animation div {
+        animation-duration: 0.01ms;
+    }
+}

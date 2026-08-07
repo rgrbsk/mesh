@@ -11,4 +11,10 @@
     <PackageReference Include="BlazorBlueprint.Components" Version="3.14.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Model\" />
+    <Folder Include="Repository\" />
+    <Folder Include="Service\" />
+  </ItemGroup>
+
 </Project>

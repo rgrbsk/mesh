@@ -6,24 +6,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <ResourcePreloader />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" />
     <link rel="stylesheet" href="@Assets["css/theme.css"]" />
     <link rel="stylesheet" href="@Assets["_content/BlazorBlueprint.Components/blazorblueprint.css"]" />
     <link rel="stylesheet" href="@Assets["css/login.css"]" />
+    <link rel="stylesheet" href="@Assets["css/reconnect.css"]" />
     <link rel="stylesheet" href="@Assets["css/erp.css"]" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["BlazorBlueprintLogin.styles.css"]" />
     <ImportMap />
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="web-app-manifest-192x192.png" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="manifest" href="site.webmanifest" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <HeadOutlet />
 </head>
 
 <body>
     <Routes />
     <ReconnectModal />
-    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
+    <script>
+        // Reconexão automática contínua: tenta a cada 10s enquanto o modal
+        // (só o alerta) fica visível. Sem botão de "tentar novamente".
+        Blazor.start({
+            circuit: {
+                reconnectionOptions: {
+                    maxRetries: 1000000,
+                    retryIntervalMilliseconds: 10000
+                }
+            }
+        });
+    </script>
 </body>
 
 </html>
