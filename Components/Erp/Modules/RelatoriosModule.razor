@@ -1,0 +1,21 @@
+<div class="h-full overflow-y-auto p-6">
+    <div class="mb-5">
+        <h2 class="text-xl font-semibold tracking-tight">Relatórios</h2>
+        <p class="text-sm text-muted-foreground mt-1">Relatórios gerados e agendados.</p>
+    </div>
+    <div class="grid gap-4 mb-6 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+        <StatCard Label="Gerados no mês" Value="24" />
+        <StatCard Label="Agendados" Value="6" />
+        <StatCard Label="Favoritos" Value="9" />
+    </div>
+    <div class="border border-border rounded-lg overflow-hidden">
+        <table class="erp-table">
+            <thead><tr><th>Relatório</th><th>Período</th><th>Formato</th></tr></thead>
+            <tbody>
+                <tr><td>Vendas por produto</td><td class="text-muted-foreground">Julho/2026</td><td>PDF</td></tr>
+                <tr><td>Curva ABC de clientes</td><td class="text-muted-foreground">Trimestre</td><td>XLSX</td></tr>
+                <tr><td>Posição de estoque</td><td class="text-muted-foreground">04/08/2026</td><td>PDF</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>

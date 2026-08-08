@@ -69,7 +69,6 @@
     border-radius: 0.5rem;
     display: block;
     flex: 0 0 auto;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 .caption {
@@ -183,7 +182,7 @@
     font-size: 2.5rem;
     line-height: 1;
     letter-spacing: -0.02em;
-    background: linear-gradient(120deg, #227FFF, #3AAAFF, #227FFF);
+    background: rgb(0, 0, 0);
     background-size: 200% auto;
     background-clip: text;
     -webkit-background-clip: text;
@@ -223,6 +222,17 @@
 @media (prefers-reduced-motion: reduce) {
     .form-brand-text { animation: none; opacity: 1; }
     .form-brand-mark { animation: none; opacity: 0; }
+}
+
+/* Lema discreto, colado logo abaixo do wordmark/logo. */
+.brand-tagline {
+    margin-top: -2rem;
+    text-align: center;
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    opacity: 0.85;
 }
 
 .login-head h1 {

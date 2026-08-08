@@ -1,0 +1,26 @@
+{
+  "name": "blazorblueprintlogin",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "css": "tailwindcss -i ./wwwroot/css/tailwind.input.css -o ./wwwroot/css/tailwind.css --minify",
+    "css:watch": "tailwindcss -i ./wwwroot/css/tailwind.input.css -o ./wwwroot/css/tailwind.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rgrbsk/wisp.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/rgrbsk/wisp/issues"
+  },
+  "homepage": "https://github.com/rgrbsk/wisp#readme",
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3"
+  }
+}

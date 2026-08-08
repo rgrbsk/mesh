@@ -1,0 +1,22 @@
+<div class="h-full overflow-y-auto p-6">
+    <div class="mb-5">
+        <h2 class="text-xl font-semibold tracking-tight">Financeiro</h2>
+        <p class="text-sm text-muted-foreground mt-1">Contas a pagar e a receber.</p>
+    </div>
+    <div class="grid gap-4 mb-6 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+        <StatCard Label="A receber" Value="R$ 210k" Delta="vence em 30 dias" Up="true" />
+        <StatCard Label="A pagar" Value="R$ 96k" Delta="vence em 30 dias" Up="false" />
+        <StatCard Label="Saldo projetado" Value="R$ 114k" Delta="+R$ 12k no mês" Up="true" />
+    </div>
+    <div class="text-[0.95rem] font-semibold mb-3">Lançamentos</div>
+    <div class="border border-border rounded-lg overflow-hidden">
+        <table class="erp-table">
+            <thead><tr><th>Lançamento</th><th>Vencimento</th><th class="text-right">Valor</th><th>Status</th></tr></thead>
+            <tbody>
+                <tr><td>NF 10432 — Padaria Central</td><td class="text-muted-foreground">10/08/2026</td><td class="text-right tabular-nums">R$ 1.280</td><td><BbBadge Variant="BadgeVariant.Outline">A receber</BbBadge></td></tr>
+                <tr><td>Fornecedor Grãos SA</td><td class="text-muted-foreground">08/08/2026</td><td class="text-right tabular-nums">R$ 4.500</td><td><BbBadge Variant="BadgeVariant.Secondary">A pagar</BbBadge></td></tr>
+                <tr><td>NF 10430 — Bom Sabor</td><td class="text-muted-foreground">05/08/2026</td><td class="text-right tabular-nums">R$ 2.115</td><td><BbBadge Variant="BadgeVariant.Default">Recebido</BbBadge></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,26 @@
+<div class="h-full overflow-y-auto p-6">
+    <div class="mb-5">
+        <h2 class="text-xl font-semibold tracking-tight">Painel</h2>
+        <p class="text-sm text-muted-foreground mt-1">Visão geral da operação de hoje.</p>
+    </div>
+    <div class="grid gap-4 mb-6 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+        <StatCard Label="Vendas hoje" Value="R$ 48.230" Delta="+12,4% vs ontem" Up="true" />
+        <StatCard Label="Pedidos" Value="156" Delta="+8 no dia" Up="true" />
+        <StatCard Label="Clientes ativos" Value="1.204" Delta="estável" Up="true" />
+        <StatCard Label="Ticket médio" Value="R$ 309" Delta="-2,1% vs ontem" Up="false" />
+    </div>
+    <div class="text-[0.95rem] font-semibold mb-3">Pedidos recentes</div>
+    <div class="border border-border rounded-lg overflow-hidden">
+        <table class="erp-table">
+            <thead>
+                <tr><th>#</th><th>Cliente</th><th class="text-right">Valor</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>#10432</td><td>Padaria Central</td><td class="text-right tabular-nums">R$ 1.280</td><td><BbBadge Variant="BadgeVariant.Default">Faturado</BbBadge></td></tr>
+                <tr><td>#10431</td><td>Mercado Silva</td><td class="text-right tabular-nums">R$ 640</td><td><BbBadge Variant="BadgeVariant.Secondary">Em separação</BbBadge></td></tr>
+                <tr><td>#10430</td><td>Restaurante Bom Sabor</td><td class="text-right tabular-nums">R$ 2.115</td><td><BbBadge Variant="BadgeVariant.Default">Faturado</BbBadge></td></tr>
+                <tr><td>#10429</td><td>Lanchonete do Zé</td><td class="text-right tabular-nums">R$ 380</td><td><BbBadge Variant="BadgeVariant.Destructive">Cancelado</BbBadge></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>

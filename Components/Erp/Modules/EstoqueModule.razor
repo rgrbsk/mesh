@@ -1,0 +1,22 @@
+<div class="h-full overflow-y-auto p-6">
+    <div class="mb-5">
+        <h2 class="text-xl font-semibold tracking-tight">Estoque</h2>
+        <p class="text-sm text-muted-foreground mt-1">Posição por depósito e pontos de reposição.</p>
+    </div>
+    <div class="grid gap-4 mb-6 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+        <StatCard Label="Itens em estoque" Value="842" />
+        <StatCard Label="Abaixo do mínimo" Value="17" />
+        <StatCard Label="Valor em estoque" Value="R$ 1,2M" />
+    </div>
+    <div class="border border-border rounded-lg overflow-hidden">
+        <table class="erp-table">
+            <thead><tr><th>Produto</th><th>Depósito</th><th class="text-right">Qtde.</th><th class="text-right">Mínimo</th></tr></thead>
+            <tbody>
+                <tr><td>Café Torrado 1kg</td><td class="text-muted-foreground">Central</td><td class="text-right tabular-nums">340</td><td class="text-right tabular-nums">100</td></tr>
+                <tr><td>Farinha de Trigo 1kg</td><td class="text-muted-foreground">Central</td><td class="text-right tabular-nums">0</td><td class="text-right tabular-nums">80</td></tr>
+                <tr><td>Óleo de Soja 900ml</td><td class="text-muted-foreground">Filial Sul</td><td class="text-right tabular-nums">58</td><td class="text-right tabular-nums">60</td></tr>
+                <tr><td>Açúcar Refinado 5kg</td><td class="text-muted-foreground">Central</td><td class="text-right tabular-nums">120</td><td class="text-right tabular-nums">40</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>

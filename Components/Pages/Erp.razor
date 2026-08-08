@@ -2,72 +2,34 @@
 @rendermode InteractiveServer
 @inject NavigationManager Nav
 
-<PageTitle>wisp · ERP</PageTitle>
+<PageTitle>spectre · ERP</PageTitle>
 
-<div class="erp-shell">
-    <!-- Sidebar -->
-    <aside class="erp-sidebar">
-        <div class="erp-brand">
-            <img src="favicon-main.png" alt="wisp" />
-            <span>wisp</span>
-        </div>
+<div class="flex h-screen overflow-hidden bg-background text-foreground">
+    <ErpSidebar Modules="ErpModules.All" ActiveKey="_activeKey"
+                OnOpen="OpenTab" OnLogout="Logout" />
 
-        <nav class="erp-nav">
-            <div class="erp-nav-section">Operação</div>
-            @foreach (var m in _modules)
-            {
-                <button type="button"
-                        class="erp-nav-item @(m.Key == _activeKey ? "active" : "")"
-                        @onclick="() => OpenTab(m.Key)">
-                    <LucideIcon Name="@m.Icon" Size="18" />
-                    <span>@m.Title</span>
-                </button>
-            }
-        </nav>
+    <div class="flex-1 min-w-0 flex flex-col">
+        <ErpTopbar Title="@(_active?.Title ?? "Área de trabalho")" OpenCount="OpenCount" />
 
-        <div class="erp-sidebar-foot">
-            <BbAvatar>RB</BbAvatar>
-            <div>
-                <div class="erp-user-name">Roger Bie</div>
-                <div class="erp-user-role">Wisp Soluções em Software</div>
-            </div>
-        </div>
-    </aside>
-
-    <!-- Main -->
-    <div class="erp-main">
-        <header class="erp-topbar">
-            <div>
-                <div class="erp-topbar-title">@(_active?.Title ?? "Área de trabalho")</div>
-                <div class="erp-topbar-sub">@OpenCount aba(s) aberta(s)</div>
-            </div>
-            <div class="erp-topbar-actions">
-                <button class="erp-icon-btn" title="Notificações"><LucideIcon Name="bell" Size="18" /></button>
-                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="Logout">
-                    <LucideIcon Name="log-out" Size="16" /> Sair
-                </BbButton>
-            </div>
-        </header>
-
-        <div class="erp-dock-area">
-            <BbDock @ref="_dock" Class="erp-dock" OnPanelClosed="HandlePanelClosed">
+        <div class="flex-1 min-h-0 flex flex-col">
+            <BbDock @ref="_dock" Class="flex-1 min-h-0" OnPanelClosed="HandlePanelClosed">
                 <ChildContent>
                     @* Only opened modules are declared; declarations are never removed
                        (removing one corrupts the dock layout). Closing a tab is tracked
                        in _closed and reopened via OpenPanelAsync. *@
                     @foreach (var key in _declared)
                     {
-                        var m = _modules.First(x => x.Key == key);
+                        var m = ErpModules.Find(key)!;
                         <BbDockPanel Id="@m.Key" Title="@m.Title">
-                            @ModuleBody(m)
+                            <ModuleView ModuleKey="@m.Key" />
                         </BbDockPanel>
                     }
                 </ChildContent>
                 <EmptyContent>
-                    <div class="erp-empty">
+                    <div class="h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
                         <LucideIcon Name="layout-dashboard" Size="40" Color="var(--muted-foreground)" StrokeWidth="1.4" />
-                        <h3>Nenhuma aba aberta</h3>
-                        <p>Escolha um módulo na barra lateral para começar.</p>
+                        <h3 class="text-[0.95rem] font-semibold text-foreground">Nenhuma aba aberta</h3>
+                        <p class="text-sm">Escolha um módulo na barra lateral para começar.</p>
                     </div>
                 </EmptyContent>
             </BbDock>
@@ -76,21 +38,8 @@
 </div>
 
 @code {
-    private record Module(string Key, string Title, string Icon);
-
-    private readonly Module[] _modules =
-    {
-        new("painel",        "Painel",         "layout-dashboard"),
-        new("clientes",      "Clientes",       "users"),
-        new("produtos",      "Produtos",       "package"),
-        new("pedidos",       "Pedidos",        "shopping-cart"),
-        new("estoque",       "Estoque",        "boxes"),
-        new("financeiro",    "Financeiro",     "wallet"),
-        new("relatorios",    "Relatórios",     "file-text"),
-        new("configuracoes", "Configurações",  "settings"),
-    };
-
     private BbDock? _dock;
+
     // Modules that have a panel declared in the dock. Starts on the dashboard,
     // like a fresh browser session. Never shrinks — closing only marks _closed.
     private readonly List<string> _declared = new() { "painel" };
@@ -98,7 +47,7 @@
     private string? _activeKey = "painel";
 
     private int OpenCount => _declared.Count - _closed.Count;
-    private Module? _active => _activeKey is null ? null : _modules.FirstOrDefault(m => m.Key == _activeKey);
+    private ErpModule? _active => _activeKey is null ? null : ErpModules.Find(_activeKey);
 
     private async Task OpenTab(string key)
     {
@@ -127,206 +76,4 @@
     }
 
     private void Logout() => Nav.NavigateTo("/login");
-
-    // ---------- Module content ----------
-    private RenderFragment ModuleBody(Module m) => m.Key switch
-    {
-        "painel"     => PainelBody,
-        "clientes"   => ClientesBody,
-        "produtos"   => ProdutosBody,
-        "pedidos"    => PedidosBody,
-        "estoque"    => EstoqueBody,
-        "financeiro" => FinanceiroBody,
-        "relatorios" => RelatoriosBody,
-        _            => ConfiguracoesBody,
-    };
-
-    private RenderFragment PainelBody => @<div class="mod">
-        <div class="mod-head">
-            <h2>Painel</h2>
-            <p>Visão geral da operação de hoje.</p>
-        </div>
-        <div class="kpi-grid">
-            @Kpi("Vendas hoje", "R$ 48.230", "+12,4% vs ontem", true)
-            @Kpi("Pedidos", "156", "+8 no dia", true)
-            @Kpi("Clientes ativos", "1.204", "estável", true)
-            @Kpi("Ticket médio", "R$ 309", "-2,1% vs ontem", false)
-        </div>
-        <div class="section-title">Pedidos recentes</div>
-        <div class="erp-table-wrap">
-            <table class="erp-table">
-                <thead>
-                    <tr><th>#</th><th>Cliente</th><th class="num">Valor</th><th>Status</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td>#10432</td><td>Padaria Central</td><td class="num">R$ 1.280</td><td><BbBadge Variant="BadgeVariant.Default">Faturado</BbBadge></td></tr>
-                    <tr><td>#10431</td><td>Mercado Silva</td><td class="num">R$ 640</td><td><BbBadge Variant="BadgeVariant.Secondary">Em separação</BbBadge></td></tr>
-                    <tr><td>#10430</td><td>Restaurante Bom Sabor</td><td class="num">R$ 2.115</td><td><BbBadge Variant="BadgeVariant.Default">Faturado</BbBadge></td></tr>
-                    <tr><td>#10429</td><td>Lanchonete do Zé</td><td class="num">R$ 380</td><td><BbBadge Variant="BadgeVariant.Destructive">Cancelado</BbBadge></td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>;
-
-    private RenderFragment ClientesBody => @<div class="mod">
-        <div class="mod-head"><h2>Clientes</h2><p>Cadastro e situação da carteira de clientes.</p></div>
-        <div class="mod-cards">
-            @Summary("Total de clientes", "1.204")
-            @Summary("Novos no mês", "38")
-            @Summary("Inadimplentes", "12")
-        </div>
-        <div class="erp-table-wrap">
-            <table class="erp-table">
-                <thead><tr><th>Nome</th><th>E-mail</th><th>Cidade</th><th>Status</th></tr></thead>
-                <tbody>
-                    <tr><td>Padaria Central</td><td class="muted">contato@padariacentral.com</td><td>Campinas</td><td><BbBadge Variant="BadgeVariant.Default">Ativo</BbBadge></td></tr>
-                    <tr><td>Mercado Silva</td><td class="muted">compras@mercadosilva.com</td><td>São Paulo</td><td><BbBadge Variant="BadgeVariant.Default">Ativo</BbBadge></td></tr>
-                    <tr><td>Restaurante Bom Sabor</td><td class="muted">financeiro@bomsabor.com</td><td>Santos</td><td><BbBadge Variant="BadgeVariant.Outline">Pendente</BbBadge></td></tr>
-                    <tr><td>Lanchonete do Zé</td><td class="muted">ze@lanche.com</td><td>Jundiaí</td><td><BbBadge Variant="BadgeVariant.Destructive">Inadimplente</BbBadge></td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>;
-
-    private RenderFragment ProdutosBody => @<div class="mod">
-        <div class="mod-head"><h2>Produtos</h2><p>Catálogo, preços e disponibilidade.</p></div>
-        <div class="mod-cards">
-            @Summary("SKUs cadastrados", "842")
-            @Summary("Sem estoque", "17")
-            @Summary("Mais vendido", "Café 1kg")
-        </div>
-        <div class="erp-table-wrap">
-            <table class="erp-table">
-                <thead><tr><th>Produto</th><th>SKU</th><th class="num">Preço</th><th class="num">Estoque</th></tr></thead>
-                <tbody>
-                    <tr><td>Café Torrado 1kg</td><td class="muted">CAF-1000</td><td class="num">R$ 32,90</td><td class="num">340</td></tr>
-                    <tr><td>Açúcar Refinado 5kg</td><td class="muted">ACU-5000</td><td class="num">R$ 18,50</td><td class="num">120</td></tr>
-                    <tr><td>Farinha de Trigo 1kg</td><td class="muted">FAR-1000</td><td class="num">R$ 6,20</td><td class="num">0</td></tr>
-                    <tr><td>Óleo de Soja 900ml</td><td class="muted">OLE-0900</td><td class="num">R$ 7,80</td><td class="num">58</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>;
-
-    private RenderFragment PedidosBody => @<div class="mod">
-        <div class="mod-head"><h2>Pedidos</h2><p>Acompanhamento do fluxo de pedidos.</p></div>
-        <div class="mod-cards">
-            @Summary("Em aberto", "23")
-            @Summary("Faturados", "156")
-            @Summary("Cancelados", "4")
-        </div>
-        <div class="erp-table-wrap">
-            <table class="erp-table">
-                <thead><tr><th>#</th><th>Cliente</th><th>Data</th><th>Status</th></tr></thead>
-                <tbody>
-                    <tr><td>#10432</td><td>Padaria Central</td><td class="muted">04/08/2026</td><td><BbBadge Variant="BadgeVariant.Default">Faturado</BbBadge></td></tr>
-                    <tr><td>#10431</td><td>Mercado Silva</td><td class="muted">04/08/2026</td><td><BbBadge Variant="BadgeVariant.Secondary">Em separação</BbBadge></td></tr>
-                    <tr><td>#10428</td><td>Empório Verde</td><td class="muted">03/08/2026</td><td><BbBadge Variant="BadgeVariant.Outline">Aguardando pgto.</BbBadge></td></tr>
-                    <tr><td>#10429</td><td>Lanchonete do Zé</td><td class="muted">03/08/2026</td><td><BbBadge Variant="BadgeVariant.Destructive">Cancelado</BbBadge></td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>;
-
-    private RenderFragment EstoqueBody => @<div class="mod">
-        <div class="mod-head"><h2>Estoque</h2><p>Posição por depósito e pontos de reposição.</p></div>
-        <div class="mod-cards">
-            @Summary("Itens em estoque", "842")
-            @Summary("Abaixo do mínimo", "17")
-            @Summary("Valor em estoque", "R$ 1,2M")
-        </div>
-        <div class="erp-table-wrap">
-            <table class="erp-table">
-                <thead><tr><th>Produto</th><th>Depósito</th><th class="num">Qtde.</th><th class="num">Mínimo</th></tr></thead>
-                <tbody>
-                    <tr><td>Café Torrado 1kg</td><td class="muted">Central</td><td class="num">340</td><td class="num">100</td></tr>
-                    <tr><td>Farinha de Trigo 1kg</td><td class="muted">Central</td><td class="num">0</td><td class="num">80</td></tr>
-                    <tr><td>Óleo de Soja 900ml</td><td class="muted">Filial Sul</td><td class="num">58</td><td class="num">60</td></tr>
-                    <tr><td>Açúcar Refinado 5kg</td><td class="muted">Central</td><td class="num">120</td><td class="num">40</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>;
-
-    private RenderFragment FinanceiroBody => @<div class="mod">
-        <div class="mod-head"><h2>Financeiro</h2><p>Contas a pagar e a receber.</p></div>
-        <div class="kpi-grid">
-            @Kpi("A receber", "R$ 210k", "vence em 30 dias", true)
-            @Kpi("A pagar", "R$ 96k", "vence em 30 dias", false)
-            @Kpi("Saldo projetado", "R$ 114k", "+R$ 12k no mês", true)
-        </div>
-        <div class="section-title">Lançamentos</div>
-        <div class="erp-table-wrap">
-            <table class="erp-table">
-                <thead><tr><th>Lançamento</th><th>Vencimento</th><th class="num">Valor</th><th>Status</th></tr></thead>
-                <tbody>
-                    <tr><td>NF 10432 — Padaria Central</td><td class="muted">10/08/2026</td><td class="num">R$ 1.280</td><td><BbBadge Variant="BadgeVariant.Outline">A receber</BbBadge></td></tr>
-                    <tr><td>Fornecedor Grãos SA</td><td class="muted">08/08/2026</td><td class="num">R$ 4.500</td><td><BbBadge Variant="BadgeVariant.Secondary">A pagar</BbBadge></td></tr>
-                    <tr><td>NF 10430 — Bom Sabor</td><td class="muted">05/08/2026</td><td class="num">R$ 2.115</td><td><BbBadge Variant="BadgeVariant.Default">Recebido</BbBadge></td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>;
-
-    private RenderFragment RelatoriosBody => @<div class="mod">
-        <div class="mod-head"><h2>Relatórios</h2><p>Relatórios gerados e agendados.</p></div>
-        <div class="mod-cards">
-            @Summary("Gerados no mês", "24")
-            @Summary("Agendados", "6")
-            @Summary("Favoritos", "9")
-        </div>
-        <div class="erp-table-wrap">
-            <table class="erp-table">
-                <thead><tr><th>Relatório</th><th>Período</th><th>Formato</th></tr></thead>
-                <tbody>
-                    <tr><td>Vendas por produto</td><td class="muted">Julho/2026</td><td>PDF</td></tr>
-                    <tr><td>Curva ABC de clientes</td><td class="muted">Trimestre</td><td>XLSX</td></tr>
-                    <tr><td>Posição de estoque</td><td class="muted">04/08/2026</td><td>PDF</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>;
-
-    private RenderFragment ConfiguracoesBody => @<div class="mod">
-        <div class="mod-head"><h2>Configurações</h2><p>Preferências da empresa e do sistema.</p></div>
-        <div style="max-width: 30rem; display:flex; flex-direction:column; gap:1rem;">
-            <BbCard>
-                <BbCardHeader>
-                    <BbCardTitle>Dados da empresa</BbCardTitle>
-                    <BbCardDescription>Informações exibidas em documentos e relatórios.</BbCardDescription>
-                </BbCardHeader>
-                <BbCardContent>
-                    <div style="display:flex; flex-direction:column; gap:1rem;">
-                        <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                            <BbLabel For="empresa">Razão social</BbLabel>
-                            <BbInput Id="empresa" Value="wisp Comércio e Distribuição LTDA" />
-                        </div>
-                        <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                            <BbLabel For="cnpj">CNPJ</BbLabel>
-                            <BbInput Id="cnpj" Value="12.345.678/0001-90" />
-                        </div>
-                    </div>
-                </BbCardContent>
-                <BbCardFooter>
-                    <BbButton>Salvar alterações</BbButton>
-                </BbCardFooter>
-            </BbCard>
-        </div>
-    </div>;
-
-    // ---------- small content helpers ----------
-    private RenderFragment Kpi(string label, string value, string delta, bool up) => @<BbCard>
-        <BbCardContent>
-            <div class="kpi-label">@label</div>
-            <div class="kpi-value">@value</div>
-            <div class="kpi-delta @(up ? "up" : "down")">@delta</div>
-        </BbCardContent>
-    </BbCard>;
-
-    private RenderFragment Summary(string label, string value) => @<BbCard>
-        <BbCardContent>
-            <div class="kpi-label">@label</div>
-            <div class="kpi-value">@value</div>
-        </BbCardContent>
-    </BbCard>;
 }

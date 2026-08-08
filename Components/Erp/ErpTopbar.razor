@@ -1,0 +1,20 @@
+@* Topbar: active module title, open-tab count, notifications and the user avatar. *@
+<header class="h-14 flex-none flex items-center gap-4 px-5 border-b border-border">
+    <div>
+        <div class="text-[0.95rem] font-semibold">@Title</div>
+        <div class="text-xs text-muted-foreground">@OpenCount aba(s) aberta(s)</div>
+    </div>
+    <div class="ml-auto flex items-center gap-2">
+        <button class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors" title="Notificações">
+            <LucideIcon Name="bell" Size="18" />
+        </button>
+        <BbAvatar Size="AvatarSize.Small" Class="rounded-lg">
+            <BbAvatarFallback Class="rounded-lg bg-emerald-100 text-emerald-700">RB</BbAvatarFallback>
+        </BbAvatar>
+    </div>
+</header>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public int OpenCount { get; set; }
+}

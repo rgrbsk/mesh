@@ -1,0 +1,22 @@
+<div class="h-full overflow-y-auto p-6">
+    <div class="mb-5">
+        <h2 class="text-xl font-semibold tracking-tight">Produtos</h2>
+        <p class="text-sm text-muted-foreground mt-1">Catálogo, preços e disponibilidade.</p>
+    </div>
+    <div class="grid gap-4 mb-6 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+        <StatCard Label="SKUs cadastrados" Value="842" />
+        <StatCard Label="Sem estoque" Value="17" />
+        <StatCard Label="Mais vendido" Value="Café 1kg" />
+    </div>
+    <div class="border border-border rounded-lg overflow-hidden">
+        <table class="erp-table">
+            <thead><tr><th>Produto</th><th>SKU</th><th class="text-right">Preço</th><th class="text-right">Estoque</th></tr></thead>
+            <tbody>
+                <tr><td>Café Torrado 1kg</td><td class="text-muted-foreground">CAF-1000</td><td class="text-right tabular-nums">R$ 32,90</td><td class="text-right tabular-nums">340</td></tr>
+                <tr><td>Açúcar Refinado 5kg</td><td class="text-muted-foreground">ACU-5000</td><td class="text-right tabular-nums">R$ 18,50</td><td class="text-right tabular-nums">120</td></tr>
+                <tr><td>Farinha de Trigo 1kg</td><td class="text-muted-foreground">FAR-1000</td><td class="text-right tabular-nums">R$ 6,20</td><td class="text-right tabular-nums">0</td></tr>
+                <tr><td>Óleo de Soja 900ml</td><td class="text-muted-foreground">OLE-0900</td><td class="text-right tabular-nums">R$ 7,80</td><td class="text-right tabular-nums">58</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>

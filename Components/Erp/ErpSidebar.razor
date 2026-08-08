@@ -1,0 +1,53 @@
+@* Sidebar / navbar: search, grouped module navigation and logout. *@
+<aside class="w-60 flex-none flex flex-col bg-sidebar border-r border-sidebar-border">
+    <div class="flex-none h-14 px-3 flex items-center border-b border-sidebar-border">
+        <div class="relative w-full">
+            <span class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <LucideIcon Name="sparkle" Size="15" />
+            </span>
+            <input type="text" placeholder="Busca Rápida"
+                   class="w-full h-9 pl-8 pr-2.5 rounded-lg bg-background border border-border text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+        </div>
+    </div>
+
+    <nav class="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-0.5">
+        @foreach (var group in Modules.GroupBy(m => m.Group))
+        {
+            <div class="px-3 pt-3 pb-1 text-[0.7rem] uppercase tracking-wider text-muted-foreground">@group.Key</div>
+            @foreach (var m in group)
+            {
+                var active = m.Key == ActiveKey;
+                <button type="button"
+                        class="relative flex items-center gap-2.5 w-full pl-3 pr-2 py-2 rounded-lg text-sm text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring @(active
+                            ? "bg-brand/10 text-foreground font-medium"
+                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground")"
+                        @onclick="() => OnOpen.InvokeAsync(m.Key)">
+                    @if (active)
+                    {
+                        <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-brand"></span>
+                    }
+                    <LucideIcon Name="@m.Icon" Size="18" />
+                    <span>@m.Title</span>
+                </button>
+            }
+        }
+    </nav>
+
+    <div class="flex-none border-t border-sidebar-border p-3 flex flex-col gap-2.5">
+        <div class="px-1">
+            <div class="text-sm font-medium leading-tight">Roger Bie</div>
+            <div class="text-xs text-muted-foreground">Spectre Soluções em Software</div>
+        </div>
+        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Class="w-full"
+                  OnClick="() => OnLogout.InvokeAsync()">
+            <LucideIcon Name="log-out" Size="16" /> Sair
+        </BbButton>
+    </div>
+</aside>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ErpModule> Modules { get; set; } = Array.Empty<ErpModule>();
+    [Parameter] public string? ActiveKey { get; set; }
+    [Parameter] public EventCallback<string> OnOpen { get; set; }
+    [Parameter] public EventCallback OnLogout { get; set; }
+}

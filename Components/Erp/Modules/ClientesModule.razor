@@ -1,0 +1,22 @@
+<div class="h-full overflow-y-auto p-6">
+    <div class="mb-5">
+        <h2 class="text-xl font-semibold tracking-tight">Clientes</h2>
+        <p class="text-sm text-muted-foreground mt-1">Cadastro e situação da carteira de clientes.</p>
+    </div>
+    <div class="grid gap-4 mb-6 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+        <StatCard Label="Total de clientes" Value="1.204" />
+        <StatCard Label="Novos no mês" Value="38" />
+        <StatCard Label="Inadimplentes" Value="12" />
+    </div>
+    <div class="border border-border rounded-lg overflow-hidden">
+        <table class="erp-table">
+            <thead><tr><th>Nome</th><th>E-mail</th><th>Cidade</th><th>Status</th></tr></thead>
+            <tbody>
+                <tr><td>Padaria Central</td><td class="text-muted-foreground">contato@padariacentral.com</td><td>Campinas</td><td><BbBadge Variant="BadgeVariant.Default">Ativo</BbBadge></td></tr>
+                <tr><td>Mercado Silva</td><td class="text-muted-foreground">compras@mercadosilva.com</td><td>São Paulo</td><td><BbBadge Variant="BadgeVariant.Default">Ativo</BbBadge></td></tr>
+                <tr><td>Restaurante Bom Sabor</td><td class="text-muted-foreground">financeiro@bomsabor.com</td><td>Santos</td><td><BbBadge Variant="BadgeVariant.Outline">Pendente</BbBadge></td></tr>
+                <tr><td>Lanchonete do Zé</td><td class="text-muted-foreground">ze@lanche.com</td><td>Jundiaí</td><td><BbBadge Variant="BadgeVariant.Destructive">Inadimplente</BbBadge></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>

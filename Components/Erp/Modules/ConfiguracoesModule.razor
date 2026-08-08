@@ -1,0 +1,29 @@
+<div class="h-full overflow-y-auto p-6">
+    <div class="mb-5">
+        <h2 class="text-xl font-semibold tracking-tight">Configurações</h2>
+        <p class="text-sm text-muted-foreground mt-1">Preferências da empresa e do sistema.</p>
+    </div>
+    <div class="max-w-[30rem] flex flex-col gap-4">
+        <BbCard>
+            <BbCardHeader>
+                <BbCardTitle>Dados da empresa</BbCardTitle>
+                <BbCardDescription>Informações exibidas em documentos e relatórios.</BbCardDescription>
+            </BbCardHeader>
+            <BbCardContent>
+                <div class="flex flex-col gap-4">
+                    <div class="flex flex-col gap-2">
+                        <BbLabel For="empresa">Razão social</BbLabel>
+                        <BbInput Id="empresa" Value="Spectre Comércio e Distribuição LTDA" />
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <BbLabel For="cnpj">CNPJ</BbLabel>
+                        <BbInput Id="cnpj" Value="12.345.678/0001-90" />
+                    </div>
+                </div>
+            </BbCardContent>
+            <BbCardFooter>
+                <BbButton>Salvar alterações</BbButton>
+            </BbCardFooter>
+        </BbCard>
+    </div>
+</div>

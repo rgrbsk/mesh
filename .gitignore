@@ -63,6 +63,10 @@ secrets.json
 *.pfx
 *.key
 
+# ---------- Node / Tailwind ----------
+node_modules/
+npm-debug.log*
+
 # ---------- OS files ----------
 .DS_Store
 Thumbs.db

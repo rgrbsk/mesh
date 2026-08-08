@@ -4,7 +4,7 @@
 @implements IDisposable
 @inject NavigationManager Nav
 
-<PageTitle>wisp · Entrar</PageTitle>
+<PageTitle>Login - Spectre Cloud</PageTitle>
 
 <div class="login-wrap">
     <!-- Left column - image carousel -->
@@ -43,15 +43,16 @@
     <!-- Right column - form -->
     <main class="login-main">
         <div class="brand-mobile">
-            @WispMark
+            @spectreMark
             <span>wisp</span>
         </div>
 
         <div class="login-form">
             <div class="form-brand">
-                <span class="form-brand-text">wisp cloud</span>
+                <span class="form-brand-text">spectre cloud</span>
                 <img class="form-brand-mark" src="favicon.png" alt="wisp cloud" />
             </div>
+            <p class="brand-tagline">Gestão presente em cada processo</p>
 
             <div class="login-head">
                 <h1>Bem-vindo de volta</h1>
@@ -97,6 +98,10 @@
             <div class="login-foot">
                 Não tem uma conta? <a href="#">Cadastre-se</a>
             </div>
+            
+        </div>
+        <div class="flex h-48 flex-wrap content-end">
+            <BbBadge Variant="BadgeVariant.Outline">Versão 1.0s</BbBadge>
         </div>
     </main>
 </div>
@@ -107,14 +112,14 @@
     // Each sector shown with its matching Lucide icon over an on-theme gradient.
     private readonly Slide[] _slides =
     {
-        new("Varejo",      "Varejo conectado",      "Do PDV ao e-commerce, uma visão única de cada venda.",          "store",   "linear-gradient(135deg, #1673E6, #3AAAFF)"),
-        new("Indústria",   "Indústria 4.0",         "Chão de fábrica integrado, produção monitorada em tempo real.", "factory", "linear-gradient(135deg, #1673E6, #3AAAFF)"),
-        new("Logística",   "Logística inteligente", "Estoque, expedição e frete orquestrados de ponta a ponta.",     "truck",   "linear-gradient(135deg, #1673E6, #3AAAFF)"),
-        new("Tecnologia",  "Plataforma em nuvem",   "Dados seguros e escaláveis para toda a operação.",              "cloudy",     "linear-gradient(135deg, #1673E6, #3AAAFF)"),
-        new("Têxtil", "Têxtil sob medida", "Da malha ao acabamento, produção sob controle total.", "shirt", "linear-gradient(135deg, #1673E6, #3AAAFF)"),
+        new("Varejo",      "Varejo conectado",      "Do PDV ao e-commerce, uma visão única de cada venda.",          "store",   "radial-gradient(130% 130% at 25% 15%, #16233f 0%, #050505 55%, #000 100%)"),
+        new("Indústria",   "Indústria 4.0",         "Chão de fábrica integrado, produção monitorada em tempo real.", "factory", "radial-gradient(130% 130% at 25% 15%, #1a2130 0%, #050505 55%, #000 100%)"),
+        new("Logística",   "Logística inteligente", "Estoque, expedição e frete orquestrados de ponta a ponta.",     "truck",   "radial-gradient(130% 130% at 25% 15%, #102a2a 0%, #050505 55%, #000 100%)"),
+        new("Tecnologia",  "Plataforma em nuvem",   "Dados seguros e escaláveis para toda a operação.",              "cloudy",  "radial-gradient(130% 130% at 25% 15%, #16233f 0%, #050505 55%, #000 100%)"),
+        new("Têxtil",      "Têxtil sob medida",     "Da malha ao acabamento, produção sob controle total.",          "shirt",   "radial-gradient(130% 130% at 25% 15%, #241a33 0%, #050505 55%, #000 100%)"),
     };
 
-    private static readonly RenderFragment WispMark =
+    private static readonly RenderFragment spectreMark =
         @<img class="brand-logo" src="favicon.png" alt="wisp" />;
 
     private int _current;
