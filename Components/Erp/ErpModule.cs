@@ -1,4 +1,4 @@
-namespace BlazorBlueprintLogin.Components.Erp;
+namespace Erp.Components.Erp;
 
 /// <summary>A navigable ERP module: its key, tab title, sidebar icon and section.</summary>
 public record ErpModule(string Key, string Title, string Icon, string Group);

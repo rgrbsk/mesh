@@ -1,0 +1,62 @@
+﻿@page "/login/empresas"
+
+<div class="flex flex-col justify-center items-center h-screen text-center gap-3 ">
+    <BbTypographyH3>Bem vindo, fulano. Qual empresa deseja acessar?</BbTypographyH3>
+    <BbTypographyH4>Você pode alterar a empresa depois.</BbTypographyH4>
+    <BbCard class="bg-white w-full max-w-sm">
+        <BbCardContent class="pt-6">
+            <div class="flex items-center gap-4">
+                <div>
+                    <p class="text-sm text-black font-semibold">Spectre Soluções em Software</p>
+                    <p class="text-sm text-black">53.891.227/0001-30</p>
+                    <div>
+                        <BbBadge Variant="BadgeVariant.Outline" Class="border-transparent text-white bg-linear-to-r from-green-500 via-emerald-500 to-teal-500">Plano Starter</BbBadge>
+                    </div>
+                </div>
+                <BbButton Class="bg-black hover:from-green-600 hover:to-green-700">
+                    Acessar
+                    <LucideIcon Name="log-in" class="h-5 w-5"></LucideIcon>
+                </BbButton>
+            </div>
+        </BbCardContent>
+    </BbCard>
+    <BbCard class="bg-white w-full max-w-sm">
+        <BbCardContent class="pt-6">
+            <div class="flex items-center gap-4">
+                <div>
+                    <p class="text-sm text-black font-semibold">Spectre Soluções em Software</p>
+                    <p class="text-sm text-black">53.891.227/0001-30</p>
+                    <div>
+                        <BbBadge Variant="BadgeVariant.Outline" Class="border-transparent text-white bg-linear-to-r from-purple-400 via-violet-500 to-indigo-600">Plano Premium</BbBadge>
+                    </div>
+                </div>
+                <BbButton Class="bg-black hover:from-green-600 hover:to-green-700">Acessar
+                    <LucideIcon Name="log-in" class="h-5 w-5"></LucideIcon>
+                </BbButton>
+            </div>
+        </BbCardContent>
+    </BbCard>
+    <BbCard class="bg-white w-full max-w-sm">
+        <BbCardContent class="pt-6">
+            <div class="flex items-center gap-4">
+                <div>
+                    <p class="text-sm text-black font-semibold">Spectre Soluções em Software</p>
+                    <p class="text-sm text-black">53.891.227/0001-30</p>
+                    <div>
+                        <BbBadge Variant="BadgeVariant.Outline" Class="border-transparent text-white bg-linear-to-r from-pink-500 via-red-500 to-orange-500">Plano Business</BbBadge>
+                    </div>
+                </div>
+                <BbButton Class="bg-black hover:from-green-600 hover:to-green-700">
+                    Acessar
+                    <LucideIcon Name="log-in" class="h-5 w-5"></LucideIcon>
+                </BbButton>
+            </div>
+        </BbCardContent>
+    </BbCard>
+</div>
+
+
+
+@code {
+
+}

@@ -3,6 +3,9 @@
 @rendermode InteractiveServer
 @implements IDisposable
 @inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ToastService ToastService
+
 
 <PageTitle>Login - Spectre Cloud</PageTitle>
 
@@ -105,6 +108,7 @@
         </div>
     </main>
 </div>
+<BbToastProvider />
 
 @code {
     private record Slide(string Kicker, string Title, string Description, string Icon, string Gradient);
@@ -131,8 +135,17 @@
     private string? _message;
     private bool _loading;
 
+    [SupplyParameterFromQuery] public int? Erro { get; set; }
+
     protected override void OnInitialized()
     {
+        if (Erro == 1)
+        {
+            _message = "E-mail ou senha inválidos.";
+            
+        }
+        
+        
         _timer = new System.Timers.Timer(5000);
         _timer.Elapsed += (_, _) => _ = InvokeAsync(Next);
         _timer.AutoReset = true;
@@ -166,10 +179,9 @@
         _loading = true;
         StateHasChanged();
 
-        // Simulated authentication delay, then into the ERP.
-        await Task.Delay(800);
-
-        Nav.NavigateTo("/home");
+        // POST nativo → /auth/login (escreve o cookie e redireciona pra seleção de empresa).
+        await JS.InvokeVoidAsync("submitLogin", _email, _password);
+        ToastService.Success("Your changes have been saved.", "Success");
     }
 
     public void Dispose()

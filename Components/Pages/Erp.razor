@@ -1,79 +1,23 @@
 @page "/home"
+@page "/home/{ModuleKey}"
+@layout ErpLayout
 @rendermode InteractiveServer
-@inject NavigationManager Nav
 
 <PageTitle>spectre · ERP</PageTitle>
 
-<div class="flex h-screen overflow-hidden bg-background text-foreground">
-    <ErpSidebar Modules="ErpModules.All" ActiveKey="_activeKey"
-                OnOpen="OpenTab" OnLogout="Logout" />
-
-    <div class="flex-1 min-w-0 flex flex-col">
-        <ErpTopbar Title="@(_active?.Title ?? "Área de trabalho")" OpenCount="OpenCount" />
-
-        <div class="flex-1 min-h-0 flex flex-col">
-            <BbDock @ref="_dock" Class="flex-1 min-h-0" OnPanelClosed="HandlePanelClosed">
-                <ChildContent>
-                    @* Only opened modules are declared; declarations are never removed
-                       (removing one corrupts the dock layout). Closing a tab is tracked
-                       in _closed and reopened via OpenPanelAsync. *@
-                    @foreach (var key in _declared)
-                    {
-                        var m = ErpModules.Find(key)!;
-                        <BbDockPanel Id="@m.Key" Title="@m.Title">
-                            <ModuleView ModuleKey="@m.Key" />
-                        </BbDockPanel>
-                    }
-                </ChildContent>
-                <EmptyContent>
-                    <div class="h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                        <LucideIcon Name="layout-dashboard" Size="40" Color="var(--muted-foreground)" StrokeWidth="1.4" />
-                        <h3 class="text-[0.95rem] font-semibold text-foreground">Nenhuma aba aberta</h3>
-                        <p class="text-sm">Escolha um módulo na barra lateral para começar.</p>
-                    </div>
-                </EmptyContent>
-            </BbDock>
-        </div>
-    </div>
-</div>
+<ModuleView ModuleKey="@_activeKey" />
 
 @code {
-    private BbDock? _dock;
+    private const string ModuloPadrao = "painel";
 
-    // Modules that have a panel declared in the dock. Starts on the dashboard,
-    // like a fresh browser session. Never shrinks — closing only marks _closed.
-    private readonly List<string> _declared = new() { "painel" };
-    private readonly HashSet<string> _closed = new();
-    private string? _activeKey = "painel";
+    [Parameter] public string? ModuleKey { get; set; }
 
-    private int OpenCount => _declared.Count - _closed.Count;
-    private ErpModule? _active => _activeKey is null ? null : ErpModules.Find(_activeKey);
+    private string _activeKey = ModuloPadrao;
 
-    private async Task OpenTab(string key)
+    // Chave desconhecida cai no módulo padrão em vez de estourar no render.
+    protected override void OnParametersSet()
     {
-        _activeKey = key;
-
-        if (!_declared.Contains(key))
-        {
-            // First time opening this module — declaring it opens a new tab.
-            _declared.Add(key);
-        }
-        else if (_closed.Remove(key) && _dock is not null)
-        {
-            // Previously closed — reopen it through the dock's own API.
-            await _dock.OpenPanelAsync(key);
-        }
-        // Already open: the sidebar highlight moves; the tab stays put.
+        var chave = ModuleKey ?? ModuloPadrao;
+        _activeKey = ErpModules.Find(chave) is null ? ModuloPadrao : chave;
     }
-
-    private void HandlePanelClosed(string id)
-    {
-        _closed.Add(id);
-        if (_activeKey == id)
-        {
-            _activeKey = _declared.LastOrDefault(k => !_closed.Contains(k));
-        }
-    }
-
-    private void Logout() => Nav.NavigateTo("/login");
 }

@@ -1,0 +1,61 @@
+@* Shell do ERP: sidebar + topbar. Qualquer página que use este layout já nasce
+   dentro do chrome — não replicar esta estrutura dentro de páginas. *@
+@inherits LayoutComponentBase
+@* Aninha no MainLayout: é lá que vivem os portal hosts (BbContainerPortalHost /
+   BbOverlayPortalHost) e o BbToastProvider. Sem isso, nenhum overlay do
+   BlazorBlueprint renderiza — tooltip, calendar, select, dialog. *@
+@layout MainLayout
+@inject NavigationManager Nav
+
+<div class="flex h-screen overflow-hidden bg-background text-foreground">
+    <ErpSidebar Modules="ErpModules.All" ActiveKey="@_activeKey"
+                OnOpen="Navegar" OnLogout="Logout" />
+
+    <div class="flex-1 min-w-0 flex flex-col">
+        <ErpTopbar Title="@_titulo" />
+
+        <div class="flex-1 min-h-0">
+            @Body
+        </div>
+    </div>
+</div>
+
+@code {
+    private const string ModuloPadrao = "painel";
+
+    private string? _activeKey;
+    private string _titulo = "";
+
+    // A rota continua sendo a fonte da verdade: o layout deriva dela o módulo
+    // ativo (destaque da sidebar) e o título da topbar.
+    protected override void OnParametersSet()
+    {
+        var segmentos = new Uri(Nav.Uri).AbsolutePath
+            .Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        if (segmentos.Length > 0 && segmentos[0].Equals("home", StringComparison.OrdinalIgnoreCase))
+        {
+            var chave = segmentos.Length > 1 ? segmentos[1] : ModuloPadrao;
+            var modulo = ErpModules.Find(chave) ?? ErpModules.Find(ModuloPadrao);
+            _activeKey = modulo?.Key;
+            _titulo = modulo?.Title ?? "";
+        }
+        else
+        {
+            // Páginas fora dos módulos: nenhum item da sidebar fica destacado.
+            _activeKey = null;
+            _titulo = TituloDePagina(segmentos.FirstOrDefault());
+        }
+    }
+
+    // Títulos de páginas que não são módulos da sidebar.
+    private static string TituloDePagina(string? rota) => rota switch
+    {
+        "perfil" => "Perfil",
+        _        => "",
+    };
+
+    private void Navegar(string chave) => Nav.NavigateTo($"/home/{chave}");
+
+    private void Logout() => Nav.NavigateTo("/login");
+}
