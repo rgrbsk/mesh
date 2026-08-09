@@ -3,11 +3,11 @@
 @layout ErpLayout
 @rendermode InteractiveServer
 
-<BbTabs DefaultValue="dados">
-    <BbTabsList>
+<BbTabs Class="flex flex-col h-full" DefaultValue="dados">
+    <BbTabsList class="grid w-full grid-cols-3 rounded-none">
         <BbTabsTrigger Value="dados">Dados da Conta</BbTabsTrigger>
-        <BbTabsTrigger Value="analytics">Analytics</BbTabsTrigger>
-        <BbTabsTrigger Value="reports">Reports</BbTabsTrigger>
+        <BbTabsTrigger Value="documentos">Documentos</BbTabsTrigger>
+        <BbTabsTrigger Value="empresas">Empresas</BbTabsTrigger>
     </BbTabsList>
     <BbTabsContent Value="dados" class="grid w-full grid-cols-2 gap-3 p-3 ">
         <BbField>
@@ -97,10 +97,86 @@
             </BbButton>
         </div>
     </BbTabsContent>
+    <BbTabsContent Value="documentos" Class="flex flex-col flex-1 min-h-0">
+        <div class="flex-1 min-h-0 overflow-y-auto">
+            <BbTreeView TItem="FileNode" Items="files"
+                        TextField="@(n => n.Name)"
+                        ValueField="@(n => n.Id)"
+                        ChildrenProperty="@(n => n.Children)"
+                        IconField="@(n => n.Icon)"
+                        SelectionMode="TreeSelectionMode.Single"
+                        @bind-SelectedValue="selected"
+                        DefaultExpandAll="true"
+                        ShowSearch="false" />
+        </div>
+        
+        <div class="shrink-0 px-3 py-3
+            flex items-center justify-end gap-2
+            border-t border-border bg-background/95">
+            <BbButton Variant="ButtonVariant.Destructive" OnClick="Descartar" IconPosition="IconPosition.End">
+                <ChildContent>Remover Documento</ChildContent>
+                <Icon><LucideIcon Name="file-x-corner" Size="16" /></Icon>
+            </BbButton>
+            <BbButton OnClick="Salvar" IconPosition="IconPosition.End">
+                <ChildContent>Fazer Upload de Documento</ChildContent>
+                <Icon><LucideIcon Name="upload" Size="16" /></Icon>
+            </BbButton>
+        </div>
+    </BbTabsContent>
+    <BbTabsContent Value="empresas">
+        <div class="col-1 text-center">
+            <p class="text-sm text-muted-foreground mt-1">Empresas vinculadas ao email </p>
+            <BbLabel For="name" Class="text-base font-semibold py-5">rogerbie50@gmail.com</BbLabel>
+        </div>
+        
+        <BbDataGrid class="p-3 g-3" TData="Employee" Items="@employees" Striped>
+            <Columns>
+                <BbDataGridPropertyColumn Property="@(e => e.Name)" Sortable Filterable />
+                <BbDataGridPropertyColumn Property="@(e => e.Department)" Sortable Filterable />
+                <BbDataGridPropertyColumn Property="@(e => e.Email)" Filterable />
+                <BbDataGridPropertyColumn Property="@(e => e.Salary)" Format="C0" Sortable />
+            </Columns>
+        </BbDataGrid>
+    </BbTabsContent>
 </BbTabs>
 
 @code {
+    private string? selected;
+
+    private record FileNode(string Id, string Name, string? Icon = null,
+    List<FileNode>? Children = null);
     private string? selectedColor;
+    private record Employee(string Name, string Department, string Email, decimal Salary);
+
+    private List<Employee> employees = new()
+    {
+        new("Alice Smith", "Engineering", "alice@example.com", 95000),
+        new("Bob Jones", "Marketing", "bob@example.com", 78000),
+        new("Carol White", "Engineering", "carol@example.com", 102000),
+        new("Dave Brown", "Sales", "dave@example.com", 85000),
+        new("Eve Davis", "Marketing", "eve@example.com", 72000),
+    };
+    private List<FileNode> files = new()
+    {
+        new("documentos", "Documentos do Usuário", "folder", new()
+        {
+            new("empresarial", "Documentos Empresariais", "folder", new()
+            {
+                new("contrato", "Contrato", "file-text"),
+                new("exames", "Exames", "file-text")
+            }),
+            new("pessoal", "Documentos Pessoais", "folder", new()
+            {
+                new("home", "Carteira de Trabalho", "file-text"),
+                new("about", "Identidade", "file-text")
+            }),
+            new("favoritos", "Arquivos marcados como 'Favorito'", "folder-heart", new()
+            {
+                new("home", "Foto 3x4", "image"),
+                new("about", "Bonificação 03/05", "file-text"),
+            })
+        }),
+    };
     private List<SelectOption<string>> colorOptions = new()
     {
         new("1", "Ativo"),
