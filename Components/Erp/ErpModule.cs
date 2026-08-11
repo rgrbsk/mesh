@@ -8,14 +8,15 @@ public static class ErpModules
 {
     public static readonly IReadOnlyList<ErpModule> All = new List<ErpModule>
     {
-        new("painel",        "Painel",        "layout-dashboard", "Geral"),
-        new("clientes",      "Clientes",      "users",            "Comercial"),
+        new("painel",        "Painel",        "chart-no-axes-combined", "Geral"),
+        new("clientes",      "Fornecedores",      "users",            "Comercial"),
         new("produtos",      "Produtos",      "package",          "Comercial"),
-        new("pedidos",       "Pedidos",       "shopping-cart",    "Comercial"),
-        new("estoque",       "Estoque",       "boxes",            "Operações"),
+        new("pedidos",       "Solicit. de Compra",       "shopping-cart",    "Comercial"),
+        new("estoque",       "Estoque",       "list",            "Operações"),
         new("financeiro",    "Financeiro",    "wallet",           "Gestão"),
         new("relatorios",    "Relatórios",    "file-text",        "Gestão"),
-        new("configuracoes", "Configurações", "settings",         "Sistema"),
+        new("configuracoes", "Auditoria", "footprints",         "Sistema"),
+        new("configuracoes", "Permissões", "user-key",         "Sistema")
     };
 
     public static ErpModule? Find(string key) => All.FirstOrDefault(m => m.Key == key);

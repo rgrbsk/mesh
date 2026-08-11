@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Erp.Components;
 using Erp.Data;
+using Erp.Localization;
 using Erp.Data.Interceptor;
 using Erp.Service.Tenancy;
 using BlazorBlueprint.Components;
@@ -22,7 +23,8 @@ builder.Configuration.AddJsonFile("appsettings.Development.local.json",
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddBlazorBlueprintComponents();
+// Localização pt-BR de todas as strings de UI do BlazorBlueprint (filtros, grid, etc.).
+builder.Services.AddBlazorBlueprintComponents(BbLocalizationPtBr.Configure);
 
 // Multitenancy: provider do tenant (scoped ao request/circuito), interceptor de
 // RLS e o DbContext apontando pro Postgres.

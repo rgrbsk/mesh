@@ -82,7 +82,7 @@
                                 Mask="(54)9842-51727" />
         <BbSeparator Class="col-span-2 my-2"></BbSeparator>
 
-        <BbRichTextEditor Height="275px" Class="col-span-2 h-full" Placeholder="Digite aqui observações sobre o Usuário." />
+        <BbRichTextEditor Height="275px" Class="col-span-2 h-full" Toolbar="ToolbarPreset.Full" Placeholder="Digite aqui observações sobre o Usuário." />
         @* barra de ações — col-span-2 pra ocupar a linha inteira *@
         <div class="col-span-2 sticky bottom-0 -mx-3 -mb-3 mt-2 px-3 py-3
             flex items-center justify-end gap-2
@@ -116,6 +116,10 @@
             <BbButton Variant="ButtonVariant.Destructive" OnClick="Descartar" IconPosition="IconPosition.End">
                 <ChildContent>Remover Documento</ChildContent>
                 <Icon><LucideIcon Name="file-x-corner" Size="16" /></Icon>
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Outline" OnClick="Salvar" IconPosition="IconPosition.End">
+                <ChildContent>Visualizar Conteúdo</ChildContent>
+                <Icon><LucideIcon Name="file-search-corner" Size="16" /></Icon>
             </BbButton>
             <BbButton OnClick="Salvar" IconPosition="IconPosition.End">
                 <ChildContent>Fazer Upload de Documento</ChildContent>
