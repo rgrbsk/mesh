@@ -166,7 +166,7 @@
         StateHasChanged();
     }
 
-    private async Task HandleSignIn()
+    private void HandleSignIn()
     {
         _message = null;
 
@@ -176,12 +176,8 @@
             return;
         }
 
-        _loading = true;
-        StateHasChanged();
-
-        // POST nativo → /auth/login (escreve o cookie e redireciona pra seleção de empresa).
-        await JS.InvokeVoidAsync("submitLogin", _email, _password);
-        ToastService.Success("Your changes have been saved.", "Success");
+        // TODO: plugar a autenticação (ASP.NET Authorization) aqui.
+        _message = "Autenticação ainda não configurada.";
     }
 
     public void Dispose()

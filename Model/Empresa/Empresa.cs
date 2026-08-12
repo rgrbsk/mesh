@@ -1,9 +1,5 @@
 namespace Erp.Model.Empresa
 {
-    /// <summary>
-    /// Raiz do tenant. NÃO implementa <see cref="ITenantEntity"/> — ela É o tenant;
-    /// as demais entidades referenciam esta via <c>TenantId</c>.
-    /// </summary>
     public class Empresa
     {
         public Guid Id { get; set; } = Guid.CreateVersion7();
