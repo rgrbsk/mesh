@@ -1,0 +1,49 @@
+using Erp.Model.Acesso;
+using System.Security.Claims;
+// Um using por pasta de módulo — é o ÚNICO lugar que referencia os componentes
+// de conteúdo (via typeof). Adicionar módulo = criar a pasta + o using aqui.
+using Erp.Components.Modules.Painel;
+using Erp.Components.Modules.Clientes;
+using Erp.Components.Modules.Pedidos;
+using Erp.Components.Modules.Estoque;
+using Erp.Components.Modules.Financeiro;
+using Erp.Components.Modules.Relatorios;
+using Erp.Components.Modules.Configuracoes;
+using Erp.Components.Modules;
+
+namespace Erp.Components.Shell;
+
+/// <summary>Um módulo navegável: chave, título, ícone, seção, permissão exigida
+/// e o componente de conteúdo que ele abre.</summary>
+public record Modulo(
+    string Key, string Title, string Icon, string Group, string? Permissao, Type Componente);
+
+/// <summary>Fonte ÚNICA dos módulos (sidebar + conteúdo).
+/// Adicionar um módulo = UMA linha aqui. A página Home renderiza o conteúdo via
+/// &lt;DynamicComponent&gt; a partir do Componente — sem switch pra manter em paralelo.</summary>
+public static class Modulos
+{
+    /// <summary>Módulo em que a aplicação abre ao entrar em /home sem chave.</summary>
+    public const string Padrao = "inicio";
+
+    public static readonly IReadOnlyList<Modulo> All = new List<Modulo>
+    {
+        //     Key            Título                 Ícone                     Grupo        Permissão                  Componente
+        new("painel",      "Painel",             "chart-no-axes-combined", "Geral",     null,                      typeof(PainelModule)),
+        new("fornecedores","Fornecedores",       "users",                  "Comercial", Permissoes.FornecedorVer,  typeof(ClientesModule)),
+        new("compras",     "Solicit. de Compra", "shopping-cart",          "Comercial", Permissoes.ComprasVer,     typeof(PedidosModule)),
+        new("estoque",     "Estoque",            "list",                   "Operações", Permissoes.EstoqueVer,     typeof(EstoqueModule)),
+        new("financeiro",  "Financeiro",         "wallet",                 "Gestão",    null,                      typeof(FinanceiroModule)),
+        new("relatorios",  "Relatórios",         "file-text",              "Gestão",    null,                      typeof(RelatoriosModule)),
+        new("auditoria",   "Auditoria",          "footprints",             "Sistema",   null,                      typeof(ConfiguracoesModule)),
+        new("permissoes",  "Permissões",         "user-key",               "Sistema",   Permissoes.UsuariosGerir,  typeof(ConfiguracoesModule)),
+        new("inicio",  "Início",         "layers",               "Geral",   null,  typeof(Inicio))
+    };
+
+    public static Modulo? Find(string key) => All.FirstOrDefault(m => m.Key == key);
+
+    public static IReadOnlyList<Modulo> BuscarPermissoesDoUsuario(ClaimsPrincipal user) =>
+        All.Where(m => m.Permissao is null
+                    || user.HasClaim(Permissoes.ClaimType, m.Permissao))
+           .ToList();
+}

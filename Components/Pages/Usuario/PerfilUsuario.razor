@@ -1,6 +1,7 @@
 ﻿
 @page "/perfil"
-@layout ErpLayout
+@attribute [Authorize]
+@layout ShellLayout
 @rendermode InteractiveServer
 
 <BbTabs Class="flex flex-col h-full" DefaultValue="dados">

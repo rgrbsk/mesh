@@ -15,6 +15,11 @@ namespace Erp.Data
 
         public DbSet<Erp.Model.Empresa.Empresa> Empresas => Set<Erp.Model.Empresa.Empresa>();
 
+        public DbSet<Erp.Model.Usuario.Usuario> Usuarios => Set<Erp.Model.Usuario.Usuario>();
+
+        public DbSet<Erp.Model.Acesso.Papel> Papeis => Set<Erp.Model.Acesso.Papel>();
+
+
         protected override void OnModelCreating(ModelBuilder mb)
         {
             base.OnModelCreating(mb);

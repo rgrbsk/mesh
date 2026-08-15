@@ -6,7 +6,10 @@
 @using static Microsoft.AspNetCore.Components.Web.RenderMode
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Authorization
 @using global::Erp
+@using global::Erp.Model.Acesso
+@using global::Erp.Service.Acesso
 @using global::Erp.Components
 @using global::Erp.Components.Layout
 @using BlazorBlueprint.Components
@@ -14,5 +17,6 @@
 @using BlazorBlueprint.Primitives.Services
 @using BlazorBlueprint.Icons.Lucide.Components
 @using BlazorBlueprint.Icons.Lucide.Data
-@using global::Erp.Components.Erp
-@using global::Erp.Components.Erp.Modules
+@using global::Erp.Components.Shell
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Identity

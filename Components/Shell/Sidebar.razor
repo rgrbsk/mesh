@@ -1,4 +1,5 @@
-@* Sidebar / navbar: search, grouped module navigation and logout. *@
+@using Microsoft.AspNetCore.Components.Authorization
+
 <aside class="w-60 flex-none flex flex-col bg-sidebar border-r border-sidebar-border">
     <div class="flex-none h-14 px-3 flex items-center border-b border-sidebar-border">
         <div class="relative w-full">
@@ -36,7 +37,7 @@
     <div class="flex-none border-t border-sidebar-border p-3 flex flex-col gap-2.5">
         <div class="px-1">
             <div class="text-sm font-medium leading-tight">Roger Bie</div>
-            <div class="text-xs text-muted-foreground">Spectre Soluções em Software</div>
+            <div class="text-xs text-muted-foreground">Mesh Soluções em Software</div>
         </div>
         <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Class="w-full"
                   OnClick="() => OnLogout.InvokeAsync()">
@@ -46,8 +47,12 @@
 </aside>
 
 @code {
-    [Parameter, EditorRequired] public IReadOnlyList<ErpModule> Modules { get; set; } = Array.Empty<ErpModule>();
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyList<Modulo> Modules { get; set; } = Array.Empty<Modulo>();
     [Parameter] public string? ActiveKey { get; set; }
     [Parameter] public EventCallback<string> OnOpen { get; set; }
     [Parameter] public EventCallback OnLogout { get; set; }
+
+    
+    
 }

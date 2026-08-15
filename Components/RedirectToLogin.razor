@@ -1,0 +1,17 @@
+@inject NavigationManager Navigation
+
+@* Renderizado pelo AuthorizeRouteView (em Routes.razor) quando um usuário não
+   autenticado tenta acessar uma página com [Authorize]. Manda para o /login,
+   guardando a URL de origem em returnUrl para um possível redirect pós-login. *@
+
+@code {
+    protected override void OnInitialized()
+    {
+        var returnUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var destino = string.IsNullOrEmpty(returnUrl)
+            ? "/login"
+            : $"/login?returnUrl={Uri.EscapeDataString(returnUrl)}";
+
+        Navigation.NavigateTo(destino, forceLoad: true);
+    }
+}

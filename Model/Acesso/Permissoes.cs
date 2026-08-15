@@ -1,4 +1,3 @@
-﻿// Model/Acesso/Permissoes.cs
 namespace Erp.Model.Acesso
 {
     public static class Permissoes
@@ -21,5 +20,7 @@ namespace Erp.Model.Acesso
             FornecedorVer, FornecedorEditar,
             UsuariosGerir,
         ];
+
+        
     }
 }

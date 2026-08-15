@@ -2,6 +2,16 @@
    so it does not depend on Tailwind utilities being present in the
    purged blazorblueprint.css build. */
 
+/* Login estático: apenas o formulário, centralizado na tela, sem card. */
+.login-center {
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.5rem;
+    background-color: var(--background);
+}
+
 .login-wrap {
     display: grid;
     grid-template-columns: 1fr;
@@ -197,7 +207,6 @@
     height: 12rem;
     width: 12rem;
     object-fit: contain;
-    filter: drop-shadow(0 6px 22px rgba(34, 127, 255, 0.28));
     opacity: 0;
     animation: brand-alt-mark 20s ease-in-out infinite;
 }

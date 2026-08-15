@@ -4,15 +4,18 @@
 @* Aninha no MainLayout: é lá que vivem os portal hosts (BbContainerPortalHost /
    BbOverlayPortalHost) e o BbToastProvider. Sem isso, nenhum overlay do
    BlazorBlueprint renderiza — tooltip, calendar, select, dialog. *@
+@using Microsoft.AspNetCore.Components.Authorization
 @layout MainLayout
 @inject NavigationManager Nav
 
 <div class="flex h-screen overflow-hidden bg-background text-foreground">
-    <ErpSidebar Modules="ErpModules.All" ActiveKey="@_activeKey"
-                OnOpen="Navegar" OnLogout="Logout" />
+    <Sidebar Modules="_modulos"
+             ActiveKey="_activeKey"
+             OnOpen="Navegar"
+             OnLogout="Logout" />
 
     <div class="flex-1 min-w-0 flex flex-col">
-        <ErpTopbar Title="@_titulo" />
+        <Topbar Title="@_titulo" />
 
         <div class="flex-1 min-h-0">
             @Body
@@ -21,13 +24,17 @@
 </div>
 
 @code {
-    private const string ModuloPadrao = "painel";
-
     private string? _activeKey;
     private string _titulo = "";
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
 
-    // A rota continua sendo a fonte da verdade: o layout deriva dela o módulo
-    // ativo (destaque da sidebar) e o título da topbar.
+    private IReadOnlyList<Modulo> _modulos = Array.Empty<Modulo>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        _modulos = Modulos.BuscarPermissoesDoUsuario(user);
+    }
     protected override void OnParametersSet()
     {
         var segmentos = new Uri(Nav.Uri).AbsolutePath
@@ -35,8 +42,8 @@
 
         if (segmentos.Length > 0 && segmentos[0].Equals("home", StringComparison.OrdinalIgnoreCase))
         {
-            var chave = segmentos.Length > 1 ? segmentos[1] : ModuloPadrao;
-            var modulo = ErpModules.Find(chave) ?? ErpModules.Find(ModuloPadrao);
+            var chave = segmentos.Length > 1 ? segmentos[1] : Modulos.Padrao;
+            var modulo = Modulos.Find(chave) ?? Modulos.Find(Modulos.Padrao);
             _activeKey = modulo?.Key;
             _titulo = modulo?.Title ?? "";
         }

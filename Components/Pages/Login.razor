@@ -1,0 +1,71 @@
+
+
+@page "/"
+@page "/login"
+@attribute [AllowAnonymous]
+@* Página estática (sem render mode): apenas SSR. O login é um POST HTML real
+   para /auth/login — o cookie de autenticação precisa sair na resposta HTTP,
+   o que não é possível de dentro do circuito interativo.
+   [AllowAnonymous] é essencial: o /login NÃO pode exigir autenticação, senão o
+   redirect do cookie cai em loop infinito (/login?ReturnUrl=/login?...). *@
+<PageTitle>Inicial - Mesh Cloud</PageTitle>
+
+<div class="login-center">
+    <div class="login-form">
+        <div class="form-brand">
+            <span class="form-brand-text">mesh cloud</span>
+            <img class="form-brand-mark" src="favicon.png" alt="mesh cloud" />
+        </div>
+        <p class="brand-tagline">Gestão presente em cada processo</p>
+
+        <div class="login-head">
+            <h1>Bem-vindo de volta</h1>
+            <p>Entre com suas credenciais para acessar sua conta</p>
+        </div>
+
+        <form method="post" action="/auth/login" class="login-body">
+            <AntiforgeryToken />
+
+            <div class="field">
+                <BbLabel For="email">E-mail</BbLabel>
+                <BbInput Id="email" Name="email" Type="InputType.Email" Placeholder="nome@exemplo.com" Required="true" />
+            </div>
+
+            <div class="field">
+                <BbLabel For="senha">Senha</BbLabel>
+                <BbInput Id="senha" Name="senha" Type="InputType.Password" Required="true" />
+            </div>
+
+            <div class="row-between">
+                <label class="checkbox-row">
+                    <input type="checkbox" name="lembrar" value="true" />
+                    <span>Lembrar de mim</span>
+                </label>
+                <a href="#" class="link-muted">Esqueceu a senha?</a>
+            </div>
+
+            @if (Erro == 1)
+            {
+                <p class="error-text text-center">E-mail ou senha inválidos.</p>
+            }
+
+            <button HtmlType="submit" Class="w-full bg-black text-white rounded px-3 py-2 cursor-pointer">Entrar</button>
+        </form>
+
+        <div class="divider">Ou continue com</div>
+
+        <div class="oauth-grid">
+            <BbButton Variant="ButtonVariant.Outline">Google</BbButton>
+            <BbButton Variant="ButtonVariant.Outline">GitHub</BbButton>
+        </div>
+
+        <div class="login-foot">
+            Não tem uma conta? <a href="#">Cadastre-se</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "erro")] public int? Erro { get; set; }
+    private bool erroLogin { get; set; } = false;
+}

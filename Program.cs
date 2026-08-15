@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Components.Server;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -83,7 +84,8 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 
 // HTTPS redirect is only enforced outside Development. In local dev the app is
 // served over http, and redirecting the Blazor SignalR negotiate to the https
-// port makes it cross-origin and breaks the interactive circuit (CORS).
+// port makes it cross-origin and breaks the interactive circuit (CORS) — além de
+// disparar erro de SSL no navegador quando o cert de dev não é confiável (Firefox).
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
@@ -91,7 +93,32 @@ if (!app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
+// Login: valida credenciais e emite o cookie na RESPOSTA HTTP (não dá pra fazer
+// isso dentro do circuito interativo — por isso a tela de login é estática e posta aqui).
+app.MapPost("/auth/login", async (
+    [FromForm] string email,
+    [FromForm] string senha,
+    [FromForm] bool? lembrar,
+    UserManager<Usuario> users,
+    SignInManager<Usuario> signIn) =>
+{
+    var user = await users.FindByEmailAsync(email);
+    if (user is null)
+        return Results.Redirect("/login?erro=1");
 
+    var result = await signIn.PasswordSignInAsync(
+        user, senha, isPersistent: lembrar ?? false, lockoutOnFailure: true);
+
+    return result.Succeeded
+        ? Results.Redirect("/home")
+        : Results.Redirect("/login?erro=1");
+});
+
+app.MapPost("/auth/logout", async (SignInManager<Usuario> signIn) =>
+{
+    await signIn.SignOutAsync();
+    return Results.Redirect("/login");
+});
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

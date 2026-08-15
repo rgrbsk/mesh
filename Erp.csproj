@@ -28,7 +28,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Repository\" />
+    <Folder Include="Migrations\" />
   </ItemGroup>
 
   <!-- Regenerate the Tailwind CSS on build (skipped if npm deps aren't installed). -->
