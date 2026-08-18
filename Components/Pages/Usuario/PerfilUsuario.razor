@@ -153,11 +153,6 @@
     private string? selectedColor;
     private record Employee(string Name, string Department, string Email, decimal Salary);
 
-    protected override Task OnInitializedAsync()
-    {
-        var user = AuthState
-    }
-
     private List<Employee> employees = new()
     {
         new("Alice Smith", "Engineering", "alice@example.com", 95000),

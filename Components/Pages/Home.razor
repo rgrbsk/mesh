@@ -3,6 +3,7 @@
 @* @attribute [Authorize] *@
 @layout ShellLayout
 @rendermode InteractiveServer
+@inject NavigationManager Nav
 
 <PageTitle>mesh · ERP</PageTitle>
 
@@ -12,6 +13,14 @@
 
 @code {
     [Parameter] public string? ModuleKey { get; set; }
+
+    // /home cru → redireciona para /home/{padrão} pra a URL sempre ter uma chave
+    // (assim a aba correspondente fica destacada no menu).
+    protected override void OnParametersSet()
+    {
+        if (string.IsNullOrEmpty(ModuleKey))
+            Nav.NavigateTo($"/home/{Modulos.Padrao}", replace: true);
+    }
 
     private Type Tipo =>
         (Modulos.Find(ModuleKey ?? Modulos.Padrao) ?? Modulos.Find(Modulos.Padrao))!.Componente;

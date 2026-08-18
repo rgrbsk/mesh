@@ -16,7 +16,7 @@ namespace Erp.Components.Shell;
 /// <summary>Um módulo navegável: chave, título, ícone, seção, permissão exigida
 /// e o componente de conteúdo que ele abre.</summary>
 public record Modulo(
-    string Key, string Title, string Icon, string Group, string? Permissao, Type Componente);
+    string Key, string Title, string Icon, string Group, string? Permissao, Type Componente, string? Cor);
 
 /// <summary>Fonte ÚNICA dos módulos (sidebar + conteúdo).
 /// Adicionar um módulo = UMA linha aqui. A página Home renderiza o conteúdo via
@@ -29,15 +29,15 @@ public static class Modulos
     public static readonly IReadOnlyList<Modulo> All = new List<Modulo>
     {
         //     Key            Título                 Ícone                     Grupo        Permissão                  Componente
-        new("painel",      "Painel",             "chart-no-axes-combined", "Geral",     null,                      typeof(PainelModule)),
-        new("fornecedores","Fornecedores",       "users",                  "Comercial", Permissoes.FornecedorVer,  typeof(ClientesModule)),
-        new("compras",     "Solicit. de Compra", "shopping-cart",          "Comercial", Permissoes.ComprasVer,     typeof(PedidosModule)),
-        new("estoque",     "Estoque",            "list",                   "Operações", Permissoes.EstoqueVer,     typeof(EstoqueModule)),
-        new("financeiro",  "Financeiro",         "wallet",                 "Gestão",    null,                      typeof(FinanceiroModule)),
-        new("relatorios",  "Relatórios",         "file-text",              "Gestão",    null,                      typeof(RelatoriosModule)),
-        new("auditoria",   "Auditoria",          "footprints",             "Sistema",   null,                      typeof(ConfiguracoesModule)),
-        new("permissoes",  "Permissões",         "user-key",               "Sistema",   Permissoes.UsuariosGerir,  typeof(ConfiguracoesModule)),
-        new("inicio",  "Início",         "layers",               "Geral",   null,  typeof(Inicio))
+        new("painel",      "Painel",             "chart-no-axes-combined", "Geral",     null,                      typeof(PainelModule),"#C51E3A"),
+        new("fornecedores","Fornecedores",       "users",                  "Comercial", Permissoes.FornecedorVer,  typeof(ClientesModule), "#ADFF2F"),
+        new("compras",     "Solicit. de Compra", "shopping-cart",          "Comercial", Permissoes.ComprasVer,     typeof(PedidosModule), "#89CFF0"),
+        new("estoque",     "Estoque",            "list",                   "Operações", Permissoes.EstoqueVer,     typeof(EstoqueModule), "#B284BE"),
+        new("financeiro",  "Financeiro",         "wallet",                 "Gestão",    null,                      typeof(FinanceiroModule), "#4F7942"),
+        new("relatorios",  "Relatórios",         "file-text",              "Gestão",    null,                      typeof(RelatoriosModule),  "#DE3163"),
+        new("auditoria",   "Auditoria",          "footprints",             "Sistema",   null,                      typeof(ConfiguracoesModule), "#FF4F00"),
+        new("permissoes",  "Permissões",         "user-key",               "Sistema",   Permissoes.UsuariosGerir,  typeof(ConfiguracoesModule), "#FCF75E"),
+        new("inicio",  "Início",         "layers",               "Geral",   null,  typeof(Inicio),"#007FFF" )
     };
 
     public static Modulo? Find(string key) => All.FirstOrDefault(m => m.Key == key);

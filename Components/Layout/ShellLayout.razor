@@ -8,18 +8,11 @@
 @layout MainLayout
 @inject NavigationManager Nav
 
-<div class="flex h-screen overflow-hidden bg-background text-foreground">
-    <Sidebar Modules="_modulos"
-             ActiveKey="_activeKey"
-             OnOpen="Navegar"
-             OnLogout="Logout" />
+<div class="flex flex-col h-screen overflow-hidden bg-background text-foreground">
+    <Topbar Modules="_modulos" OnLogout="Logout" />
 
-    <div class="flex-1 min-w-0 flex flex-col">
-        <Topbar Title="@_titulo" />
-
-        <div class="flex-1 min-h-0">
-            @Body
-        </div>
+    <div class="flex-1 min-h-0 overflow-auto">
+        @Body
     </div>
 </div>
 

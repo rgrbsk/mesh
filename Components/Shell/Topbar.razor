@@ -1,46 +1,93 @@
-@layout MainLayout
 @inject NavigationManager Nav
-@* Topbar: active module title, open-tab count, notifications and the user avatar. *@
-<header class="h-14 flex-none flex items-center gap-4 px-5 border-b border-border">
-    <div>
-        <div class="text-[0.95rem] font-semibold">@Title</div>
+
+@* Navegação horizontal estilo Pipefy, em DUAS linhas:
+   1) marca + workspace + ações do usuário
+   2) abas de módulos (BbNavigationMenu) com sublinhado no item ativo. *@
+<header class="flex-none border-b border-border bg-background">
+
+    @* ---------- Linha 1: marca + workspace + ações ---------- *@
+    <div class="h-12 flex items-center gap-3 px-4">
+
+        <div class="flex items-center gap-2 flex-none">
+            <img src="favicon.png" alt="mesh" class="h-6 w-6 rounded" />
+            <span class="font-semibold text-[0.95rem] tracking-tight">mesh</span>
+        </div>
+
+        <div class="h-5 w-px bg-border flex-none"></div>
+
+
+        <button type="button"
+                class="flex items-center gap-2 h-8 px-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors">
+            <LucideIcon Name="shopping-cart" Size="16" />
+            <span>Processo de compra</span>
+            <LucideIcon Name="external-link" Size="14" Class="text-muted-foreground" />
+        </button>
+
+        <button type="button"
+                class="flex items-center gap-2 h-8 px-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors">
+            <LucideIcon Name="kanban" Size="16" />
+            <span>Kanban</span>
+            <LucideIcon Name="external-link" Size="14" Class="text-muted-foreground" />
+        </button>
+
+        <button type="button"
+                class="flex items-center gap-2 h-8 px-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors">
+            <LucideIcon Name="mail" Size="16" />
+            <span>Cotações</span>
+            <LucideIcon Name="external-link" Size="14" Class="text-muted-foreground" />
+        </button>
+
+        @* Ações à direita *@
+        <div class="ml-auto flex items-center gap-1 flex-none">
+            <BbTooltip>
+                <BbTooltipTrigger AsChild="false" Class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors" aria-label="Notificações">
+                    <LucideIcon Name="bell" Size="18" />
+                </BbTooltipTrigger>
+                <BbTooltipContent>Notificações</BbTooltipContent>
+            </BbTooltip>
+
+            <BbTooltip>
+                <BbTooltipTrigger AsChild="false" Class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors" aria-label="Alterar Empresa">
+                    <LucideIcon Name="database-zap" Size="18" />
+                </BbTooltipTrigger>
+                <BbTooltipContent>Alternar entre Empresas</BbTooltipContent>
+            </BbTooltip>
+
+            <BbTooltip>
+                <BbTooltipTrigger AsChild="false" @onclick="OnPerfil" Class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors" aria-label="Perfil">
+                    <LucideIcon Name="user" Size="18" />
+                </BbTooltipTrigger>
+                <BbTooltipContent>Perfil</BbTooltipContent>
+            </BbTooltip>
+
+            <div class="h-5 w-px bg-border mx-1"></div>
+
+            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                      OnClick="() => OnLogout.InvokeAsync()">
+                <LucideIcon Name="log-out" Size="16" /> Sair
+            </BbButton>
+        </div>
     </div>
-    <div class="ml-auto flex items-center gap-2">
-        <BbTooltip>
-            <BbTooltipTrigger AsChild="false" Class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer hover:scale-105 transition-colors" aria-label="Notificações">
-                <LucideIcon Name="bell" Size="18" />
-            </BbTooltipTrigger>
-            <BbTooltipContent>Notificações</BbTooltipContent>
-        </BbTooltip>
 
-        <BbTooltip>
-            <BbTooltipTrigger AsChild="false" Class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer hover:scale-105 transition-colors" aria-label="Alterar Empresa">
-                <LucideIcon Name="database-zap" Size="18" />
-            </BbTooltipTrigger>
-            <BbTooltipContent>Alternar entre Empresas</BbTooltipContent>
-        </BbTooltip>
-
-        <BbTooltip>
-            <BbTooltipTrigger AsChild="false" Class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer hover:scale-105 transition-colors" aria-label="Configurações">
-                <LucideIcon Name="settings" Size="18" />
-            </BbTooltipTrigger>
-            <BbTooltipContent>Configurações</BbTooltipContent>
-        </BbTooltip>
-
-        <BbTooltip>
-            <BbTooltipTrigger AsChild="false" @onclick="OnPerfil" Class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer hover:scale-105 transition-colors" aria-label="Perfil">
-                <LucideIcon Name="user" Size="18" />
-            </BbTooltipTrigger>
-            <BbTooltipContent>Perfil</BbTooltipContent>
-        </BbTooltip>
-    </div>
+    @* ---------- Linha 2: abas de módulos (NavLink nativo) ---------- *@
+    <nav class="h-11 flex items-center gap-0.5 px-2">
+        @foreach (var m in Modules)
+        {
+            <NavLink href="@($"/home/{m.Key}")"
+                     Match="NavLinkMatch.All"
+                     class="tab-mesh"
+                     ActiveClass="tab-mesh-ativo"
+                     style="@($"--traco: {m.Cor ?? "var(--primary)"}")">
+                <LucideIcon Name="@m.Icon" Size="16" />
+                @m.Title
+            </NavLink>
+        }
+    </nav>
 </header>
 
 @code {
-    [Parameter] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public IReadOnlyList<Modulo> Modules { get; set; } = Array.Empty<Modulo>();
+    [Parameter] public EventCallback OnLogout { get; set; }
 
-    private void OnPerfil()
-    {
-        Nav.NavigateTo("/perfil");
-    }
+    private void OnPerfil() => Nav.NavigateTo("/perfil");
 }

@@ -2,6 +2,33 @@ html, body {
     font-family: var(--font-sans);
 }
 
+/* ---------- Abas do menu (Topbar) ----------
+   Traço inferior em CSS puro (não depende do build do Tailwind). A cor do ativo
+   vem da variável --traco (setada por módulo via style inline); se o módulo não
+   tiver cor, cai em var(--primary). */
+.tab-mesh {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 2.75rem;
+    padding: 0 0.75rem;
+    font-size: 0.875rem;
+    color: var(--muted-foreground);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.tab-mesh:hover {
+    color: var(--foreground);
+}
+
+.tab-mesh-ativo {
+    color: var(--foreground);
+    font-weight: 500;
+    border-bottom-color: var(--traco, var(--primary));
+}
+
 a, .btn-link {
     color: #006bb7;
 }
