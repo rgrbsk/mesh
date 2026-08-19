@@ -46,7 +46,26 @@ a, .btn-link {
 .content {
     padding-top: 1.1rem;
 }
+/* Reserva o espaço da barra vertical desde sempre: sem isso o conteúdo dá um
+   pulo horizontal de ~15px quando a página passa a rolar. */
+.overflow-y-auto {
+    scrollbar-gutter: stable;
+}
 
+/* Barra fina e discreta, nas cores do tema. */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent) transparent;
+}
+
+/* Para os carrosséis horizontais (faixa de módulos), onde a barra é ruído. */
+.scrollbar-none {
+    scrollbar-width: none;
+}
+
+    .scrollbar-none::-webkit-scrollbar {
+        display: none;
+    }
 h1:focus {
     outline: none;
 }

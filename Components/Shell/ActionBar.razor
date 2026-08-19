@@ -1,0 +1,41 @@
+@* Barra de ações reutilizável: cola no rodapé do container e recebe os botões
+   como conteúdo. O visual (rainbow diluído + contorno preto) vive todo no
+   ActionBar.razor.css — a página só entrega os botões.
+
+   Uso:
+       <ActionBar Class="col-span-2">
+           <BbButton Variant="ButtonVariant.Secondary" OnClick="Descartar">Descartar</BbButton>
+           <BbButton OnClick="Salvar">Salvar alterações</BbButton>
+       </ActionBar>                                                          *@
+
+<div class="action-bar @(Sticky ? "is-sticky" : null) @Class"
+     style="@Style"
+     @attributes="Extras">
+
+    @* Lado esquerdo: opcional (status, contador de alterações, dica).
+       Renderiza sempre — mesmo vazio, é ele que empurra os botões pra direita. *@
+    <div class="action-bar-start">@Start</div>
+
+    <div class="action-bar-end">@ChildContent</div>
+</div>
+
+@code {
+    /// <summary>Os botões da barra.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Conteúdo alinhado à esquerda (texto de status, etc.).</summary>
+    [Parameter] public RenderFragment? Start { get; set; }
+
+    /// <summary>Gruda no rodapé do container rolável. Desligue para uma barra
+    /// que rola junto com o conteúdo.</summary>
+    [Parameter] public bool Sticky { get; set; } = true;
+
+    /// <summary>Classes extras — normalmente as de grid do container pai
+    /// (ex.: "col-span-2").</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter] public string? Style { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extras { get; set; }
+}
