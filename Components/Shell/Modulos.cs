@@ -30,10 +30,10 @@ public static class Modulos
     {
         //     Key            Título                 Ícone                     Grupo        Permissão                  Componente
         new("painel",      "Painel",             "chart-no-axes-combined", "Geral",     null,                      typeof(PainelModule),"#C51E3A"),
-        new("fornecedores","Fornecedores",       "users",                  "Comercial", Permissoes.FornecedorVer,  typeof(ClientesModule), "#ADFF2F"),
         new("compras",     "Solicit. de Compra", "shopping-cart",          "Comercial", Permissoes.ComprasVer,     typeof(PedidosModule), "#89CFF0"),
+        new("fornecedores","Fornecedores",       "users",                  "Comercial", Permissoes.FornecedorVer,  typeof(ClientesModule), "#ADFF2F"),
+        new("centrosdecusto",  "Centros de Custo",         "currency",                 "Gestão",    null,          typeof(FinanceiroModule), "#4F7942"),
         new("estoque",     "Estoque",            "list",                   "Operações", Permissoes.EstoqueVer,     typeof(EstoqueModule), "#B284BE"),
-        new("financeiro",  "Financeiro",         "wallet",                 "Gestão",    null,                      typeof(FinanceiroModule), "#4F7942"),
         new("relatorios",  "Relatórios",         "file-text",              "Gestão",    null,                      typeof(RelatoriosModule),  "#DE3163"),
         new("auditoria",   "Auditoria",          "footprints",             "Sistema",   null,                      typeof(ConfiguracoesModule), "#FF4F00"),
         new("permissoes",  "Permissões",         "user-key",               "Sistema",   Permissoes.UsuariosGerir,  typeof(ConfiguracoesModule), "#FCF75E"),

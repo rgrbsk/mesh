@@ -1,7 +1,9 @@
 ﻿
 @page "/perfil"
-@attribute [Authorize]
+@* @attribute [Authorize] *@
 @layout ShellLayout
+@using Erp.Model.Usuario
+@inject UserManager<Erp.Model.Usuario.Usuario> Users
 @rendermode InteractiveServer
 
 <BbTabs Class="flex flex-col h-full" DefaultValue="dados">
@@ -11,92 +13,113 @@
         <BbTabsTrigger Value="empresas">Empresas</BbTabsTrigger>
     </BbTabsList>
     <BbTabsContent Value="dados" class="grid w-full grid-cols-2 gap-3 p-3 ">
-        <BbField>
-            <BbFieldLabel>Email</BbFieldLabel>
-            <BbFieldContent>
-                <BbInput Type="InputType.Email" Placeholder="email@example.com" />
-            </BbFieldContent>
-        </BbField>
-        <BbField>
-            <BbFieldLabel>Nome</BbFieldLabel>
-            <BbFieldContent>
-                <BbInput Type="InputType.Email" />
-            </BbFieldContent>
-        </BbField>
-        <BbField>
-            <BbFieldLabel>Sobrenome</BbFieldLabel>
-            <BbFieldContent>
-                <BbInput Type="InputType.Email" />
-            </BbFieldContent>
-        </BbField>
-        <BbField>
-            <BbFieldLabel>CPF</BbFieldLabel>
-            <BbFieldContent>
-                <BbInput Type="InputType.Email" />
-            </BbFieldContent>
-        </BbField>
-        <BbField>
-            <BbFieldLabel>Data Nascimento</BbFieldLabel>
-            <BbFieldContent>
-                <BbDateTimePicker MinDate="DateTime.Today"
-                                  MinuteStep="15"
-                                  Placeholder="Pick a start time"
-                                  Class="w-full" />
-            </BbFieldContent>
-        </BbField>
-        <BbField>
-            <BbFieldLabel>Cargo</BbFieldLabel>
-            <BbFieldContent>
-                <BbInput Type="InputType.Text" />
-            </BbFieldContent>
-        </BbField>
-        <BbField>
-            <BbFieldLabel>Data Cadastro</BbFieldLabel>
-            <BbFieldContent>
-                <BbDateTimePicker
-                                  MinDate="DateTime.Today"
-                                  MinuteStep="15"
-                                  Placeholder="Pick a start time"
-                                  Class="w-full" />
-                <BbFieldDescription>Data em que o usuário foi Cadastrado no ERP.</BbFieldDescription>
-            </BbFieldContent>
-        </BbField>
-        <BbField>
-            <BbFieldLabel>Data Modificação</BbFieldLabel>
-            <BbFieldContent>
-                <BbDateTimePicker MinDate="DateTime.Today"
-                                  MinuteStep="15"
-                                  Placeholder="Pick a start time"
-                                  Class="w-full" />
-                <BbFieldDescription>Última data em que o Cadastro do Usuário foi modificado.</BbFieldDescription>
-            </BbFieldContent>
-        </BbField>
-        <BbField>
-            <BbFieldLabel>Situação do Cadastro</BbFieldLabel>
-            <BbSelect TValue="string"
-                      @bind-Value="selectedColor"
-                      Options="@colorOptions"
-                      Placeholder="Ativo / Inativo" />
-        </BbField>
-        <BbFormFieldMaskedInput
-                                Label="Número para contato (telefone / celular)"
-                                Mask="(54)9842-51727" />
-        <BbSeparator Class="col-span-2 my-2"></BbSeparator>
+        @if (_usuario is null)
+        {
+            <div class="space-y-6">
+                @for (int i = 0; i < 3; i++)
+                {
+                    <div class="space-y-3 align-self-center">
+                        <div class="flex items-center space-x-3">
+                            <BbSkeleton Shape="SkeletonShape.Circular" Class="h-10 w-10" />
+                            <div class="space-y-1">
+                                <BbSkeleton Class="h-4 w-[120px]" />
+                                <BbSkeleton Class="h-3 w-[80px]" />
+                            </div>
+                        </div>
+                        <BbSkeleton Class="h-4 w-full" />
+                        <BbSkeleton Class="h-[200px] w-full" />
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <BbField>
+                <BbFieldLabel>Email</BbFieldLabel>
+                <BbFieldContent>
+                    <BbInput Type="InputType.Email" Placeholder="email@example.com" @bind-Value="_usuario.Email" />
+                </BbFieldContent>
+            </BbField>
+            <BbField>
+                <BbFieldLabel>Nome</BbFieldLabel>
+                <BbFieldContent>
+                    <BbInput Type="InputType.Email" @bind-Value="_usuario.Nome" />
+                </BbFieldContent>
+            </BbField>
+            <BbField>
+                <BbFieldLabel>Sobrenome</BbFieldLabel>
+                <BbFieldContent>
+                    <BbInput Type="InputType.Email" @bind-Value="_usuario.Sobrenome" />
+                </BbFieldContent>
+            </BbField>
+            <BbField>
+                <BbFieldLabel>CPF</BbFieldLabel>
+                <BbFieldContent>
+                    <BbInput Type="InputType.Email" @bind-Value="_usuario.CPF" />
+                </BbFieldContent>
+            </BbField>
+            <BbField>
+                <BbFieldLabel>Data Nascimento</BbFieldLabel>
+                <BbFieldContent>
+                    <BbDateTimePicker @bind-Value="" MinDate="DateTime.Today"
+                                      MinuteStep="15"
+                                      Placeholder="Pick a start time"
+                                      Class="w-full" />
+                </BbFieldContent>
+            </BbField>
+            <BbField>
+                <BbFieldLabel>Cargo</BbFieldLabel>
+                <BbFieldContent>
+                    <BbInput Type="InputType.Text" />
+                </BbFieldContent>
+            </BbField>
+            <BbField>
+                <BbFieldLabel>Data Cadastro</BbFieldLabel>
+                <BbFieldContent>
+                    <BbDateTimePicker MinDate="DateTime.Today"
+                                      MinuteStep="15"
+                                      Placeholder="Pick a start time"
+                                      Class="w-full" />
+                    <BbFieldDescription>Data em que o usuário foi Cadastrado no ERP.</BbFieldDescription>
+                </BbFieldContent>
+            </BbField>
+            <BbField>
+                <BbFieldLabel>Data Modificação</BbFieldLabel>
+                <BbFieldContent>
+                    <BbDateTimePicker MinDate="DateTime.Today"
+                                      MinuteStep="15"
+                                      Placeholder="Pick a start time"
+                                      Class="w-full" />
+                    <BbFieldDescription>Última data em que o Cadastro do Usuário foi modificado.</BbFieldDescription>
+                </BbFieldContent>
+            </BbField>
+            <BbField>
+                <BbFieldLabel>Situação do Cadastro</BbFieldLabel>
+                <BbSelect TValue="string"
+                          @bind-Value="selectedColor"
+                          Options="@colorOptions"
+                          Placeholder="Ativo / Inativo" />
+            </BbField>
+            <BbFormFieldMaskedInput Label="Número para contato (telefone / celular)"
+                                    Mask="(54)9842-51727" />
+            <BbSeparator Class="col-span-2 my-2"></BbSeparator>
 
-        <BbRichTextEditor Height="275px" Class="col-span-2 h-full" Toolbar="ToolbarPreset.Full" Placeholder="Digite aqui observações sobre o Usuário." />
-        @* barra de ações — col-span-2 pra ocupar a linha inteira *@
-        <div class="col-span-2 sticky bottom-0 -mx-3 -mb-3 mt-2 px-3 py-3
-            flex items-center justify-end gap-2
-            border-t border-border bg-background/95 backdrop-blur">
-            <BbButton Variant="ButtonVariant.Secondary" OnClick="Descartar" IconPosition="IconPosition.End">
-                <ChildContent>Descartar</ChildContent>
-                <Icon><LucideIcon Name="trash" Size="16" /></Icon>
-            </BbButton>
-            <BbButton OnClick="Salvar" IconPosition="IconPosition.End">
-                <ChildContent>Salvar alterações</ChildContent>
-                <Icon><LucideIcon Name="cloud-check" Size="16" /></Icon>
-            </BbButton>
-        </div>
+            <BbRichTextEditor Height="275px" Class="col-span-2 h-full" Toolbar="ToolbarPreset.Full" Placeholder="Digite aqui observações sobre o Usuário." />
+            @* barra de ações — col-span-2 pra ocupar a linha inteira *@
+            <div class="col-span-2 sticky bottom-0 -mx-3 -mb-3 mt-2 px-3 py-3
+                flex items-center justify-end gap-2
+                border-t border-border bg-background/95 backdrop-blur">
+                <BbButton Variant="ButtonVariant.Secondary" OnClick="Descartar" IconPosition="IconPosition.End">
+                    <ChildContent>Descartar</ChildContent>
+                    <Icon><LucideIcon Name="trash" Size="16" /></Icon>
+                </BbButton>
+                <BbButton OnClick="Salvar" IconPosition="IconPosition.End">
+                    <ChildContent>Salvar alterações</ChildContent>
+                    <Icon><LucideIcon Name="cloud-check" Size="16" /></Icon>
+                </BbButton>
+            </div>
+        }
+        
     </BbTabsContent>
     <BbTabsContent Value="documentos" Class="flex flex-col flex-1 min-h-0">
         <div class="flex-1 min-h-0 overflow-y-auto">
@@ -147,11 +170,23 @@
 
 @code {
     private string? selected;
-
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+    private Usuario? _usuario;
     private record FileNode(string Id, string Name, string? Icon = null,
     List<FileNode>? Children = null);
     private string? selectedColor;
     private record Employee(string Name, string Department, string Email, decimal Salary);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var principal = (await AuthState).User;
+        if(principal is null)
+        {
+            ToastService.Show("Ocorreu um erro ao buscar as informações do perfil");
+            return;
+        }
+        _usuario = await Users.GetUserAsync(principal);
+    }
 
     private List<Employee> employees = new()
     {
