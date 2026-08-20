@@ -35,7 +35,7 @@ public static class Modulos
         new("centrosdecusto",  "Centros de Custo",         "currency",                 "Gestão",    null,          typeof(FinanceiroModule), "#4F7942"),
         new("estoque",     "Estoque",            "list",                   "Operações", Permissoes.EstoqueVer,     typeof(EstoqueModule), "#B284BE"),
         new("relatorios",  "Relatórios",         "file-text",              "Gestão",    null,                      typeof(RelatoriosModule),  "#DE3163"),
-        new("auditoria",   "Auditoria",          "footprints",             "Sistema",   null,                      typeof(ConfiguracoesModule), "#FF4F00"),
+        new("log",   "Logs",          "footprints",             "Sistema",   null,                      typeof(ConfiguracoesModule), "#FF4F00"),
         new("permissoes",  "Permissões",         "user-key",               "Sistema",   Permissoes.UsuariosGerir,  typeof(ConfiguracoesModule), "#FCF75E"),
         new("inicio",  "Início",         "layers",               "Geral",   null,  typeof(Inicio),"#007FFF" )
     };

@@ -10,7 +10,6 @@
 
         <div class="flex items-center gap-2 flex-none">
             <img src="favicon.png" alt="mesh" class="h-6 w-6 rounded" />
-            <span class="font-semibold text-[0.95rem] tracking-tight">mesh</span>
         </div>
 
         <div class="h-5 w-px bg-border flex-none"></div>
@@ -62,9 +61,9 @@
 
             <div class="h-5 w-px bg-border mx-1"></div>
 
-            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+            <BbButton Class="hover:text-red-500" Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
                       OnClick="() => OnLogout.InvokeAsync()">
-                <LucideIcon Name="log-out" Size="16" /> Sair
+                <LucideIcon  Name="log-out" Size="16" /> Sair
             </BbButton>
         </div>
     </div>

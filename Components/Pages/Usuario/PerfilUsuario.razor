@@ -12,7 +12,7 @@
         <BbTabsTrigger Value="documentos">Documentos</BbTabsTrigger>
         <BbTabsTrigger Value="empresas">Empresas</BbTabsTrigger>
     </BbTabsList>
-    <BbTabsContent Value="dados" class="grid w-full grid-cols-2 gap-3 p-3 ">
+    <BbTabsContent Value="dados" class="flex flex-col flex-1 min-h-0">
         @if (_usuario is null)
         {
             <div class="space-y-6">
@@ -34,78 +34,81 @@
         }
         else
         {
-            <BbField>
-                <BbFieldLabel>Email</BbFieldLabel>
-                <BbFieldContent>
-                    <BbInput Type="InputType.Email" Placeholder="email@example.com" @bind-Value="_usuario.Email" />
-                </BbFieldContent>
-            </BbField>
-            <BbField>
-                <BbFieldLabel>Nome</BbFieldLabel>
-                <BbFieldContent>
-                    <BbInput Type="InputType.Email" @bind-Value="_usuario.Nome" />
-                </BbFieldContent>
-            </BbField>
-            <BbField>
-                <BbFieldLabel>Sobrenome</BbFieldLabel>
-                <BbFieldContent>
-                    <BbInput Type="InputType.Email" @bind-Value="_usuario.Sobrenome" />
-                </BbFieldContent>
-            </BbField>
-            <BbField>
-                <BbFieldLabel>CPF</BbFieldLabel>
-                <BbFieldContent>
-                    <BbInput Type="InputType.Email" @bind-Value="_usuario.CPF" />
-                </BbFieldContent>
-            </BbField>
-            <BbField>
-                <BbFieldLabel>Data Nascimento</BbFieldLabel>
-                <BbFieldContent>
-                    <BbDateTimePicker @bind-Value="" MinDate="DateTime.Today"
-                                      MinuteStep="15"
-                                      Placeholder="Pick a start time"
-                                      Class="w-full" />
-                </BbFieldContent>
-            </BbField>
-            <BbField>
-                <BbFieldLabel>Cargo</BbFieldLabel>
-                <BbFieldContent>
-                    <BbInput Type="InputType.Text" />
-                </BbFieldContent>
-            </BbField>
-            <BbField>
-                <BbFieldLabel>Data Cadastro</BbFieldLabel>
-                <BbFieldContent>
-                    <BbDateTimePicker MinDate="DateTime.Today"
-                                      MinuteStep="15"
-                                      Placeholder="Pick a start time"
-                                      Class="w-full" />
-                    <BbFieldDescription>Data em que o usuário foi Cadastrado no ERP.</BbFieldDescription>
-                </BbFieldContent>
-            </BbField>
-            <BbField>
-                <BbFieldLabel>Data Modificação</BbFieldLabel>
-                <BbFieldContent>
-                    <BbDateTimePicker MinDate="DateTime.Today"
-                                      MinuteStep="15"
-                                      Placeholder="Pick a start time"
-                                      Class="w-full" />
-                    <BbFieldDescription>Última data em que o Cadastro do Usuário foi modificado.</BbFieldDescription>
-                </BbFieldContent>
-            </BbField>
-            <BbField>
-                <BbFieldLabel>Situação do Cadastro</BbFieldLabel>
-                <BbSelect TValue="string"
-                          @bind-Value="selectedColor"
-                          Options="@colorOptions"
-                          Placeholder="Ativo / Inativo" />
-            </BbField>
-            <BbFormFieldMaskedInput Label="Número para contato (telefone / celular)"
-                                    Mask="(54)9842-51727" />
-            <BbSeparator Class="col-span-2 my-2"></BbSeparator>
+            <div class="flex-1 min-h-0 overflow-y-auto grid grid-cols-2 gap-3 p-3">
+                <BbField>
+                    <BbFieldLabel>Email</BbFieldLabel>
+                    <BbFieldContent>
+                        <BbInput Type="InputType.Email" Placeholder="email@example.com" @bind-Value="_usuario.Email" />
+                    </BbFieldContent>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel>Nome</BbFieldLabel>
+                    <BbFieldContent>
+                        <BbInput Type="InputType.Email" @bind-Value="_usuario.Nome" />
+                    </BbFieldContent>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel>Sobrenome</BbFieldLabel>
+                    <BbFieldContent>
+                        <BbInput Type="InputType.Email" @bind-Value="_usuario.Sobrenome" />
+                    </BbFieldContent>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel>CPF</BbFieldLabel>
+                    <BbFieldContent>
+                        <BbInput Type="InputType.Email" @bind-Value="_usuario.CPF" />
+                    </BbFieldContent>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel>Data Nascimento</BbFieldLabel>
+                    <BbFieldContent>
+                        <BbDateTimePicker @bind-Value="" MinDate="DateTime.Today"
+                                          MinuteStep="15"
+                                          Placeholder="Pick a start time"
+                                          Class="w-full" />
+                    </BbFieldContent>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel>Cargo</BbFieldLabel>
+                    <BbFieldContent>
+                        <BbInput Type="InputType.Text" />
+                    </BbFieldContent>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel>Data Cadastro</BbFieldLabel>
+                    <BbFieldContent>
+                        <BbDateTimePicker MinDate="DateTime.Today"
+                                          MinuteStep="15"
+                                          Placeholder="Pick a start time"
+                                          Class="w-full" />
+                        <BbFieldDescription>Data em que o usuário foi Cadastrado no ERP.</BbFieldDescription>
+                    </BbFieldContent>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel>Data Modificação</BbFieldLabel>
+                    <BbFieldContent>
+                        <BbDateTimePicker MinDate="DateTime.Today"
+                                          MinuteStep="15"
+                                          Placeholder="Pick a start time"
+                                          Class="w-full" />
+                        <BbFieldDescription>Última data em que o Cadastro do Usuário foi modificado.</BbFieldDescription>
+                    </BbFieldContent>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel>Situação do Cadastro</BbFieldLabel>
+                    <BbSelect TValue="string"
+                              @bind-Value="selectedColor"
+                              Options="@colorOptions"
+                              Placeholder="Ativo / Inativo" />
+                </BbField>
+                <BbFormFieldMaskedInput Label="Número para contato (telefone / celular)"
+                                        Mask="(54)9842-51727" />
+                <BbSeparator Class="col-span-2 my-2"></BbSeparator>
 
-            <BbRichTextEditor Height="275px" Class="col-span-2 h-full" Toolbar="ToolbarPreset.Full" Placeholder="Digite aqui observações sobre o Usuário." />
-            <ActionBar Class="col-span-2 -mx-3 -mb-3 mt-2">
+                <BbRichTextEditor Height="275px" Class="col-span-2 h-full" Toolbar="ToolbarPreset.Full" Placeholder="Digite aqui observações sobre o Usuário." />
+            </div>
+            
+            <ActionBar Class="flex-none" Sticky="false">
                 <BbButton OnClick="Descartar" IconPosition="IconPosition.End">
                     <ChildContent>Descartar</ChildContent>
                     <Icon><LucideIcon Name="trash" Size="16" Color="red" /></Icon>
@@ -130,23 +133,22 @@
                         DefaultExpandAll="true"
                         ShowSearch="false" />
         </div>
-        
-        <div class="shrink-0 px-3 py-3
-            flex items-center justify-end gap-2
-            border-t border-border bg-background/95">
-            <BbButton Variant="ButtonVariant.Destructive" OnClick="Descartar" IconPosition="IconPosition.End">
+        <ActionBar Class="flex-none" Sticky="false">
+            <BbButton  OnClick="Descartar" IconPosition="IconPosition.End">
                 <ChildContent>Remover Documento</ChildContent>
-                <Icon><LucideIcon Name="file-x-corner" Size="16" /></Icon>
+                <Icon><LucideIcon Name="file-x-corner" Color="red" Size="16" /></Icon>
             </BbButton>
-            <BbButton Variant="ButtonVariant.Outline" OnClick="Salvar" IconPosition="IconPosition.End">
-                <ChildContent>Visualizar Conteúdo</ChildContent>
-                <Icon><LucideIcon Name="file-search-corner" Size="16" /></Icon>
+            <BbButton  OnClick="Salvar" IconPosition="IconPosition.End">
+                <ChildContent>Baixar Arquivo</ChildContent>
+                <Icon><LucideIcon Name="download" Size="16" Color="lightblue" /></Icon>
             </BbButton>
             <BbButton OnClick="Salvar" IconPosition="IconPosition.End">
-                <ChildContent>Fazer Upload de Documento</ChildContent>
-                <Icon><LucideIcon Name="upload" Size="16" /></Icon>
+                <ChildContent>Upload de Arquivo</ChildContent>
+                <Icon><LucideIcon Name="upload" Size="16" Color="lightgreen" /></Icon>
             </BbButton>
-        </div>
+        </ActionBar>
+        
+
     </BbTabsContent>
     <BbTabsContent Value="empresas">
         <div class="col-1 text-center">
@@ -222,7 +224,7 @@
 
     private void Descartar()
     {
-
+        ToastService.Show("Documento x foi descartado.", "", ToastVariant.Destructive);
     }
 
     private async Task Salvar()

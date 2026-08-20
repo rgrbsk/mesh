@@ -77,6 +77,12 @@ h1:focus {
 .invalid {
     outline: 1px solid #e50000;
 }
+.bp-toast-container, .toast-container {
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    right: auto !important;
+    align-items: center !important;
+}
 
 .validation-message {
     color: #e50000;
