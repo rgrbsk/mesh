@@ -1,0 +1,44 @@
+@using Erp.Components.Shell
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Solicitações de Compra</h2>
+            <p class="text-sm text-muted-foreground mt-1">Crie, edite ou valide suas solicitações de compra.</p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-none">
+            <ActionArea>
+                <BbButton Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
+                    <ChildContent>Exportar</ChildContent>
+                    <Icon><LucideIcon Name="file-text" Size="16" Color="lightblue"/></Icon>
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
+                    <ChildContent>Filtros</ChildContent>
+                    <Icon><LucideIcon Name="funnel" Size="16" Color="magenta"/></Icon>
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
+                    <ChildContent>Nova solicitação</ChildContent>
+                    <Icon><LucideIcon Name="plus" Size="16" Color="lightgreen"/></Icon>
+                </BbButton>
+            </ActionArea>
+            
+        </div>
+    </div>
+
+        
+
+        <div class="flex-1 min-h-0 rounded-lg ">
+            <table class="erp-table">
+                <thead><tr><th>#</th><th>Cliente</th><th>Data</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr><td>#10432</td><td>Padaria Central</td><td class="text-muted-foreground">04/08/2026</td><td><BbBadge Variant="BadgeVariant.Default">Faturado</BbBadge></td></tr>
+                    <tr><td>#10431</td><td>Mercado Silva</td><td class="text-muted-foreground">04/08/2026</td><td><BbBadge Variant="BadgeVariant.Secondary">Em separação</BbBadge></td></tr>
+                    <tr><td>#10428</td><td>Empório Verde</td><td class="text-muted-foreground">03/08/2026</td><td><BbBadge Variant="BadgeVariant.Outline">Aguardando pgto.</BbBadge></td></tr>
+                    <tr><td>#10429</td><td>Lanchonete do Zé</td><td class="text-muted-foreground">03/08/2026</td><td><BbBadge Variant="BadgeVariant.Destructive">Cancelado</BbBadge></td></tr>
+                </tbody>
+            </table>
+        </div>
+</div>
+    

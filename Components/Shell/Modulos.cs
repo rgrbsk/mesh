@@ -4,7 +4,7 @@ using System.Security.Claims;
 // de conteúdo (via typeof). Adicionar módulo = criar a pasta + o using aqui.
 using Erp.Components.Modules.Painel;
 using Erp.Components.Modules.Clientes;
-using Erp.Components.Modules.Pedidos;
+using Erp.Components.Modules.Solicitacoes;
 using Erp.Components.Modules.Estoque;
 using Erp.Components.Modules.Financeiro;
 using Erp.Components.Modules.Relatorios;
@@ -30,7 +30,7 @@ public static class Modulos
     {
         //     Key            Título                 Ícone                     Grupo        Permissão                  Componente
         new("painel",      "Painel",             "chart-no-axes-combined", "Geral",     null,                      typeof(PainelModule),"#C51E3A"),
-        new("compras",     "Solicit. de Compra", "shopping-cart",          "Comercial", Permissoes.ComprasVer,     typeof(PedidosModule), "#89CFF0"),
+        new("compras",     "Solicit. de Compra", "shopping-cart",          "Comercial", Permissoes.ComprasVer,     typeof(SolicitacoesModule), "#89CFF0"),
         new("fornecedores","Fornecedores",       "users",                  "Comercial", Permissoes.FornecedorVer,  typeof(ClientesModule), "#ADFF2F"),
         new("centrosdecusto",  "Centros de Custo",         "currency",                 "Gestão",    null,          typeof(FinanceiroModule), "#4F7942"),
         new("estoque",     "Estoque",            "list",                   "Operações", Permissoes.EstoqueVer,     typeof(EstoqueModule), "#B284BE"),

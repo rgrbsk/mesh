@@ -14,5 +14,10 @@
                  ShowCountdown="true"
                  PauseOnHover="true"
                  MaxToasts="4" />
+
+@* Host dos dialogs abertos por código (DialogService). Sem ele o serviço
+   resolve as chamadas, mas nada aparece na tela. *@
+<BbDialogProvider />
+
 <BbContainerPortalHost />
 <BbOverlayPortalHost />

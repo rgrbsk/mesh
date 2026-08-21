@@ -1,0 +1,51 @@
+﻿@* //dados mock, buscar de api depois usando o user network info*@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent>
+        <BbDialogHeader>
+            <BbDialogTitle>Meu Dispositivo</BbDialogTitle>
+            <BbDialogDescription>
+                Dados do aparelho, registrado no momento que o usuário conecta no sistema.
+            </BbDialogDescription>
+        </BbDialogHeader>
+
+        <div class="flex flex-col col-1 align-content-center text-center">
+            <div class="grid grid-cols-4 items-center gap-4">
+                <BbField>
+                    <BbFieldLabel>IP</BbFieldLabel>
+                    <BbField>206.78.90.3</BbField>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel>Região</BbFieldLabel>
+                    <BbField>RS, Brasil</BbField>
+                </BbField>
+                <BbField class="truncate">
+                    <BbFieldLabel>Provedor</BbFieldLabel>
+                    <BbField>Claro Serviços de Telecomunicação.</BbField>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel>Lat. / Long. </BbFieldLabel>
+                    <BbField>-27.6869, -92.2594</BbField>
+                    <BbFieldDescription>(≈3 km)</BbFieldDescription>
+                </BbField>
+            </div>
+        </div>
+
+        <BbDialogFooter class="sm:justify-between">
+            <div class="flex gap-2">
+                <BbDialogClose AsChild>
+                    <BbButton>
+                        <ChildContent>Voltar</ChildContent>
+                        <Icon><LucideIcon Name="undo-2" Color="white" /></Icon>
+                    </BbButton>
+                </BbDialogClose>
+            </div>
+        </BbDialogFooter>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    /// <summary>Controla a abertura. O pai usa @bind-Aberto.</summary>
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+}

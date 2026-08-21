@@ -1,0 +1,57 @@
+/* CSS isolado do ActionArea. Só tokens do theme.css + color-mix, então o dark
+   mode acompanha sem nenhuma regra .dark duplicada. */
+
+.action-area {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    padding: 0.375rem;
+    border-radius: calc(var(--radius, 0.625rem) + 0.25rem);
+
+    /* Não pode esticar nem ser espremido pelo justify-between do header. */
+    flex: none;
+
+    background-color: color-mix(in oklab, var(--background) 92%, transparent);
+
+    /* Rainbow bem diluído — a cor aqui é iluminação, não fundo. */
+    background-image: linear-gradient(90deg,
+            color-mix(in oklab, #ff3b30 8%, transparent),
+            color-mix(in oklab, #00c7be 8%, transparent) 50%,
+            color-mix(in oklab, #ff2d55 8%, transparent));
+}
+
+/* Borda de 1px em gradiente COM cantos arredondados.
+   border-image ignora border-radius e devolve cantos quadrados; a saída é
+   pintar o gradiente na área toda e recortar o miolo com máscara. */
+.action-area::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;                       /* espessura da borda */
+
+    background: linear-gradient(90deg,
+            #ff3b30, #ff9500, #ffcc00, #34c759, #00c7be,
+            #007aff, #5856d6, #af52de, #ff2d55);
+
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+
+    pointer-events: none;
+}
+
+/* Sem mask-composite: cai numa borda sólida discreta em vez de perder o
+   contorno inteiro. */
+@supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+    .action-area {
+        border: 1px solid var(--border);
+    }
+
+    .action-area::before {
+        display: none;
+    }
+}

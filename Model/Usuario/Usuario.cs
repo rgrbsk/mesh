@@ -23,7 +23,7 @@ namespace Erp.Model.Usuario
 
         public string Observacao { get; set; } = string.Empty;
 
-        public string Tag { get; set; } = string.Empty;
+        public List<string>? Tag { get; set; }
 
         public string? TemaPreferencial { get; set; } = "light";
     }

@@ -52,19 +52,39 @@
                 <BbTooltipContent>Alternar entre Empresas</BbTooltipContent>
             </BbTooltip>
 
-            <BbTooltip>
+            @* <BbTooltip>
                 <BbTooltipTrigger AsChild="false" @onclick="OnPerfil" Class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors" aria-label="Perfil">
                     <LucideIcon Name="user" Size="18" />
                 </BbTooltipTrigger>
                 <BbTooltipContent>Perfil</BbTooltipContent>
-            </BbTooltip>
+            </BbTooltip> *@
 
-            <div class="h-5 w-px bg-border mx-1"></div>
+            <BbDropdownMenu ItemClass="py-1.5 text-sm">
+                <BbDropdownMenuTrigger AsChild="false"
+                                       Class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                                       aria-label="Menu">
+                    <LucideIcon Name="menu" Size="18" />
+                </BbDropdownMenuTrigger>
 
-            <BbButton Class="hover:text-red-500" Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                <BbDropdownMenuContent Class="p-1 min-w-40" Align="PopoverAlign.End" Offset="6">
+                    <BbDropdownMenuItem Class="cursor-pointer text-black" Href="/perfil">
+                        <Icon><LucideIcon Name="user" Size="16" /></Icon>
+                        <ChildContent>Perfil</ChildContent>
+                    </BbDropdownMenuItem>
+
+                    <BbDropdownMenuSeparator />
+
+                    <BbDropdownMenuItem Class="hover:text-red-500 cursor-pointer" OnClick="() => OnLogout.InvokeAsync()">
+                        <Icon><LucideIcon Name="log-out" Size="16" /></Icon>
+                        <ChildContent>Sair</ChildContent>
+                    </BbDropdownMenuItem>
+                </BbDropdownMenuContent>
+            </BbDropdownMenu>
+
+            @* <BbButton Class="hover:text-red-500" Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
                       OnClick="() => OnLogout.InvokeAsync()">
                 <LucideIcon  Name="log-out" Size="16" /> Sair
-            </BbButton>
+            </BbButton> *@
         </div>
     </div>
 

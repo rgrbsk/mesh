@@ -1,39 +1,49 @@
-<div class="h-full overflow-y-auto p-6">
-    <div class="mb-5">
-        <h2 class="text-xl font-semibold tracking-tight">Clientes</h2>
-        <p class="text-sm text-muted-foreground mt-1">Cadastro e situação da carteira de clientes.</p>
+@using Erp.Components.Shell
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Pessoas</h2>
+            <p class="text-sm text-muted-foreground mt-1">Cadastros de Fornecedores, Clientes, Prospects, dentre outros.</p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-none">
+            <ActionArea>
+                <BbButton Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
+                    <ChildContent>Exportar</ChildContent>
+                    <Icon><LucideIcon Name="file-text" Size="16" Color="lightblue" /></Icon>
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
+                    <ChildContent>Importar Planilha</ChildContent>
+                    <Icon><LucideIcon Name="upload" Size="16" Color="orange" /></Icon>
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
+                    <ChildContent>Filtros</ChildContent>
+                    <Icon><LucideIcon Name="funnel" Size="16" Color="magenta" /></Icon>
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
+                    <ChildContent>Novo Cadastro</ChildContent>
+                    <Icon><LucideIcon Name="plus" Size="16" Color="lightgreen" /></Icon>
+                </BbButton>
+            </ActionArea>
+
+        </div>
     </div>
-    <div class="grid gap-4 mb-6 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
-        <StatCard Label="Total de clientes" Value="1.204" />
-        <StatCard Label="Novos no mês" Value="38" />
-        <StatCard Label="Inadimplentes" Value="12" />
-    </div>
-    <div class="border border-border rounded-lg overflow-hidden">
+
+        
+
+    <div class="flex-1 min-h-0 rounded-lg ">
         <table class="erp-table">
-            <thead><tr><th>Nome</th><th>E-mail</th><th>Cidade</th><th>Status</th></tr></thead>
+            <thead><tr><th>#</th><th>Cliente</th><th>Data</th><th>Status</th></tr></thead>
             <tbody>
-                <tr><td>Padaria Central</td><td class="text-muted-foreground">contato@padariacentral.com</td><td>Campinas</td><td><BbBadge Variant="BadgeVariant.Default">Ativo</BbBadge></td></tr>
-                <tr><td>Mercado Silva</td><td class="text-muted-foreground">compras@mercadosilva.com</td><td>São Paulo</td><td><BbBadge Variant="BadgeVariant.Default">Ativo</BbBadge></td></tr>
-                <tr><td>Restaurante Bom Sabor</td><td class="text-muted-foreground">financeiro@bomsabor.com</td><td>Santos</td><td><BbBadge Variant="BadgeVariant.Outline">Pendente</BbBadge></td></tr>
-                <tr><td>Lanchonete do Zé</td><td class="text-muted-foreground">ze@lanche.com</td><td>Jundiaí</td><td><BbBadge Variant="BadgeVariant.Destructive">Inadimplente</BbBadge></td></tr>
+                <tr><td>#10432</td><td>Padaria Central</td><td class="text-muted-foreground">04/08/2026</td><td><BbBadge Variant="BadgeVariant.Default">Faturado</BbBadge></td></tr>
+                <tr><td>#10431</td><td>Mercado Silva</td><td class="text-muted-foreground">04/08/2026</td><td><BbBadge Variant="BadgeVariant.Secondary">Em separação</BbBadge></td></tr>
+                <tr><td>#10428</td><td>Empório Verde</td><td class="text-muted-foreground">03/08/2026</td><td><BbBadge Variant="BadgeVariant.Outline">Aguardando pgto.</BbBadge></td></tr>
+                <tr><td>#10429</td><td>Lanchonete do Zé</td><td class="text-muted-foreground">03/08/2026</td><td><BbBadge Variant="BadgeVariant.Destructive">Cancelado</BbBadge></td></tr>
             </tbody>
         </table>
     </div>
-    <BbDialog>
-        <BbDialogTrigger>
-            <BbButton Variant="ButtonVariant.Outline">Open Dialog</BbButton>
-        </BbDialogTrigger>
-        <BbDialogContent>
-            <BbDialogHeader>
-                <BbDialogTitle>Are you sure?</BbDialogTitle>
-                <BbDialogDescription>
-                    This action cannot be undone.
-                </BbDialogDescription>
-            </BbDialogHeader>
-            <BbDialogFooter>
-                <BbButton Variant="ButtonVariant.Outline">Cancel</BbButton>
-                <BbButton>Continue</BbButton>
-            </BbDialogFooter>
-        </BbDialogContent>
-    </BbDialog>
 </div>
+
+    

@@ -1,0 +1,52 @@
+@* Agrupador de botões de ação — a versão compacta da ActionBar, pensada para o
+   header de uma tela (ao lado do título, num justify-between).
+
+   Visual fixo: borda de 1px em gradiente rainbow + fundo levemente tingido.
+   Sem parâmetro de cor — é sempre o mesmo grupo, em qualquer módulo.
+
+   Uso:
+       <ActionArea>
+           <BbButton Variant="ButtonVariant.Outline">Editar</BbButton>
+           <BbButton>Nova solicitação</BbButton>
+       </ActionArea>                                                          *@
+
+@* O splat vem ANTES do class de propósito: assim um class="..." passado pelo
+   chamador nunca sobrescreve o "action-area" e apaga o estilo do componente.
+   O valor dele é recuperado em ClasseFinal, então os dois casings funcionam. *@
+<div @attributes="ExtrasSemClass"
+     class="@ClasseFinal"
+     style="@Style">
+    @ChildContent
+</div>
+
+@code {
+    /// <summary>Os botões do grupo.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Classes extras do chamador.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter] public string? Style { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extras { get; set; }
+
+    private string ClasseFinal
+    {
+        get
+        {
+            var doSplat = Extras is not null && Extras.TryGetValue("class", out var c)
+                ? c?.ToString()
+                : null;
+
+            var partes = new[] { "action-area", Class, doSplat };
+            return string.Join(" ", partes.Where(p => !string.IsNullOrWhiteSpace(p)));
+        }
+    }
+
+    // O class já foi absorvido em ClasseFinal; repassá-lo no splat sobrescreveria.
+    private IReadOnlyDictionary<string, object>? ExtrasSemClass =>
+        Extras?
+            .Where(kv => !string.Equals(kv.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
+}

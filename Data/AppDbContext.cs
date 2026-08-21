@@ -2,6 +2,7 @@ using Erp.Model.Acesso;
 using Erp.Model.Usuario;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection.Emit;
 
 namespace Erp.Data
 {
@@ -23,6 +24,21 @@ namespace Erp.Data
         protected override void OnModelCreating(ModelBuilder mb)
         {
             base.OnModelCreating(mb);
+            // Automatically treats Unspecified DateTimes as UTC when saving or reading
+            foreach (var entityType in mb.Model.GetEntityTypes())
+            {
+                foreach (var property in entityType.GetProperties())
+                {
+                    if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
+                    {
+                        property.SetValueConverter(new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime, DateTime>(
+                            v => v.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(v, DateTimeKind.Utc) : v,
+                            v => v
+                        ));
+                    }
+                }
+            }
+
         }
     }
 }

@@ -4,11 +4,13 @@ using Erp.Data;
 using Erp.Localization;
 using Erp.Model.Acesso;
 using Erp.Model.Usuario;
+using Erp.Repository.Empresa;
+using Erp.Service;
 using Erp.Service.Acesso;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Components.Server;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -51,13 +53,16 @@ builder.Services.ConfigureApplicationCookie(o =>
 // revalida o cookie a cada 5 min: papel revogado derruba a sessão sem esperar 8h
 builder.Services.Configure<SecurityStampValidatorOptions>(o =>
     o.ValidationInterval = TimeSpan.FromMinutes(5));
-
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissaoPolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissaoHandler>();
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
-
+builder.Services.Scan(s => s
+    .FromAssemblyOf<Program>()
+    .AddClasses(c => c.Where(t => t.Name.EndsWith("Repository")))
+        .AsSelfWithInterfaces()
+        .WithScopedLifetime());
 var app = builder.Build();
 
 // Seed de desenvolvimento: aplica migrations e cria o usuário demo.

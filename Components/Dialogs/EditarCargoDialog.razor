@@ -1,0 +1,63 @@
+@* Exemplo de dialog aberto pelo DialogService.
+
+   Nada aqui abre o dialog: este componente é só o MIOLO. Quem abre é o
+   DialogService.OpenAsync<EditarCargoDialog>(...), e o BbDialogProvider
+   (registrado no MainLayout) é quem renderiza a moldura — overlay, título,
+   botão de fechar.
+
+   Título e descrição vêm das DialogOpenOptions do chamador, por isso não
+   estão aqui dentro. *@
+
+<div class="flex flex-col gap-3">
+    <BbField>
+        <BbFieldLabel>Cargo</BbFieldLabel>
+        <BbFieldContent>
+            <BbInput Type="InputType.Text" @bind-Value="_valor" Placeholder="Analista de Compras" />
+            <BbFieldDescription>Aparece no perfil e nos relatórios de aprovação.</BbFieldDescription>
+        </BbFieldContent>
+    </BbField>
+
+    @if (_erro is not null)
+    {
+        <p class="text-sm text-destructive">@_erro</p>
+    }
+
+    <div class="flex items-center justify-end gap-2 pt-2">
+        <BbButton Variant="ButtonVariant.Outline" OnClick="Cancelar">Cancelar</BbButton>
+        <BbButton OnClick="Confirmar">Salvar</BbButton>
+    </div>
+</div>
+
+@code {
+    /// <summary>Valor inicial do campo. Chega pelo dicionário de parâmetros
+    /// passado ao OpenAsync — o nome da chave tem que bater com o desta
+    /// propriedade.</summary>
+    [Parameter] public string Cargo { get; set; } = string.Empty;
+
+    /// <summary>Injetado em cascata pelo BbDialogProvider em todo componente
+    /// aberto via OpenAsync. É por ele que o dialog se fecha e devolve o
+    /// resultado a quem chamou.</summary>
+    [CascadingParameter] private IDialogReference Dialog { get; set; } = default!;
+
+    private string _valor = string.Empty;
+    private string? _erro;
+
+    // Cópia local: editar o [Parameter] direto é sobrescrito no próximo render.
+    protected override void OnInitialized() => _valor = Cargo;
+
+    private async Task Confirmar()
+    {
+        var valor = _valor.Trim();
+
+        if (valor.Length == 0)
+        {
+            _erro = "Informe o cargo.";
+            return;
+        }
+
+        // O que vai em Ok() é o que o chamador lê com r.GetData<string>().
+        await Dialog.CloseAsync(DialogResult.Ok(valor));
+    }
+
+    private Task Cancelar() => Dialog.CancelAsync();
+}
