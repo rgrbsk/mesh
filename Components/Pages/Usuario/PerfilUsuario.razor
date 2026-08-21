@@ -34,11 +34,11 @@
         }
         else
         {
-            <div class="flex-1 min-h-0 overflow-y-auto grid grid-cols-2 gap-3 p-3">
+            <div class="flex-1 min-h-0 overflow-y-auto grid grid-cols-3 gap-3 p-4">
                 <BbField>
-                    <BbFieldLabel>Email</BbFieldLabel>
+                    <BbFieldLabel >Email</BbFieldLabel>
                     <BbFieldContent>
-                        <BbInput Type="InputType.Email" Placeholder="email@example.com" @bind-Value="_usuario.Email" />
+                        <BbInput Disabled="true" Type="InputType.Email" Placeholder="email@example.com" @bind-Value="_usuario.Email" />
                     </BbFieldContent>
                 </BbField>
                 <BbField>
@@ -62,7 +62,7 @@
                 <BbField>
                     <BbFieldLabel>Data Nascimento</BbFieldLabel>
                     <BbFieldContent>
-                        <BbDateTimePicker @bind-Value="" MinDate="DateTime.Today"
+                        <BbDateTimePicker MinDate="DateTime.Today"
                                           MinuteStep="15"
                                           Placeholder="Pick a start time"
                                           Class="w-full" />
@@ -71,7 +71,7 @@
                 <BbField>
                     <BbFieldLabel>Cargo</BbFieldLabel>
                     <BbFieldContent>
-                        <BbInput Type="InputType.Text" />
+                        <BbInput @bind-Value="_usuario.Cargo" Type="InputType.Text" />
                     </BbFieldContent>
                 </BbField>
                 <BbField>
@@ -79,7 +79,7 @@
                     <BbFieldContent>
                         <BbDateTimePicker MinDate="DateTime.Today"
                                           MinuteStep="15"
-                                          Placeholder="Pick a start time"
+                                          @bind-Value="_usuario.DataCadastro"
                                           Class="w-full" />
                         <BbFieldDescription>Data em que o usuário foi Cadastrado no ERP.</BbFieldDescription>
                     </BbFieldContent>
@@ -89,23 +89,49 @@
                     <BbFieldContent>
                         <BbDateTimePicker MinDate="DateTime.Today"
                                           MinuteStep="15"
-                                          Placeholder="Pick a start time"
+                                          @bind-Value="_usuario.DataCadastro"
                                           Class="w-full" />
                         <BbFieldDescription>Última data em que o Cadastro do Usuário foi modificado.</BbFieldDescription>
                     </BbFieldContent>
                 </BbField>
                 <BbField>
-                    <BbFieldLabel>Situação do Cadastro</BbFieldLabel>
-                    <BbSelect TValue="string"
-                              @bind-Value="selectedColor"
-                              Options="@colorOptions"
-                              Placeholder="Ativo / Inativo" />
+                    <BbSelect TValue="StatusUsuario" @bind-Value="_usuario.Status">
+                        <BbFieldLabel>Status</BbFieldLabel>
+                        <BbFieldContent>
+                            <BbSelectTrigger>
+                                <BbSelectValue Placeholder="Selecione o status..." />
+                            </BbSelectTrigger>
+                            <BbSelectContent>
+                                <BbSelectItem Value="StatusUsuario.Ativo">Ativo</BbSelectItem>
+                                <BbSelectItem Value="StatusUsuario.Inativo">Inativo</BbSelectItem>
+                            </BbSelectContent>
+                        </BbFieldContent>
+                    </BbSelect>
                 </BbField>
-                <BbFormFieldMaskedInput Label="Número para contato (telefone / celular)"
-                                        Mask="(54)9842-51727" />
-                <BbSeparator Class="col-span-2 my-2"></BbSeparator>
+                
 
-                <BbRichTextEditor Height="275px" Class="col-span-2 h-full" Toolbar="ToolbarPreset.Full" Placeholder="Digite aqui observações sobre o Usuário." />
+
+
+                    <BbField>
+                        <BbFieldLabel>Tags</BbFieldLabel>
+                        <BbFieldContent>
+                            <BbInput Placeholder="Administrativo, Gestor, etc..." @bind-Value="_usuario.Tag" />
+                        </BbFieldContent>
+                    </BbField>
+
+                    <BbFormFieldMaskedInput @bind-Value="_usuario.NumeroContato" Label="Número para contato (telefone / celular)"
+                                            Mask="(99)99999-99999" />
+
+                    <BbField>
+                        <BbFieldLabel>Tema</BbFieldLabel>
+                        <BbFieldContent>
+                                <BbInput  @bind-Value="_usuario.TemaPreferencial" />
+                        </BbFieldContent>
+                    </BbField>
+                
+                <BbSeparator Class="col-span-3 my-3"></BbSeparator>
+
+                <BbRichTextEditor @bind-Value="_usuario.Observacao" Height="275px" Class="col-span-3 h-full" Toolbar="ToolbarPreset.Full" Placeholder="Digite aqui observações sobre o Usuário." />
             </div>
             
             <ActionBar Class="flex-none" Sticky="false">
@@ -176,6 +202,8 @@
     private string? selectedColor;
     private record Employee(string Name, string Department, string Email, decimal Salary);
 
+
+
     protected override async Task OnInitializedAsync()
     {
         var principal = (await AuthState).User;
@@ -229,6 +257,18 @@
 
     private async Task Salvar()
     {
-        
+        _usuario.DataModificacao = DateTime.UtcNow;
+        var resultado = await Users.UpdateAsync(_usuario);
+        if (resultado.Succeeded)
+        {
+
+            ToastService.Show("Cadastro alterado com sucesso.", "Perfil", ToastVariant.Success);
+            Nav.NavigateTo("/home");
+
+        }
+        else
+        {
+            ToastService.Show("Houve um erro");
+        }
     }
 }
