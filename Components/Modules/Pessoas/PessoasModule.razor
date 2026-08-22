@@ -1,5 +1,5 @@
 @using Erp.Components.Shell
-
+@using Erp.Components.Modules.Pessoas.Dialogs
 <div class="flex flex-col h-full min-h-0 p-6">
     <div class="mb-5 px-2 flex items-center justify-between gap-4">
 
@@ -22,11 +22,13 @@
                     <ChildContent>Filtros</ChildContent>
                     <Icon><LucideIcon Name="funnel" Size="16" Color="magenta" /></Icon>
                 </BbButton>
-                <BbButton Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
+                <BbButton OnClick="AbrirTelaPessoas"
+                     Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
                     <ChildContent>Novo Cadastro</ChildContent>
                     <Icon><LucideIcon Name="plus" Size="16" Color="lightgreen" /></Icon>
                 </BbButton>
             </ActionArea>
+            <PessoaDialog @bind-Aberto="_dialogCadastroAberto" />
 
         </div>
     </div>
@@ -46,4 +48,11 @@
     </div>
 </div>
 
-    
+@code{
+    private bool _dialogCadastroAberto;
+    private void AbrirTelaPessoas() => _dialogCadastroAberto = true;
+
+
+
+
+}    

@@ -1,23 +1,50 @@
-@using BlazorBlueprint.Components
-
 <script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
 
-@* O <dialog> nativo e o id "components-reconnect-modal" são controlados pelo
-   runtime do Blazor / ReconnectModal.razor.js. Sem botões: a reconexão é
-   tentada automaticamente em loop (ver reconnectionOptions no App.razor). *@
+@* O <dialog> nativo, o id "components-reconnect-modal" e o id do contador são
+   controlados pelo runtime do Blazor / ReconnectModal.razor.js — não renomear.
+   O runtime também liga uma classe de estado no <dialog>
+   (components-reconnect-show / -retrying / -paused / -failed / -resume-failed);
+   quem decide qual bloco aparece é o wwwroot/css/reconnect.css.
+
+   Markup sem componentes BlazorBlueprint de propósito: este dialog vive fora da
+   árvore interativa (App.razor), então tudo aqui é HTML/CSS puro.
+
+   Sem botão de "tentar novamente": a reconexão roda em loop automático
+   (ver reconnectionOptions no App.razor). *@
 <dialog id="components-reconnect-modal" data-nosnippet>
     <div class="components-reconnect-container">
-        <BbAlert Variant="AlertVariant.Danger" AccentBorder="true">
-            <Icon>
-                <LucideIcon Name="wifi-off" class="h-4 w-4" />
-            </Icon>
-            <ChildContent>
-                <BbAlertTitle>Conexão perdida</BbAlertTitle>
-                <BbAlertDescription>
-                    Tentando reconectar automaticamente… nova tentativa em
-                    <span id="components-seconds-to-next-attempt"></span>s.
-                </BbAlertDescription>
-            </ChildContent>
-        </BbAlert>
+
+        @* Barra indeterminada no topo do card *@
+        <div class="rc-progress" aria-hidden="true"></div>
+
+        @* Anel de marca: dois ripples expandindo + spinner + logo no centro *@
+        <div class="rc-orb" aria-hidden="true">
+            <span class="rc-ripple"></span>
+            <span class="rc-ripple"></span>
+            <span class="rc-spinner"></span>
+            <img class="rc-logo" src="favicon.png" alt="" />
+        </div>
+
+        @* ---- Estado: reconectando (primeira tentativa e retentativas) ---- *@
+        <div class="rc-block rc-block-reconnecting" role="status" aria-live="polite">
+            <p class="rc-title">Conectando…</p>
+            <p class="rc-muted">
+                Sua sessão continua aberta. Nova tentativa em
+                <span class="rc-count"><span id="components-seconds-to-next-attempt"></span>s</span>
+            </p>
+        </div>
+
+        @* ---- Estado: circuito pausado pelo servidor ---- *@
+        <div class="rc-block rc-block-paused" role="status" aria-live="polite">
+            <p class="rc-title">Sessão pausada</p>
+            <p class="rc-muted">Retomando de onde você parou…</p>
+        </div>
+
+        @* ---- Estado: desistiu de reconectar ---- *@
+        <div class="rc-block rc-block-failed" role="alert">
+            <p class="rc-title rc-title-failed">Não foi possível reconectar</p>
+            <p class="rc-muted">Verifique sua conexão e recarregue a página.</p>
+            <a class="rc-action" href="javascript:location.reload()">Recarregar</a>
+        </div>
     </div>
 </dialog>

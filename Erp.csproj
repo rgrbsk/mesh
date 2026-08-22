@@ -31,7 +31,6 @@
   <ItemGroup>
     <Folder Include="Localization\UserNetworkInfo\" />
     <Folder Include="Migrations\" />
-    <Folder Include="Model\Pessoa\" />
   </ItemGroup>
 
   <!-- Regenerate the Tailwind CSS on build (skipped if npm deps aren't installed). -->

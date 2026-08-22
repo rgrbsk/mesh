@@ -20,6 +20,10 @@ namespace Erp.Data
 
         public DbSet<Erp.Model.Acesso.Papel> Papeis => Set<Erp.Model.Acesso.Papel>();
 
+        public DbSet<Erp.Model.Cidades.Cidade> Cidades => Set<Erp.Model.Cidades.Cidade>();
+
+        public DbSet<Erp.Model.Pessoa.Pessoa> Pessoas => Set<Erp.Model.Pessoa.Pessoa>();
+
 
         protected override void OnModelCreating(ModelBuilder mb)
         {

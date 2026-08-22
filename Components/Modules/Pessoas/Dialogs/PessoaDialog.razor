@@ -1,0 +1,92 @@
+﻿@using Erp.Model.Pessoa 
+@using Erp.Helpers.Pessoa
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+        
+
+        <BbDialogContent Class="w-[99vw] max-w-none h-[98vh] p-6">
+        <div class="flex flex-col h-full gap-4">
+            <div class="flex items-center gap-2">
+                <BbDialogTitle> Cadastro de pessoa</BbDialogTitle>
+                <LucideIcon Name="user-pen" Size="20"></LucideIcon>
+            </div>
+            
+            <BbSeparator></BbSeparator>
+            <div class="flex-1 min-h-0 flex flex-wrap items-end gap-y-6 gap-x-5 content-start overflow-y-auto">
+
+                <BbField Class="w-48">
+                    <BbFieldLabel>Tipo</BbFieldLabel>
+                    <BbSelect TValue="string" @bind-Value="tipoSelecionado" Options="_tipos" />
+                </BbField>
+
+                <BbField Class="w-[50rem]">
+                    <BbFieldLabel>Razão Social</BbFieldLabel>
+                    <BbInput />
+                </BbField>
+
+                <BbField Class="w-[48rem]">
+                    <BbFieldLabel>Fantasia</BbFieldLabel>
+                    <BbInput />
+                </BbField>
+
+                <BbField Class="w-56">
+                    <BbFieldLabel>CPF / CNPJ</BbFieldLabel>
+                    <BbInput />
+                </BbField>
+                <BbField Class="w-[28rem]">
+                    <BbFieldLabel>Inscrição Estadual</BbFieldLabel>
+                    <BbInput></BbInput>
+                </BbField>
+                <BbField Class="w-[28rem]">
+                    <BbFieldLabel>Inscrição Municipal</BbFieldLabel>
+                    <BbInput></BbInput>
+                </BbField>
+                <BbField Class="w-[20rem]">
+                    <BbFieldLabel>Regime Tributário</BbFieldLabel>
+                    <BbSelect TValue="string" @bind-Value="RegimeSelecionado">
+                        <BbSelectTrigger>
+                            <BbSelectValue Placeholder="Select a fruit" />
+                        </BbSelectTrigger>
+                        <BbSelectContent>
+                            <BbSelectItem Value="@("naoinformado")" Text="Não Informado">Não Informado</BbSelectItem>
+                            <BbSelectItem Value="@("mei")" Text="MEI">MEI</BbSelectItem>
+                            <BbSelectItem Value="@("simples")" Text="Simples Nacional">Simples Nacional</BbSelectItem>
+                            <BbSelectItem Value="@("lucropresumido")" Text="Lucro Presumido">Lucro Presumido</BbSelectItem>
+                            <BbSelectItem Value="@("lucroreal")" Text="Lucro Real">Lucro Real</BbSelectItem>
+                        </BbSelectContent>
+                    </BbSelect>
+                </BbField>
+                
+
+            </div>
+            
+            <BbDialogFooter>
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Secondary">TESTE</BbButton>
+                    <BbButton Variant="ButtonVariant.Secondary">TESTE 2 MF</BbButton>
+                </ActionArea>
+            </BbDialogFooter>
+        </div>
+
+        
+
+        </BbDialogContent>
+
+        
+
+
+        
+    </BbDialog>
+        
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+    private List<SelectOption<string>> _tipos { get; set; } = new();
+    private string tipoSelecionado = "Cliente";
+    private string RegimeSelecionado = "Não Informado";
+
+    protected override void OnInitialized()
+    {
+        _tipos = PessoaHelper.ListarTipos();
+    }
+}
