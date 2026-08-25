@@ -8,6 +8,10 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
+/* dark: por CLASSE (.dark no <html>), não por prefers-color-scheme — quem manda
+   é o botão de tema, ver wwwroot/js/tema.js. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Scan the Blazor components for the utility classes actually used. */
 @source "../../Components";
 

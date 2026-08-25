@@ -1,92 +1,201 @@
-﻿@using Erp.Model.Pessoa 
+@using Erp.Model.Pessoa
 @using Erp.Helpers.Pessoa
+
 <BbDialog Open="Aberto" OpenChanged="AbertoChanged">
-        
+
 
         <BbDialogContent Class="w-[99vw] max-w-none h-[98vh] p-6">
-        <div class="flex flex-col h-full gap-4">
-            <div class="flex items-center gap-2">
-                <BbDialogTitle> Cadastro de pessoa</BbDialogTitle>
-                <LucideIcon Name="user-pen" Size="20"></LucideIcon>
+        <div class="flex flex-col h-full gap-4 rounded-[inherit]">
+
+            @* Cabeçalho em faixa cinza. As margens negativas anulam o p-6 do
+               BbDialogContent, pra faixa ir de ponta a ponta do diálogo — e o
+               rounded-t-[inherit] copia o raio do próprio diálogo, senão a
+               faixa pinta cantos quadrados por cima dos cantos arredondados. *@
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="user-pen" Size="20" />
+                <BbDialogTitle>Cadastro de pessoa</BbDialogTitle>
             </div>
-            
-            <BbSeparator></BbSeparator>
+
+            @* Um container só: os títulos de seção são itens de largura total (w-full)
+               dentro do próprio flex-wrap, cada um fechado por um BbSeparator. *@
             <div class="flex-1 min-h-0 flex flex-wrap items-end gap-y-6 gap-x-5 content-start overflow-y-auto">
+
+                <div class="w-full">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Identificação</span>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
 
                 <BbField Class="w-48">
                     <BbFieldLabel>Tipo</BbFieldLabel>
                     <BbSelect TValue="string" @bind-Value="tipoSelecionado" Options="_tipos" />
                 </BbField>
 
-                <BbField Class="w-[50rem]">
-                    <BbFieldLabel>Razão Social</BbFieldLabel>
-                    <BbInput />
-                </BbField>
-
-                <BbField Class="w-[48rem]">
-                    <BbFieldLabel>Fantasia</BbFieldLabel>
-                    <BbInput />
+                <BbField Class="w-[23rem]">
+                    <BbFieldLabel>Natureza</BbFieldLabel>
+                    <BbInput Placeholder="Pessoa Física"></BbInput>
                 </BbField>
 
                 <BbField Class="w-56">
                     <BbFieldLabel>CPF / CNPJ</BbFieldLabel>
-                    <BbInput />
+                    <BbInput Placeholder="00.000.000/0000-00" />
                 </BbField>
+
+                <BbField Class="w-[50rem]">
+                    <BbFieldLabel>Razão Social</BbFieldLabel>
+                    <BbInput Placeholder="Empresa X LTDA" />
+                </BbField>
+
+                <BbField Class="w-[44rem]">
+                    <BbFieldLabel>Fantasia</BbFieldLabel>
+                    <BbInput Placeholder="Empresa Fantasia" />
+                </BbField>
+
+                <div class="w-full">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fiscal</span>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
+
                 <BbField Class="w-[28rem]">
                     <BbFieldLabel>Inscrição Estadual</BbFieldLabel>
-                    <BbInput></BbInput>
+                    <BbInput Placeholder="0000000"></BbInput>
                 </BbField>
                 <BbField Class="w-[28rem]">
                     <BbFieldLabel>Inscrição Municipal</BbFieldLabel>
-                    <BbInput></BbInput>
+                    <BbInput Placeholder="0000000"></BbInput>
                 </BbField>
-                <BbField Class="w-[20rem]">
+                <BbField Class="w-[25rem]">
                     <BbFieldLabel>Regime Tributário</BbFieldLabel>
                     <BbSelect TValue="string" @bind-Value="RegimeSelecionado">
                         <BbSelectTrigger>
-                            <BbSelectValue Placeholder="Select a fruit" />
+                            <BbSelectValue Placeholder="Selecione o regime" />
                         </BbSelectTrigger>
                         <BbSelectContent>
                             <BbSelectItem Value="@("naoinformado")" Text="Não Informado">Não Informado</BbSelectItem>
                             <BbSelectItem Value="@("mei")" Text="MEI">MEI</BbSelectItem>
                             <BbSelectItem Value="@("simples")" Text="Simples Nacional">Simples Nacional</BbSelectItem>
+                            <BbSelectItem Value="@("simplessublimite")" Text="Simples Nacional - Sublimite de Receita">Simples Nacional</BbSelectItem>
                             <BbSelectItem Value="@("lucropresumido")" Text="Lucro Presumido">Lucro Presumido</BbSelectItem>
                             <BbSelectItem Value="@("lucroreal")" Text="Lucro Real">Lucro Real</BbSelectItem>
                         </BbSelectContent>
                     </BbSelect>
                 </BbField>
-                
+
+                <div class="w-full">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Endereço</span>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
+
+                <BbField Class="w-[8rem]">
+                    <BbFieldLabel>CEP</BbFieldLabel>
+                    <BbInput></BbInput>
+                </BbField>
+                <BbField Class="w-[26rem]">
+                    <BbFieldLabel>Logradouro</BbFieldLabel>
+                    <BbInput></BbInput>
+                </BbField>
+                <BbField Class="w-[8rem]">
+                    <BbFieldLabel>Número</BbFieldLabel>
+                    <BbInput></BbInput>
+                </BbField>
+                <BbField Class="w-[23rem]">
+                    <BbFieldLabel>Bairro</BbFieldLabel>
+                    <BbInput></BbInput>
+                </BbField>
+                <BbField Class="w-[23rem]">
+                    <BbFieldLabel>Cidade</BbFieldLabel>
+                    <BbCombobox TValue="string"
+                                Class="w-[23rem]"
+                                Options="@Opcoes"
+                                @bind-Value="CidadeSelecionada"
+                                Placeholder="Selecione a cidade"
+                                SearchPlaceholder="Buscar cidade..."
+                                EmptyMessage="Nenhuma cidade encontrada."
+                                PopoverWidth="w-[200px]" />
+                </BbField>
+
+                <div class="w-full">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contato</span>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
+
+                <BbField Class="w-[23rem]">
+                    <BbFieldLabel>Email Corporativo</BbFieldLabel>
+                    <BbInput Placeholder="emailempresarial@gmail.com"></BbInput>
+                </BbField>
+
+                <div class="w-full">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Controle</span>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
+
+                <BbField Class="w-[12rem]">
+                    <BbFieldLabel>Data de Cadastro</BbFieldLabel>
+                    <BbDatePicker @bind-Value="DataCadastro" Placeholder="dd/mm/aaaa"
+                                  Class="w-full" ButtonCssClass="w-full justify-between" />
+                </BbField>
+                <div class="h-5 w-px bg-border flex-none"></div>
+                <BbField Class="w-[12rem]">
+                    <BbFieldLabel>Data de Modificação</BbFieldLabel>
+                    <BbDatePicker @bind-Value="DataMod" Placeholder="dd/mm/aaaa"
+                                  Class="w-full" ButtonCssClass="w-full justify-between" />
+                </BbField>
+
+                <BbField Class="w-[23rem]">
+                    <BbFieldLabel>Itens / Fornecimento</BbFieldLabel>
+                    <BbButton Variant="ButtonVariant.Secondary">Listar Itens do Fornecedor
+                    </BbButton>
+                </BbField>
 
             </div>
-            
+
             <BbDialogFooter>
                 <ActionArea>
-                    <BbButton Variant="ButtonVariant.Secondary">TESTE</BbButton>
-                    <BbButton Variant="ButtonVariant.Secondary">TESTE 2 MF</BbButton>
+                    <BbButton Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
+                        <ChildContent>Descartar</ChildContent>
+                        <Icon><LucideIcon Name="trash" Size="16" Color="grey" /></Icon>
+                    </BbButton>
+                    <BbButton
+                              Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
+                        <ChildContent>Salvar Cadastro</ChildContent>
+                        <Icon><LucideIcon Name="circle-check" Size="16" Color="lightgreen" /></Icon>
+                    </BbButton>
                 </ActionArea>
             </BbDialogFooter>
         </div>
 
-        
+
 
         </BbDialogContent>
 
-        
 
 
-        
+
+
     </BbDialog>
-        
+
 
 @code {
     [Parameter] public bool Aberto { get; set; }
     [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
     private List<SelectOption<string>> _tipos { get; set; } = new();
-    private string tipoSelecionado = "Cliente";
+    private string tipoSelecionado = "Indeterminado";
     private string RegimeSelecionado = "Não Informado";
+    private string CidadeSelecionada = "Nenhuma Cidade Informada.";
+    private DateTime? DataCadastro;
+    private DateTime? DataMod;
+    private List<SelectOption<string>> Opcoes = new()
+    {
+        new("nextjs", "Next.js"),
+        new("sveltekit", "SvelteKit"),
+        new("nuxtjs", "Nuxt.js"),
+        new("remix", "Remix"),
+        new("astro", "Astro")
+    };
 
     protected override void OnInitialized()
     {
         _tipos = PessoaHelper.ListarTipos();
     }
+
 }

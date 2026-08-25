@@ -1,0 +1,33 @@
+@* Alterna claro/escuro. O estado real mora no <html> (classe .dark) e no
+   localStorage — ver wwwroot/js/tema.js. Este componente só reflete e inverte,
+   por isso não precisa de estado no servidor nem sobrevive a recarregar.
+
+   A leitura acontece no OnAfterRenderAsync: durante o prerender não existe JS
+   pra perguntar qual tema está em vigor. *@
+
+@inject IJSRuntime JS
+
+<BbTooltip>
+    <BbTooltipTrigger AsChild="false" @onclick="Alternar"
+                      Class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                      aria-label="Alternar tema">
+        <LucideIcon Name="@(_escuro ? "sun" : "moon")" Size="18" />
+    </BbTooltipTrigger>
+    <BbTooltipContent>@(_escuro ? "Tema claro" : "Tema escuro")</BbTooltipContent>
+</BbTooltip>
+
+@code {
+    private bool _escuro;
+
+    protected override async Task OnAfterRenderAsync(bool primeiroRender)
+    {
+        if (!primeiroRender)
+            return;
+
+        _escuro = await JS.InvokeAsync<bool>("mesh.tema.escuro");
+        StateHasChanged();
+    }
+
+    private async Task Alternar()
+        => _escuro = await JS.InvokeAsync<bool>("mesh.tema.alternar");
+}

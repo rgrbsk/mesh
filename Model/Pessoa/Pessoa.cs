@@ -13,6 +13,12 @@ namespace Erp.Model.Pessoa
 
         public string? NomeFantasia { get; set; }
 
+        public string? Natureza { get; set; } = "Pessoa Física";
+
+        public DateTime CriadoEm { get; set; } = DateTime.UtcNow;
+
+        public DateTime ModificadoEm { get; set; } = DateTime.UtcNow;
+
         public long? IE { get; set; }
 
         public int CidadeId { get; set; }

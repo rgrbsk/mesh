@@ -2,6 +2,7 @@
 {
     public enum TipoPessoa
     {
+        Indeterminado,
         Cliente,
         Colaborador,
         Vendedor,
