@@ -1,5 +1,10 @@
 @using Erp.Model.Pessoa
 @using Erp.Helpers.Pessoa
+@using Erp.Repository.Pessoa
+@using Erp.Repository.Cidades
+@inject PessoaRepository Pessoas
+@inject CidadeRepository Cidades
+@inject ToastService Toasts
 
 <BbDialog Open="Aberto" OpenChanged="AbertoChanged">
 
@@ -33,22 +38,22 @@
 
                 <BbField Class="w-[23rem]">
                     <BbFieldLabel>Natureza</BbFieldLabel>
-                    <BbInput Placeholder="Pessoa Física"></BbInput>
+                    <BbInput @bind-Value="_pessoa.Natureza" Placeholder="Pessoa Física"></BbInput>
                 </BbField>
 
                 <BbField Class="w-56">
                     <BbFieldLabel>CPF / CNPJ</BbFieldLabel>
-                    <BbInput Placeholder="00.000.000/0000-00" />
+                    <BbInput @bind-Value="_pessoa.CNPJ" Placeholder="00.000.000/0000-00" />
                 </BbField>
 
                 <BbField Class="w-[50rem]">
                     <BbFieldLabel>Razão Social</BbFieldLabel>
-                    <BbInput Placeholder="Empresa X LTDA" />
+                    <BbInput @bind-Value="_pessoa.RazaoSocial" Placeholder="Empresa X LTDA" />
                 </BbField>
 
                 <BbField Class="w-[44rem]">
                     <BbFieldLabel>Fantasia</BbFieldLabel>
-                    <BbInput Placeholder="Empresa Fantasia" />
+                    <BbInput @bind-Value="_pessoa.NomeFantasia" Placeholder="Empresa Fantasia" />
                 </BbField>
 
                 <div class="w-full">
@@ -58,11 +63,11 @@
 
                 <BbField Class="w-[28rem]">
                     <BbFieldLabel>Inscrição Estadual</BbFieldLabel>
-                    <BbInput Placeholder="0000000"></BbInput>
+                    <BbInput @bind-Value="_pessoa.IE" Placeholder="0000000"></BbInput>
                 </BbField>
                 <BbField Class="w-[28rem]">
                     <BbFieldLabel>Inscrição Municipal</BbFieldLabel>
-                    <BbInput Placeholder="0000000"></BbInput>
+                    <BbInput @bind-Value="_pessoa.InscricaoMunicipal" Placeholder="0000000"></BbInput>
                 </BbField>
                 <BbField Class="w-[25rem]">
                     <BbFieldLabel>Regime Tributário</BbFieldLabel>
@@ -88,25 +93,25 @@
 
                 <BbField Class="w-[8rem]">
                     <BbFieldLabel>CEP</BbFieldLabel>
-                    <BbInput></BbInput>
+                    <BbInput @bind-Value="_pessoa.CEP"></BbInput>
                 </BbField>
                 <BbField Class="w-[26rem]">
                     <BbFieldLabel>Logradouro</BbFieldLabel>
-                    <BbInput></BbInput>
+                    <BbInput @bind-Value="_pessoa.Logradouro"></BbInput>
                 </BbField>
                 <BbField Class="w-[8rem]">
                     <BbFieldLabel>Número</BbFieldLabel>
-                    <BbInput></BbInput>
+                    <BbInput @bind-Value="_pessoa.NumeroEndereco"></BbInput>
                 </BbField>
                 <BbField Class="w-[23rem]">
                     <BbFieldLabel>Bairro</BbFieldLabel>
-                    <BbInput></BbInput>
+                    <BbInput @bind-Value="_pessoa.Bairro"></BbInput>
                 </BbField>
                 <BbField Class="w-[23rem]">
                     <BbFieldLabel>Cidade</BbFieldLabel>
                     <BbCombobox TValue="string"
                                 Class="w-[23rem]"
-                                Options="@Opcoes"
+                                Options="@_cidades"
                                 @bind-Value="CidadeSelecionada"
                                 Placeholder="Selecione a cidade"
                                 SearchPlaceholder="Buscar cidade..."
@@ -121,7 +126,7 @@
 
                 <BbField Class="w-[23rem]">
                     <BbFieldLabel>Email Corporativo</BbFieldLabel>
-                    <BbInput Placeholder="emailempresarial@gmail.com"></BbInput>
+                    <BbInput @bind-Value="_pessoa.Email" Placeholder="emailempresarial@gmail.com"></BbInput>
                 </BbField>
 
                 <div class="w-full">
@@ -150,13 +155,19 @@
             </div>
 
             <BbDialogFooter>
+                @if (_erro is not null)
+                {
+                    <span class="text-sm text-destructive mr-auto">@_erro</span>
+                }
                 <ActionArea>
-                    <BbButton Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
+                    <BbButton Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start"
+                              OnClick="Descartar">
                         <ChildContent>Descartar</ChildContent>
                         <Icon><LucideIcon Name="trash" Size="16" Color="grey" /></Icon>
                     </BbButton>
                     <BbButton
-                              Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start">
+                              Variant="ButtonVariant.Outline" IconPosition="IconPosition.Start"
+                              OnClick="Salvar" Disabled="_salvando">
                         <ChildContent>Salvar Cadastro</ChildContent>
                         <Icon><LucideIcon Name="circle-check" Size="16" Color="lightgreen" /></Icon>
                     </BbButton>
@@ -178,24 +189,134 @@
 @code {
     [Parameter] public bool Aberto { get; set; }
     [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+
+    /// <summary>Cadastro a editar. Nulo abre o diálogo em branco (novo).</summary>
+    [Parameter] public Pessoa? Pessoa { get; set; }
+
+    /// <summary>Tipo já marcado ao abrir em branco — a lista de fornecedores
+    /// abre o diálogo com Fornecedor selecionado.</summary>
+    [Parameter] public TipoPessoa TipoPadrao { get; set; } = TipoPessoa.Indeterminado;
+
+    /// <summary>Disparado depois de gravar, pra lista recarregar.</summary>
+    [Parameter] public EventCallback OnSalvo { get; set; }
+
+    // A tela edita uma CÓPIA: descartar não pode sujar a linha da grade, que
+    // veio do mesmo repositório.
+    private Pessoa _pessoa = new();
+    private bool _salvando;
+    private string? _erro;
+
     private List<SelectOption<string>> _tipos { get; set; } = new();
+    private List<SelectOption<string>> _cidades { get; set; } = new();
     private string tipoSelecionado = "Indeterminado";
     private string RegimeSelecionado = "Não Informado";
-    private string CidadeSelecionada = "Nenhuma Cidade Informada.";
+    private string CidadeSelecionada = "";
     private DateTime? DataCadastro;
     private DateTime? DataMod;
-    private List<SelectOption<string>> Opcoes = new()
-    {
-        new("nextjs", "Next.js"),
-        new("sveltekit", "SvelteKit"),
-        new("nuxtjs", "Nuxt.js"),
-        new("remix", "Remix"),
-        new("astro", "Astro")
-    };
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         _tipos = PessoaHelper.ListarTipos();
+
+        _cidades = (await Cidades.Buscar())
+            .Select(c => new SelectOption<string>(c.Id.ToString(), c.Descricao))
+            .ToList();
     }
 
+    // Recarrega o formulário toda vez que o diálogo é aberto — sem isso, abrir
+    // "novo" depois de uma edição traria os dados do cadastro anterior.
+    private bool _abertoAnterior;
+
+    protected override void OnParametersSet()
+    {
+        if (Aberto && !_abertoAnterior)
+            CarregarFormulario();
+
+        _abertoAnterior = Aberto;
+    }
+
+    private void CarregarFormulario()
+    {
+        _erro = null;
+
+        _pessoa = Pessoa is null
+            ? new Pessoa { Tipo = TipoPadrao }
+            : new Pessoa
+            {
+                Id = Pessoa.Id,
+                Tipo = Pessoa.Tipo,
+                CNPJ = Pessoa.CNPJ,
+                RazaoSocial = Pessoa.RazaoSocial,
+                NomeFantasia = Pessoa.NomeFantasia,
+                Natureza = Pessoa.Natureza,
+                IE = Pessoa.IE,
+                InscricaoMunicipal = Pessoa.InscricaoMunicipal,
+                RegimeTributario = Pessoa.RegimeTributario,
+                CidadeId = Pessoa.CidadeId,
+                Logradouro = Pessoa.Logradouro,
+                NumeroEndereco = Pessoa.NumeroEndereco,
+                Bairro = Pessoa.Bairro,
+                CEP = Pessoa.CEP,
+                Email = Pessoa.Email,
+                Parecer = Pessoa.Parecer,
+                CriadoEm = Pessoa.CriadoEm,
+                ModificadoEm = Pessoa.ModificadoEm,
+            };
+
+        tipoSelecionado = _pessoa.Tipo.ToString();
+        RegimeSelecionado = _pessoa.RegimeTributario ?? "naoinformado";
+        CidadeSelecionada = _pessoa.CidadeId?.ToString() ?? "";
+        DataCadastro = Pessoa is null ? null : _pessoa.CriadoEm;
+        DataMod = Pessoa is null ? null : _pessoa.ModificadoEm;
+    }
+
+    private async Task Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_pessoa.RazaoSocial))
+        {
+            _erro = "Informe a Razão Social.";
+            return;
+        }
+
+        _salvando = true;
+        try
+        {
+            // Os três selects guardam texto; o restante já foi ligado direto na
+            // entidade pelo @bind-Value.
+            _pessoa.Tipo = Enum.TryParse<TipoPessoa>(tipoSelecionado, out var tipo)
+                ? tipo
+                : TipoPessoa.Indeterminado;
+
+            _pessoa.RegimeTributario = RegimeSelecionado;
+
+            _pessoa.CidadeId = int.TryParse(CidadeSelecionada, out var cidadeId)
+                ? cidadeId
+                : null;
+
+            var novo = _pessoa.Id == 0;
+
+            if (novo)
+                await Pessoas.Criar(_pessoa);
+            else
+                await Pessoas.Atualizar(_pessoa);
+
+            Toasts.Success(
+                novo ? "Cadastro criado" : "Cadastro atualizado",
+                _pessoa.RazaoSocial);
+
+            await OnSalvo.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+            Toasts.Error("Não foi possível salvar", ex.Message);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private Task Descartar() => AbertoChanged.InvokeAsync(false);
 }

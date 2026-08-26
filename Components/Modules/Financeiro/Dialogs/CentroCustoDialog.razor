@@ -1,0 +1,217 @@
+@using Erp.Model.CentroCusto
+@using Erp.Repository.CentroCusto
+@using Erp.Repository.Usuario
+@inject CentroCustoRepository Centros
+@inject ToastService Toasts
+
+@* Mesmo desenho do PessoaDialog: cabeçalho em faixa cinza, seções separadas por
+   BbSeparator, rodapé com ActionArea. Edita uma cópia — descartar não suja a
+   linha da grade. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[46rem] max-w-none p-6">
+        <div class="flex flex-col gap-4 rounded-[inherit]">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="currency" Size="20" />
+                <BbDialogTitle>Centro de custo</BbDialogTitle>
+            </div>
+
+            <div class="flex flex-wrap items-end gap-y-5 gap-x-5">
+
+                <div class="w-full">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Identificação</span>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
+
+                <BbField Class="w-[10rem]">
+                    <BbFieldLabel>Código</BbFieldLabel>
+                    <BbInput @bind-Value="_centro.Codigo" Placeholder="1.01" />
+                </BbField>
+
+                <BbField Class="grow min-w-72">
+                    <BbFieldLabel>Nome</BbFieldLabel>
+                    <BbInput @bind-Value="_centro.Nome" Placeholder="Manutenção industrial" />
+                </BbField>
+
+                <BbField Class="w-[24rem]">
+                    <BbFieldLabel>Centro superior</BbFieldLabel>
+                    <BbCombobox TValue="string"
+                                Class="w-[24rem]"
+                                Options="@_paisDisponiveis"
+                                @bind-Value="_paiSelecionado"
+                                Placeholder="Nenhum (centro raiz)"
+                                SearchPlaceholder="Buscar centro..."
+                                EmptyMessage="Nenhum centro disponível." />
+                    <BbFieldDescription>
+                        Deixe vazio para um centro de primeiro nível.
+                    </BbFieldDescription>
+                </BbField>
+
+                <div class="w-full">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Aprovação</span>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
+
+                <BbField Class="w-[24rem]">
+                    <BbFieldLabel>Responsável</BbFieldLabel>
+                    <BbCombobox TValue="string"
+                                Class="w-[24rem]"
+                                Options="@_usuarios"
+                                @bind-Value="_responsavelSelecionado"
+                                Placeholder="Selecione o responsável"
+                                SearchPlaceholder="Buscar usuário..."
+                                EmptyMessage="Nenhum usuário encontrado." />
+                    <BbFieldDescription>
+                        Aprova as solicitações de compra deste centro. Sem responsável, elas ficam sem destino.
+                    </BbFieldDescription>
+                </BbField>
+
+                <BbField Class="w-[12rem]">
+                    <BbFieldLabel>Situação</BbFieldLabel>
+                    <div class="flex items-center gap-2 h-9">
+                        <BbSwitch @bind-Checked="_centro.Ativo" />
+                        <span class="text-sm">@(_centro.Ativo ? "Ativo" : "Inativo")</span>
+                    </div>
+                </BbField>
+            </div>
+
+            <BbDialogFooter>
+                @if (_erro is not null)
+                {
+                    <span class="text-sm text-destructive mr-auto">@_erro</span>
+                }
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="Descartar">
+                        <ChildContent>Descartar</ChildContent>
+                        <Icon><LucideIcon Name="trash" Size="16" Color="grey" /></Icon>
+                    </BbButton>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="Salvar" Disabled="_salvando">
+                        <ChildContent>Salvar</ChildContent>
+                        <Icon><LucideIcon Name="circle-check" Size="16" Color="lightgreen" /></Icon>
+                    </BbButton>
+                </ActionArea>
+            </BbDialogFooter>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+
+    /// <summary>Centro a editar. Nulo abre em branco (novo).</summary>
+    [Parameter] public CentroCusto? Centro { get; set; }
+
+    [Parameter] public EventCallback OnSalvo { get; set; }
+
+    [Inject] private UsuarioRepository Usuarios { get; set; } = default!;
+
+    private CentroCusto _centro = new();
+    private List<SelectOption<string>> _usuarios = new();
+    private List<SelectOption<string>> _paisDisponiveis = new();
+    private string _responsavelSelecionado = "";
+    private string _paiSelecionado = "";
+    private bool _salvando;
+    private string? _erro;
+    private bool _abertoAnterior;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _usuarios = (await Usuarios.Buscar())
+            .Select(u => new SelectOption<string>(u.Id.ToString(), $"{u.Nome} {u.Sobrenome}".Trim()))
+            .ToList();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Aberto && !_abertoAnterior)
+        {
+            CarregarFormulario();
+            await CarregarPaisDisponiveis();
+        }
+
+        _abertoAnterior = Aberto;
+    }
+
+    /// <summary>
+    /// Monta as opções de centro superior excluindo o próprio centro e toda a
+    /// sua subárvore: pendurar um centro num descendente criaria um ciclo, e
+    /// a árvore deixaria de ter raiz.
+    /// </summary>
+    private async Task CarregarPaisDisponiveis()
+    {
+        var proibidos = _centro.Id == 0
+            ? new HashSet<int>()
+            : await Centros.IdsDaSubarvore(_centro.Id);
+
+        _paisDisponiveis = (await Centros.Buscar())
+            .Where(c => !proibidos.Contains(c.Id))
+            .Select(c => new SelectOption<string>(c.Id.ToString(), $"{c.Codigo} — {c.Nome}"))
+            .ToList();
+    }
+
+    private void CarregarFormulario()
+    {
+        _erro = null;
+
+        _centro = Centro is null
+            ? new CentroCusto()
+            : new CentroCusto
+            {
+                Id = Centro.Id,
+                Codigo = Centro.Codigo,
+                Nome = Centro.Nome,
+                PaiId = Centro.PaiId,
+                ResponsavelId = Centro.ResponsavelId,
+                Ativo = Centro.Ativo,
+                CriadoEm = Centro.CriadoEm,
+                ModificadoEm = Centro.ModificadoEm,
+            };
+
+        _responsavelSelecionado = _centro.ResponsavelId?.ToString() ?? "";
+        _paiSelecionado = _centro.PaiId?.ToString() ?? "";
+    }
+
+    private async Task Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_centro.Codigo) || string.IsNullOrWhiteSpace(_centro.Nome))
+        {
+            _erro = "Informe código e nome.";
+            return;
+        }
+
+        _salvando = true;
+        try
+        {
+            _centro.ResponsavelId = Guid.TryParse(_responsavelSelecionado, out var id) ? id : null;
+            _centro.PaiId = int.TryParse(_paiSelecionado, out var paiId) ? paiId : null;
+
+            var novo = _centro.Id == 0;
+
+            if (novo)
+                await Centros.Criar(_centro);
+            else
+                await Centros.Atualizar(_centro);
+
+            Toasts.Success(novo ? "Centro de custo criado" : "Centro de custo atualizado", _centro.Nome);
+
+            await OnSalvo.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+            Toasts.Error("Não foi possível salvar", ex.Message);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private Task Descartar() => AbertoChanged.InvokeAsync(false);
+}

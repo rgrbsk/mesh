@@ -1,31 +1,30 @@
 using Erp.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace Erp.Repository.Usuario
+namespace Erp.Repository.Cidades
 {
+    using Cidade = Erp.Model.Cidades.Cidade;
+
     /// <summary>
     /// Um contexto por operação, vindo da fábrica — ver PessoaRepository para o
     /// porquê.
     /// </summary>
-    public class UsuarioRepository
+    public class CidadeRepository
     {
         private readonly IDbContextFactory<AppDbContext> _fabrica;
 
-        public UsuarioRepository(IDbContextFactory<AppDbContext> fabrica)
+        public CidadeRepository(IDbContextFactory<AppDbContext> fabrica)
         {
             this._fabrica = fabrica;
         }
 
-        /// <summary>Usuários para seletores (responsável pelo centro de custo,
-        /// aprovador, solicitante).</summary>
-        public async Task<List<Erp.Model.Usuario.Usuario>> Buscar()
+        public async Task<List<Cidade>> Buscar()
         {
             await using var contexto = await _fabrica.CreateDbContextAsync();
 
-            return await contexto.Usuarios
+            return await contexto.Cidades
                 .AsNoTracking()
-                .OrderBy(u => u.Nome)
-                .ThenBy(u => u.Sobrenome)
+                .OrderBy(c => c.Descricao)
                 .ToListAsync();
         }
     }

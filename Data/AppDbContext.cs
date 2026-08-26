@@ -24,10 +24,45 @@ namespace Erp.Data
 
         public DbSet<Erp.Model.Pessoa.Pessoa> Pessoas => Set<Erp.Model.Pessoa.Pessoa>();
 
+        public DbSet<Erp.Model.CentroCusto.CentroCusto> CentrosCusto => Set<Erp.Model.CentroCusto.CentroCusto>();
+
+        public DbSet<Erp.Model.Produto.Produto> Produtos => Set<Erp.Model.Produto.Produto>();
+
 
         protected override void OnModelCreating(ModelBuilder mb)
         {
             base.OnModelCreating(mb);
+
+            // Cidade é referência: apagar uma cidade não pode levar junto os
+            // cadastros que apontam pra ela (o default do EF aqui era Cascade).
+            mb.Entity<Erp.Model.Pessoa.Pessoa>()
+              .HasOne(p => p.Cidade)
+              .WithMany()
+              .HasForeignKey(p => p.CidadeId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            // Código é identificador de negócio: duplicar cria dois cadastros
+            // pro mesmo item, caro de desfazer depois que há movimento.
+            mb.Entity<Erp.Model.Produto.Produto>()
+              .HasIndex(p => p.Codigo)
+              .IsUnique();
+
+            mb.Entity<Erp.Model.CentroCusto.CentroCusto>()
+              .HasIndex(c => c.Codigo)
+              .IsUnique();
+
+            // Auto-relacionamento da árvore. Restrict de propósito: apagar um
+            // centro que tem filhos tem que falhar, não levar a subárvore junto.
+            mb.Entity<Erp.Model.CentroCusto.CentroCusto>()
+              .HasOne(c => c.Pai)
+              .WithMany(c => c.Filhos)
+              .HasForeignKey(c => c.PaiId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            // Propriedades calculadas não viram coluna.
+            mb.Entity<Erp.Model.Produto.Produto>().Ignore(p => p.PontoPedidoSugerido);
+            mb.Entity<Erp.Model.Produto.Produto>().Ignore(p => p.PrecisaRepor);
+
             // Automatically treats Unspecified DateTimes as UTC when saving or reading
             foreach (var entityType in mb.Model.GetEntityTypes())
             {

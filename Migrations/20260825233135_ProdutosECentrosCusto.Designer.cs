@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Erp.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Erp.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260825233135_ProdutosECentrosCusto")]
+    partial class ProdutosECentrosCusto
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -79,9 +82,6 @@ namespace Erp.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int?>("PaiId")
-                        .HasColumnType("integer");
-
                     b.Property<Guid?>("ResponsavelId")
                         .HasColumnType("uuid");
 
@@ -89,8 +89,6 @@ namespace Erp.Migrations
 
                     b.HasIndex("Codigo")
                         .IsUnique();
-
-                    b.HasIndex("PaiId");
 
                     b.HasIndex("ResponsavelId");
 
@@ -496,16 +494,9 @@ namespace Erp.Migrations
 
             modelBuilder.Entity("Erp.Model.CentroCusto.CentroCusto", b =>
                 {
-                    b.HasOne("Erp.Model.CentroCusto.CentroCusto", "Pai")
-                        .WithMany("Filhos")
-                        .HasForeignKey("PaiId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("Erp.Model.Usuario.Usuario", "Responsavel")
                         .WithMany()
                         .HasForeignKey("ResponsavelId");
-
-                    b.Navigation("Pai");
 
                     b.Navigation("Responsavel");
                 });
@@ -584,11 +575,6 @@ namespace Erp.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("Erp.Model.CentroCusto.CentroCusto", b =>
-                {
-                    b.Navigation("Filhos");
                 });
 #pragma warning restore 612, 618
         }

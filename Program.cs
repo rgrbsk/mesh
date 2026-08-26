@@ -29,8 +29,19 @@ builder.Services.AddRazorComponents()
 builder.Services.AddBlazorBlueprintComponents(BbLocalizationPtBr.Configure);
 
 // Single database: uma connection string, um DbContext.
-builder.Services.AddDbContext<AppDbContext>(options =>
+// Fábrica, não DbContext scoped: no Blazor Server o escopo dura o circuito
+// INTEIRO, então um DbContext compartilhado é usado por componentes que renderizam
+// em paralelo — dois awaits simultâneos nele estouram "A second operation was
+// started on this context instance". Cada operação de repositório abre e fecha
+// o seu contexto.
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+
+// O Identity (UserManager/SignInManager/stores) exige um AppDbContext scoped.
+// Ele sai da mesma fábrica, então continua havendo UMA configuração só — e o uso
+// do Identity é sequencial dentro da requisição, onde scoped não é problema.
+builder.Services.AddScoped<AppDbContext>(sp =>
+    sp.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 
 builder.Services.AddIdentity<Usuario, Papel>(o =>
 {

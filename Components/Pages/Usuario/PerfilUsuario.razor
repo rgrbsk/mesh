@@ -188,7 +188,7 @@
             <BbLabel For="name" Class="text-base font-semibold py-5">rogerbie50@gmail.com</BbLabel>
         </div>
         
-        <BbDataGrid class="p-3 g-3" TData="Empresa" Items="@_empresa" Striped>
+        <BbDataGrid class="p-3 g-3" TData="Empresa" Items="@_empresa" Striped StripeClass="bg-muted/40">
             <Columns>
                 <BbDataGridPropertyColumn Property="@(e => e.CNPJ)" Sortable Filterable />
                 <BbDataGridPropertyColumn Property="@(e => e.Nome)" Sortable Filterable />

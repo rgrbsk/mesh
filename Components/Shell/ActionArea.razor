@@ -44,7 +44,7 @@
         }
     }
 
-    // O class já foi absorvido em ClasseFinal; repassá-lo no splat sobrescreveria.
+    // O class
     private IReadOnlyDictionary<string, object>? ExtrasSemClass =>
         Extras?
             .Where(kv => !string.Equals(kv.Key, "class", StringComparison.OrdinalIgnoreCase))

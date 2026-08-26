@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Erp.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Erp.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260825223909_AjustesPessoaCrud")]
+    partial class AjustesPessoaCrud
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -52,49 +55,6 @@ namespace Erp.Migrations
                         .HasDatabaseName("RoleNameIndex");
 
                     b.ToTable("AspNetRoles", (string)null);
-                });
-
-            modelBuilder.Entity("Erp.Model.CentroCusto.CentroCusto", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Ativo")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Codigo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("ModificadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Nome")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("PaiId")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid?>("ResponsavelId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Codigo")
-                        .IsUnique();
-
-                    b.HasIndex("PaiId");
-
-                    b.HasIndex("ResponsavelId");
-
-                    b.ToTable("CentrosCusto");
                 });
 
             modelBuilder.Entity("Erp.Model.Cidades.Cidade", b =>
@@ -223,68 +183,6 @@ namespace Erp.Migrations
                     b.HasIndex("CidadeId");
 
                     b.ToTable("Pessoas");
-                });
-
-            modelBuilder.Entity("Erp.Model.Produto.Produto", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Ativo")
-                        .HasColumnType("boolean");
-
-                    b.Property<int?>("CentroCustoPadraoId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Codigo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("ConsumoMedioDiario")
-                        .HasColumnType("numeric");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Descricao")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("EstoqueMinimo")
-                        .HasColumnType("numeric");
-
-                    b.Property<int?>("FornecedorPadraoId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("ModificadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("PontoPedido")
-                        .HasColumnType("numeric");
-
-                    b.Property<int>("PrazoEntregaDias")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("SaldoAtual")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("Unidade")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CentroCustoPadraoId");
-
-                    b.HasIndex("Codigo")
-                        .IsUnique();
-
-                    b.HasIndex("FornecedorPadraoId");
-
-                    b.ToTable("Produtos");
                 });
 
             modelBuilder.Entity("Erp.Model.Usuario.Usuario", b =>
@@ -494,22 +392,6 @@ namespace Erp.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("Erp.Model.CentroCusto.CentroCusto", b =>
-                {
-                    b.HasOne("Erp.Model.CentroCusto.CentroCusto", "Pai")
-                        .WithMany("Filhos")
-                        .HasForeignKey("PaiId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Erp.Model.Usuario.Usuario", "Responsavel")
-                        .WithMany()
-                        .HasForeignKey("ResponsavelId");
-
-                    b.Navigation("Pai");
-
-                    b.Navigation("Responsavel");
-                });
-
             modelBuilder.Entity("Erp.Model.Pessoa.Pessoa", b =>
                 {
                     b.HasOne("Erp.Model.Cidades.Cidade", "Cidade")
@@ -518,21 +400,6 @@ namespace Erp.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Cidade");
-                });
-
-            modelBuilder.Entity("Erp.Model.Produto.Produto", b =>
-                {
-                    b.HasOne("Erp.Model.CentroCusto.CentroCusto", "CentroCustoPadrao")
-                        .WithMany()
-                        .HasForeignKey("CentroCustoPadraoId");
-
-                    b.HasOne("Erp.Model.Pessoa.Pessoa", "FornecedorPadrao")
-                        .WithMany()
-                        .HasForeignKey("FornecedorPadraoId");
-
-                    b.Navigation("CentroCustoPadrao");
-
-                    b.Navigation("FornecedorPadrao");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -584,11 +451,6 @@ namespace Erp.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("Erp.Model.CentroCusto.CentroCusto", b =>
-                {
-                    b.Navigation("Filhos");
                 });
 #pragma warning restore 612, 618
         }
