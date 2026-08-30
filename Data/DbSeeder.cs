@@ -56,6 +56,12 @@ namespace Erp.Data
             foreach (var permissao in Permissoes.Todas.Except(atuais))
                 await roleManager.AddClaimAsync(admin, new Claim(Permissoes.ClaimType, permissao));
 
+            // Dados de conveniência vêm DEPOIS do acesso, de propósito: se um
+            // seed de dado falhar, o Program.cs engole a exceção e o resto do
+            // método não roda. Com esta ordem, o que se perde é a etapa de
+            // exemplo — nunca as permissões, que trancariam todo mundo fora.
+            await SemearEtapas(db);
+
             if (await userManager.FindByEmailAsync(DemoEmail) is not null)
                 return;
 
@@ -74,6 +80,29 @@ namespace Erp.Data
                     string.Join("; ", resultado.Errors.Select(e => e.Description)));
 
             await userManager.AddToRoleAsync(usuario, PapelAdmin);
+        }
+
+        /// <summary>Duas etapas para o Kanban não abrir sem nenhuma coluna antes
+        /// da aprovação. São sugestão: quem tem etapas.gerir renomeia, reordena
+        /// ou apaga em Adicionais.</summary>
+        private static async Task SemearEtapas(AppDbContext db)
+        {
+            if (await db.Etapas.AnyAsync())
+                return;
+
+            db.Etapas.AddRange(
+                new Erp.Model.Etapa.Etapa
+                {
+                    Nome = "Elaboração", Ordem = 1, Cor = "#89CFF0",
+                    Descricao = "Montando a lista de itens.",
+                },
+                new Erp.Model.Etapa.Etapa
+                {
+                    Nome = "Conferência", Ordem = 2, Cor = "#E4A0F7",
+                    Descricao = "Revisão antes de mandar para aprovação.",
+                });
+
+            await db.SaveChangesAsync();
         }
     }
 }

@@ -134,15 +134,18 @@
                     <BbSeparator Class="mt-1.5" />
                 </div>
 
+                @* Datas são EXIBIÇÃO: quem as escreve é o repositório, no
+                   salvamento. Editáveis, davam a impressão de que o valor
+                   digitado seria gravado — e ele era descartado em silêncio. *@
                 <BbField Class="w-[12rem]">
                     <BbFieldLabel>Data de Cadastro</BbFieldLabel>
-                    <BbDatePicker @bind-Value="DataCadastro" Placeholder="dd/mm/aaaa"
+                    <BbDatePicker @bind-Value="DataCadastro" Placeholder="—" Disabled="true"
                                   Class="w-full" ButtonCssClass="w-full justify-between" />
                 </BbField>
                 <div class="h-5 w-px bg-border flex-none"></div>
                 <BbField Class="w-[12rem]">
                     <BbFieldLabel>Data de Modificação</BbFieldLabel>
-                    <BbDatePicker @bind-Value="DataMod" Placeholder="dd/mm/aaaa"
+                    <BbDatePicker @bind-Value="DataMod" Placeholder="—" Disabled="true"
                                   Class="w-full" ButtonCssClass="w-full justify-between" />
                 </BbField>
 

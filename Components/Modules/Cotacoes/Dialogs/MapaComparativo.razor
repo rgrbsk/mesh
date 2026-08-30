@@ -1,0 +1,349 @@
+@using Cotacao = Erp.Model.Cotacao.Cotacao
+@using Erp.Model.Cotacao
+@using Erp.Repository.Cotacao
+@using System.Security.Claims
+@inject CotacaoRepository Cotacoes
+@inject ToastService Toasts
+
+@* Comparação lado a lado: uma coluna por fornecedor que respondeu, uma linha
+   por item. A escolha é POR ITEM — o pedido pode terminar dividido. O menor
+   preço de cada linha fica marcado, e escolher outro exige motivo. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[88rem] max-w-none h-[92vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="table-2" Size="20" />
+                <BbDialogTitle>
+                    Mapa comparativo@(_cotacao is null ? "" : $" — {_cotacao.Titulo}")
+                </BbDialogTitle>
+                @if (_respondentes.Count > 0)
+                {
+                    <span class="text-xs text-muted-foreground ml-2">
+                        @_respondentes.Count @(_respondentes.Count == 1 ? "proposta recebida" : "propostas recebidas")
+                    </span>
+                }
+            </div>
+
+            @if (_cotacao is null)
+            {
+                <p class="text-sm text-muted-foreground">Carregando…</p>
+            }
+            else if (_respondentes.Count == 0)
+            {
+                <BbEmpty Title="Nenhuma proposta ainda"
+                         Description="Assim que um fornecedor enviar pelo link dele, a comparação aparece aqui."
+                         Class="py-16">
+                    <Icon><LucideIcon Name="inbox" Size="40" Class="text-muted-foreground" /></Icon>
+                </BbEmpty>
+            }
+            else
+            {
+                <div class="flex-1 min-h-0 overflow-auto">
+                    <table class="erp-table w-full">
+                        <thead>
+                            <tr>
+                                <th class="w-[18rem]">Item</th>
+                                @foreach (var convite in _respondentes)
+                                {
+                                    <th class="w-[15rem]">
+                                        <div class="truncate">@convite.Identificacao</div>
+                                        <div class="normal-case font-normal text-[11px] text-muted-foreground truncate">
+                                            @(string.IsNullOrWhiteSpace(convite.CondicaoPagamento) ? "—" : convite.CondicaoPagamento)
+                                            @if (!string.IsNullOrWhiteSpace(convite.Frete))
+                                            {
+                                                <span> · @convite.Frete</span>
+                                            }
+                                        </div>
+                                    </th>
+                                }
+                                <th class="w-[16rem]">Escolha</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in _cotacao.Itens)
+                            {
+                                var menor = MenorPreco(item);
+
+                                <tr>
+                                    <td>
+                                        <div class="text-sm">@(item.Produto?.Descricao ?? "Item")</div>
+                                        <div class="text-xs text-muted-foreground">
+                                            @item.Produto?.Codigo · @item.Quantidade.ToString("0.####") @item.Produto?.Unidade
+                                        </div>
+                                    </td>
+
+                                    @foreach (var convite in _respondentes)
+                                    {
+                                        var proposta = item.Propostas
+                                            .FirstOrDefault(p => p.ConviteFornecedorId == convite.Id);
+                                        var venceu = item.ConviteVencedorId == convite.Id;
+                                        var ehMenor = proposta?.PrecoUnitario is not null
+                                                      && proposta.PrecoUnitario == menor;
+
+                                        <td class="@(venceu ? "bg-emerald-500/10" : "")">
+                                            @if (proposta?.PrecoUnitario is null)
+                                            {
+                                                <span class="text-xs text-muted-foreground">não cotou</span>
+                                            }
+                                            else
+                                            {
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="text-sm tabular-nums @(ehMenor ? "font-semibold text-emerald-600 dark:text-emerald-400" : "")">
+                                                        @proposta.PrecoUnitario.Value.ToString("C2")
+                                                    </span>
+                                                    @if (ehMenor)
+                                                    {
+                                                        <LucideIcon Name="trending-down" Size="13" Class="text-emerald-600" />
+                                                    }
+                                                </div>
+                                                <div class="text-xs text-muted-foreground tabular-nums">
+                                                    total @((proposta.PrecoUnitario.Value * item.Quantidade).ToString("C2"))
+                                                    @if (proposta.PrazoEntregaDias is { } dias)
+                                                    {
+                                                        <span> · @dias d</span>
+                                                    }
+                                                </div>
+                                                @if (!string.IsNullOrWhiteSpace(proposta.Observacao))
+                                                {
+                                                    <div class="text-xs text-muted-foreground truncate">@proposta.Observacao</div>
+                                                }
+                                                @if (!venceu)
+                                                {
+                                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
+                                                              Class="mt-1"
+                                                              OnClick="() => Escolher(item, convite, ehMenor)">
+                                                        Escolher
+                                                    </BbButton>
+                                                }
+                                            }
+                                        </td>
+                                    }
+
+                                    <td>
+                                        @if (item.ConviteVencedorId is null)
+                                        {
+                                            <span class="text-xs text-muted-foreground">Sem decisão</span>
+                                        }
+                                        else
+                                        {
+                                            <div class="flex items-start gap-1.5">
+                                                <LucideIcon Name="circle-check" Size="14" Class="text-emerald-600 mt-0.5" />
+                                                <div class="min-w-0">
+                                                    <div class="text-sm truncate">@Vencedor(item)</div>
+                                                    @if (!string.IsNullOrWhiteSpace(item.MotivoEscolha))
+                                                    {
+                                                        <div class="text-xs text-muted-foreground">@item.MotivoEscolha</div>
+                                                    }
+                                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                              OnClick="() => Limpar(item)">
+                                                        Refazer
+                                                    </BbButton>
+                                                </div>
+                                            </div>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+
+                            @* Total por fornecedor no rodapé: é a leitura de
+                               "quanto sairia se tudo fosse com um só". *@
+                            <tr class="bg-muted/40">
+                                <td class="text-xs uppercase tracking-wider text-muted-foreground">Total cotado</td>
+                                @foreach (var convite in _respondentes)
+                                {
+                                    <td class="text-sm font-medium tabular-nums">@TotalDo(convite).ToString("C2")</td>
+                                }
+                                <td class="text-sm font-medium tabular-nums">
+                                    @TotalEscolhido().ToString("C2")
+                                    <div class="text-xs font-normal text-muted-foreground">do que já foi escolhido</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <BbDialogFooter>
+                <span class="text-xs text-muted-foreground mr-auto">
+                    Escolher quem não tem o menor preço exige motivo.
+                </span>
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="() => AbertoChanged.InvokeAsync(false)">
+                        <ChildContent>Fechar</ChildContent>
+                        <Icon><LucideIcon Name="x" Size="16" Color="grey" /></Icon>
+                    </BbButton>
+                </ActionArea>
+            </BbDialogFooter>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@* Motivo da escolha, pedido só quando não é o menor preço. *@
+<BbDialog @bind-Open="_dialogMotivoAberto">
+    <BbDialogContent Class="max-w-lg p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>Justificar a escolha</BbDialogTitle>
+            <p class="text-sm text-muted-foreground">
+                <strong class="text-foreground">@_conviteEscolhido?.Identificacao</strong>
+                não tem o menor preço deste item. Diga por que ele foi escolhido.
+            </p>
+
+            <BbField>
+                <BbFieldLabel>Motivo</BbFieldLabel>
+                <BbInput @bind-Value="_motivo" Placeholder="Prazo menor, qualidade, homologação…" />
+            </BbField>
+
+            @if (_erroMotivo is not null)
+            {
+                <p class="text-sm text-destructive">@_erroMotivo</p>
+            }
+
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogMotivoAberto = false">
+                    Cancelar
+                </BbButton>
+                <BbButton OnClick="ConfirmarMotivo" Disabled="_salvando">Confirmar escolha</BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+
+    /// <summary>Cotação a comparar.</summary>
+    [Parameter] public int CotacaoId { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private Cotacao? _cotacao;
+    private List<ConviteFornecedor> _respondentes = new();
+    private Guid _usuarioAtual;
+
+    private bool _dialogMotivoAberto;
+    private CotacaoItem? _itemEscolhido;
+    private ConviteFornecedor? _conviteEscolhido;
+    private string _motivo = string.Empty;
+    private string? _erroMotivo;
+    private bool _salvando;
+    private bool _abertoAnterior;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+            _usuarioAtual = Guid.TryParse(
+                (await EstadoAutenticacao).User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Aberto && !_abertoAnterior)
+            await Carregar();
+
+        _abertoAnterior = Aberto;
+    }
+
+    private async Task Carregar()
+    {
+        _cotacao = await Cotacoes.ObterParaMapa(CotacaoId);
+
+        // Só quem respondeu vira coluna: convite pendente não tem o que comparar.
+        _respondentes = _cotacao?.Convites
+            .Where(c => c.Status == StatusConvite.Respondido)
+            .OrderBy(c => c.Identificacao)
+            .ToList() ?? new();
+    }
+
+    private static decimal? MenorPreco(CotacaoItem item) =>
+        item.Propostas.Where(p => p.PrecoUnitario is not null).Min(p => p.PrecoUnitario);
+
+    private string Vencedor(CotacaoItem item) =>
+        _respondentes.FirstOrDefault(c => c.Id == item.ConviteVencedorId)?.Identificacao ?? "—";
+
+    /// <summary>Quanto sairia a rodada inteira com este fornecedor, contando só
+    /// o que ele cotou.</summary>
+    private decimal TotalDo(ConviteFornecedor convite) =>
+        _cotacao?.Itens.Sum(item =>
+        {
+            var proposta = item.Propostas.FirstOrDefault(p => p.ConviteFornecedorId == convite.Id);
+
+            return (proposta?.PrecoUnitario ?? 0m) * item.Quantidade;
+        }) ?? 0m;
+
+    private decimal TotalEscolhido() =>
+        _cotacao?.Itens
+            .Where(i => i.ConviteVencedorId is not null)
+            .Sum(item =>
+            {
+                var proposta = item.Propostas
+                    .FirstOrDefault(p => p.ConviteFornecedorId == item.ConviteVencedorId);
+
+                return (proposta?.PrecoUnitario ?? 0m) * item.Quantidade;
+            }) ?? 0m;
+
+    private async Task Escolher(CotacaoItem item, ConviteFornecedor convite, bool ehMenorPreco)
+    {
+        if (!ehMenorPreco)
+        {
+            _itemEscolhido = item;
+            _conviteEscolhido = convite;
+            _motivo = string.Empty;
+            _erroMotivo = null;
+            _dialogMotivoAberto = true;
+            return;
+        }
+
+        await Gravar(item, convite, null);
+    }
+
+    private async Task ConfirmarMotivo()
+    {
+        if (string.IsNullOrWhiteSpace(_motivo))
+        {
+            _erroMotivo = "Informe o motivo.";
+            return;
+        }
+
+        if (_itemEscolhido is null || _conviteEscolhido is null)
+            return;
+
+        _salvando = true;
+        try
+        {
+            await Gravar(_itemEscolhido, _conviteEscolhido, _motivo);
+            _dialogMotivoAberto = false;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private async Task Gravar(CotacaoItem item, ConviteFornecedor convite, string? motivo)
+    {
+        try
+        {
+            await Cotacoes.EscolherVencedor(item.Id, convite.Id, motivo, _usuarioAtual);
+            await Carregar();
+
+            Toasts.Success("Vencedor definido", $"{item.Produto?.Descricao} — {convite.Identificacao}");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível escolher", ex.Message);
+        }
+    }
+
+    private async Task Limpar(CotacaoItem item)
+    {
+        await Cotacoes.LimparVencedor(item.Id);
+        await Carregar();
+    }
+}

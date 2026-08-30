@@ -1,0 +1,283 @@
+@using Cotacao = Erp.Model.Cotacao.Cotacao
+@using Erp.Model.Cotacao
+@using Erp.Components.Modules.Cotacoes.Dialogs
+@using Erp.Repository.Cotacao
+@inject CotacaoRepository Cotacoes
+@inject ToastService Toasts
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Cotações</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                Cada fornecedor responde por um link próprio, sem login, e nunca vê a proposta do concorrente.
+            </p>
+        </div>
+
+        @if (_podeGerir)
+        {
+            <div class="flex items-center gap-2 flex-none">
+                <ActionArea>
+                    <BbButton OnClick="NovaCotacao"
+                              Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                        <ChildContent>Nova cotação</ChildContent>
+                        <Icon><LucideIcon Name="plus" Size="16" Color="lightgreen" /></Icon>
+                    </BbButton>
+                </ActionArea>
+                <CotacaoDialog @bind-Aberto="_dialogAberto" Cotacao="_emEdicao" OnSalvo="Recarregar" />
+                <MapaComparativo @bind-Aberto="_mapaAberto" CotacaoId="_cotacaoDoMapa" />
+            </div>
+        }
+    </div>
+
+    @if (!_podeGerir)
+    {
+        @* Alcançável por URL mesmo sem o atalho no topo. *@
+        <BbEmpty Title="Sem acesso às cotações"
+                 Description="Montar e acompanhar rodadas de cotação exige a permissão cotacoes.gerir."
+                 Class="py-16">
+            <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
+        </BbEmpty>
+    }
+    else
+    {
+        <div class="flex-1 min-h-0 px-2">
+            <BbDataGrid TData="Cotacao"
+                        Items="@_cotacoes"
+                        IsLoading="_carregando"
+                        Striped
+                        StripeClass="bg-muted/40"
+                        StickyHeader
+                        ShowSearch="false"
+                        ShowPagination
+                        InitialPageSize="20"
+                        Resizable>
+                <Columns>
+                    <BbDataGridPropertyColumn Property="@(c => c.Id)" Title="#" Width="80px" Sortable />
+                    <BbDataGridPropertyColumn Property="@(c => c.Titulo)" Title="Título" Sortable />
+                    <BbDataGridPropertyColumn Property="@(c => c.Itens.Count)" Title="Itens" Width="80px" />
+
+                    @* O número que interessa no dia a dia: quantos já responderam
+                       de quantos foram convidados. *@
+                    <BbDataGridTemplateColumn Title="Respostas" Width="120px" NoWrap>
+                        <span class="text-sm tabular-nums">
+                            @context.Respostas / @context.Convites.Count
+                        </span>
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="Prazo" Width="130px" NoWrap>
+                        @if (context.PrazoResposta is { } prazo)
+                        {
+                            <span class="text-sm tabular-nums @(prazo.Date < DateTime.Today ? "text-destructive font-medium" : "")">
+                                @prazo.ToString("dd/MM/yyyy")
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="text-xs text-muted-foreground">—</span>
+                        }
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="Situação" Width="140px" NoWrap>
+                        <BbBadge Variant="@Badge(context.Status)">@Texto(context.Status)</BbBadge>
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="Ações" Width="150px" NoWrap>
+                        <div class="flex items-center justify-end gap-1">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => Abrir(context)"
+                                      aria-label="@(context.Editavel ? "Editar" : "Ver")">
+                                <LucideIcon Name="@(context.Editavel ? "pencil" : "eye")" Size="15" />
+                            </BbButton>
+                            @* O mapa só faz sentido com proposta na mão. *@
+                            @if (context.Respostas > 0)
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                          OnClick="() => AbrirMapa(context)" aria-label="Mapa comparativo">
+                                    <LucideIcon Name="table-2" Size="15" />
+                                </BbButton>
+                            }
+                            @if (context.Status == StatusCotacao.Aberta)
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                          OnClick="() => Encerrar(context)" aria-label="Encerrar">
+                                    <LucideIcon Name="circle-slash" Size="15" />
+                                </BbButton>
+                            }
+                            @if (context.Status == StatusCotacao.Rascunho)
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                          OnClick="() => PedirExclusao(context)" aria-label="Excluir">
+                                    <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                                </BbButton>
+                            }
+                        </div>
+                    </BbDataGridTemplateColumn>
+                </Columns>
+
+                <EmptyTemplate>
+                    <BbEmpty Title="Nenhuma cotação ainda"
+                             Description="Monte a primeira com os itens a comprar e os fornecedores a convidar."
+                             Class="py-10">
+                        <Icon><LucideIcon Name="mail" Size="40" Class="text-muted-foreground" /></Icon>
+                        <ChildContent>
+                            <BbButton Class="mt-3" Size="ButtonSize.Small" OnClick="NovaCotacao">
+                                Criar a primeira
+                            </BbButton>
+                        </ChildContent>
+                    </BbEmpty>
+                </EmptyTemplate>
+            </BbDataGrid>
+        </div>
+    }
+</div>
+
+<BbDialog @bind-Open="_dialogExclusaoAberto">
+    <BbDialogContent Class="max-w-md p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>Excluir cotação</BbDialogTitle>
+            <p class="text-sm text-muted-foreground">
+                Excluir <strong class="text-foreground">@_aExcluir?.Titulo</strong> e seus convites?
+                Esta ação não pode ser desfeita.
+            </p>
+            @if (_erroExclusao is not null)
+            {
+                <p class="text-sm text-destructive">@_erroExclusao</p>
+            }
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogExclusaoAberto = false">
+                    Cancelar
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Destructive" OnClick="ConfirmarExclusao" Disabled="_excluindo">
+                    Excluir
+                </BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private List<Cotacao> _cotacoes = new();
+    private bool _carregando = true;
+    private bool _podeGerir;
+
+    private bool _dialogAberto;
+    private Cotacao? _emEdicao;
+
+    private bool _mapaAberto;
+    private int _cotacaoDoMapa;
+
+    private bool _dialogExclusaoAberto;
+    private Cotacao? _aExcluir;
+    private bool _excluindo;
+    private string? _erroExclusao;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+            _podeGerir = (await EstadoAutenticacao).User
+                .HasClaim(Permissoes.ClaimType, Permissoes.CotacoesGerir);
+
+        if (_podeGerir)
+            await Recarregar();
+
+        _carregando = false;
+    }
+
+    private static string Texto(StatusCotacao status) => status switch
+    {
+        StatusCotacao.Rascunho => "Rascunho",
+        StatusCotacao.Aberta => "Aberta",
+        StatusCotacao.Encerrada => "Encerrada",
+        _ => status.ToString(),
+    };
+
+    private static BadgeVariant Badge(StatusCotacao status) => status switch
+    {
+        StatusCotacao.Rascunho => BadgeVariant.Outline,
+        StatusCotacao.Aberta => BadgeVariant.Default,
+        StatusCotacao.Encerrada => BadgeVariant.Secondary,
+        _ => BadgeVariant.Outline,
+    };
+
+    private async Task Recarregar()
+    {
+        _carregando = true;
+        _cotacoes = await Cotacoes.Buscar();
+        _carregando = false;
+    }
+
+    private void NovaCotacao()
+    {
+        _emEdicao = null;
+        _dialogAberto = true;
+    }
+
+    /// <summary>Recarrega do banco antes de abrir: a linha da grade não traz as
+    /// propostas, e o diálogo precisa saber quem já respondeu para não deixar
+    /// remover o convite.</summary>
+    private async Task Abrir(Cotacao cotacao)
+    {
+        _emEdicao = await Cotacoes.ObterPorId(cotacao.Id);
+        _dialogAberto = true;
+    }
+
+    private void AbrirMapa(Cotacao cotacao)
+    {
+        _cotacaoDoMapa = cotacao.Id;
+        _mapaAberto = true;
+    }
+
+    private async Task Encerrar(Cotacao cotacao)
+    {
+        try
+        {
+            await Cotacoes.Encerrar(cotacao.Id);
+            await Recarregar();
+
+            Toasts.Success("Cotação encerrada", "Os links pararam de aceitar resposta.");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível encerrar", ex.Message);
+        }
+    }
+
+    private void PedirExclusao(Cotacao cotacao)
+    {
+        _aExcluir = cotacao;
+        _erroExclusao = null;
+        _dialogExclusaoAberto = true;
+    }
+
+    private async Task ConfirmarExclusao()
+    {
+        if (_aExcluir is null)
+            return;
+
+        _excluindo = true;
+        try
+        {
+            var titulo = _aExcluir.Titulo;
+
+            await Cotacoes.Excluir(_aExcluir.Id);
+            _dialogExclusaoAberto = false;
+            _aExcluir = null;
+            await Recarregar();
+
+            Toasts.Success("Cotação excluída", titulo);
+        }
+        catch (Exception ex)
+        {
+            _erroExclusao = ex.Message;
+            Toasts.Error("Não foi possível excluir", ex.Message);
+        }
+        finally
+        {
+            _excluindo = false;
+        }
+    }
+}

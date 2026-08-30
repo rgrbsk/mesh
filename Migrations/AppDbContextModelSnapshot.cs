@@ -127,6 +127,194 @@ namespace Erp.Migrations
                     b.ToTable("Cidades");
                 });
 
+            modelBuilder.Entity("Erp.Model.Cotacao.ConviteFornecedor", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Cnpj")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CondicaoPagamento")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("CotacaoId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("ExpiraEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Frete")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("PessoaId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RazaoSocial")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("RespondidoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Responsavel")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Telefone")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CotacaoId");
+
+                    b.HasIndex("PessoaId");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.ToTable("Convites");
+                });
+
+            modelBuilder.Entity("Erp.Model.Cotacao.Cotacao", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CriadoPorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ModificadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Observacao")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("PrazoResposta")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CriadoPorId");
+
+                    b.ToTable("Cotacoes");
+                });
+
+            modelBuilder.Entity("Erp.Model.Cotacao.CotacaoItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ConviteVencedorId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CotacaoId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("EscolhidoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EscolhidoPorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("ItemSolicitacaoId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MotivoEscolha")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ProdutoId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Quantidade")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConviteVencedorId");
+
+                    b.HasIndex("CotacaoId");
+
+                    b.HasIndex("EscolhidoPorId");
+
+                    b.HasIndex("ItemSolicitacaoId");
+
+                    b.HasIndex("ProdutoId");
+
+                    b.ToTable("CotacaoItens");
+                });
+
+            modelBuilder.Entity("Erp.Model.Cotacao.PropostaItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ConviteFornecedorId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CotacaoItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Observacao")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("PrazoEntregaDias")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("PrecoUnitario")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConviteFornecedorId");
+
+                    b.HasIndex("CotacaoItemId");
+
+                    b.ToTable("Propostas");
+                });
+
             modelBuilder.Entity("Erp.Model.Empresa.Empresa", b =>
                 {
                     b.Property<Guid>("Id")
@@ -155,6 +343,90 @@ namespace Erp.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Empresas");
+                });
+
+            modelBuilder.Entity("Erp.Model.Etapa.Etapa", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Cor")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Descricao")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("ModificadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Ordem")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Etapas");
+                });
+
+            modelBuilder.Entity("Erp.Model.Log.RegistroLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Acao")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Descricao")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Entidade")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EntidadeId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Modulo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("Quando")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("StackTrace")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UsuarioNome")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Quando");
+
+                    b.ToTable("Logs");
                 });
 
             modelBuilder.Entity("Erp.Model.Pessoa.Pessoa", b =>
@@ -285,6 +557,97 @@ namespace Erp.Migrations
                     b.HasIndex("FornecedorPadraoId");
 
                     b.ToTable("Produtos");
+                });
+
+            modelBuilder.Entity("Erp.Model.Solicitacao.ItemSolicitacao", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CentroCustoId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("DecididoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DecididoPorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Justificativa")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("MotivoDecisao")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("PrazoDesejado")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ProdutoId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Quantidade")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("SolicitacaoId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CentroCustoId");
+
+                    b.HasIndex("DecididoPorId");
+
+                    b.HasIndex("ProdutoId");
+
+                    b.HasIndex("SolicitacaoId");
+
+                    b.ToTable("ItensSolicitacao");
+                });
+
+            modelBuilder.Entity("Erp.Model.Solicitacao.SolicitacaoCompra", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EnviadaEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("EtapaId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ModificadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Observacao")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("SolicitanteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EtapaId");
+
+                    b.HasIndex("SolicitanteId");
+
+                    b.ToTable("Solicitacoes");
                 });
 
             modelBuilder.Entity("Erp.Model.Usuario.Usuario", b =>
@@ -510,6 +873,93 @@ namespace Erp.Migrations
                     b.Navigation("Responsavel");
                 });
 
+            modelBuilder.Entity("Erp.Model.Cotacao.ConviteFornecedor", b =>
+                {
+                    b.HasOne("Erp.Model.Cotacao.Cotacao", "Cotacao")
+                        .WithMany("Convites")
+                        .HasForeignKey("CotacaoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Model.Pessoa.Pessoa", "Pessoa")
+                        .WithMany()
+                        .HasForeignKey("PessoaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Cotacao");
+
+                    b.Navigation("Pessoa");
+                });
+
+            modelBuilder.Entity("Erp.Model.Cotacao.Cotacao", b =>
+                {
+                    b.HasOne("Erp.Model.Usuario.Usuario", "CriadoPor")
+                        .WithMany()
+                        .HasForeignKey("CriadoPorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CriadoPor");
+                });
+
+            modelBuilder.Entity("Erp.Model.Cotacao.CotacaoItem", b =>
+                {
+                    b.HasOne("Erp.Model.Cotacao.ConviteFornecedor", "ConviteVencedor")
+                        .WithMany()
+                        .HasForeignKey("ConviteVencedorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Erp.Model.Cotacao.Cotacao", "Cotacao")
+                        .WithMany("Itens")
+                        .HasForeignKey("CotacaoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Model.Usuario.Usuario", "EscolhidoPor")
+                        .WithMany()
+                        .HasForeignKey("EscolhidoPorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Erp.Model.Solicitacao.ItemSolicitacao", "ItemSolicitacao")
+                        .WithMany()
+                        .HasForeignKey("ItemSolicitacaoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Erp.Model.Produto.Produto", "Produto")
+                        .WithMany()
+                        .HasForeignKey("ProdutoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ConviteVencedor");
+
+                    b.Navigation("Cotacao");
+
+                    b.Navigation("EscolhidoPor");
+
+                    b.Navigation("ItemSolicitacao");
+
+                    b.Navigation("Produto");
+                });
+
+            modelBuilder.Entity("Erp.Model.Cotacao.PropostaItem", b =>
+                {
+                    b.HasOne("Erp.Model.Cotacao.ConviteFornecedor", "ConviteFornecedor")
+                        .WithMany("Propostas")
+                        .HasForeignKey("ConviteFornecedorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Model.Cotacao.CotacaoItem", "CotacaoItem")
+                        .WithMany("Propostas")
+                        .HasForeignKey("CotacaoItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ConviteFornecedor");
+
+                    b.Navigation("CotacaoItem");
+                });
+
             modelBuilder.Entity("Erp.Model.Pessoa.Pessoa", b =>
                 {
                     b.HasOne("Erp.Model.Cidades.Cidade", "Cidade")
@@ -533,6 +983,58 @@ namespace Erp.Migrations
                     b.Navigation("CentroCustoPadrao");
 
                     b.Navigation("FornecedorPadrao");
+                });
+
+            modelBuilder.Entity("Erp.Model.Solicitacao.ItemSolicitacao", b =>
+                {
+                    b.HasOne("Erp.Model.CentroCusto.CentroCusto", "CentroCusto")
+                        .WithMany()
+                        .HasForeignKey("CentroCustoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Model.Usuario.Usuario", "DecididoPor")
+                        .WithMany()
+                        .HasForeignKey("DecididoPorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Erp.Model.Produto.Produto", "Produto")
+                        .WithMany()
+                        .HasForeignKey("ProdutoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Model.Solicitacao.SolicitacaoCompra", "Solicitacao")
+                        .WithMany("Itens")
+                        .HasForeignKey("SolicitacaoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CentroCusto");
+
+                    b.Navigation("DecididoPor");
+
+                    b.Navigation("Produto");
+
+                    b.Navigation("Solicitacao");
+                });
+
+            modelBuilder.Entity("Erp.Model.Solicitacao.SolicitacaoCompra", b =>
+                {
+                    b.HasOne("Erp.Model.Etapa.Etapa", "Etapa")
+                        .WithMany()
+                        .HasForeignKey("EtapaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Erp.Model.Usuario.Usuario", "Solicitante")
+                        .WithMany()
+                        .HasForeignKey("SolicitanteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Etapa");
+
+                    b.Navigation("Solicitante");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -589,6 +1091,28 @@ namespace Erp.Migrations
             modelBuilder.Entity("Erp.Model.CentroCusto.CentroCusto", b =>
                 {
                     b.Navigation("Filhos");
+                });
+
+            modelBuilder.Entity("Erp.Model.Cotacao.ConviteFornecedor", b =>
+                {
+                    b.Navigation("Propostas");
+                });
+
+            modelBuilder.Entity("Erp.Model.Cotacao.Cotacao", b =>
+                {
+                    b.Navigation("Convites");
+
+                    b.Navigation("Itens");
+                });
+
+            modelBuilder.Entity("Erp.Model.Cotacao.CotacaoItem", b =>
+                {
+                    b.Navigation("Propostas");
+                });
+
+            modelBuilder.Entity("Erp.Model.Solicitacao.SolicitacaoCompra", b =>
+                {
+                    b.Navigation("Itens");
                 });
 #pragma warning restore 612, 618
         }

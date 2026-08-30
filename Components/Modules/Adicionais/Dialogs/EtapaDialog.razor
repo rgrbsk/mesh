@@ -1,0 +1,159 @@
+@using Etapa = Erp.Model.Etapa.Etapa
+@using Erp.Repository.Etapa
+@inject EtapaRepository Etapas
+@inject ToastService Toasts
+
+@* Mesmo desenho dos outros diálogos: faixa cinza no topo, seções separadas por
+   BbSeparator, rodapé com ActionArea. Edita uma cópia. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[40rem] max-w-none p-6">
+        <div class="flex flex-col gap-4 rounded-[inherit]">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="columns-3" Size="20" />
+                <BbDialogTitle>Etapa do fluxo</BbDialogTitle>
+            </div>
+
+            <div class="flex flex-wrap items-end gap-y-5 gap-x-5">
+
+                <BbField Class="grow min-w-64">
+                    <BbFieldLabel>Nome</BbFieldLabel>
+                    <BbInput @bind-Value="_etapa.Nome" Placeholder="Conferência de orçamento" />
+                    <BbFieldDescription>É o título da coluna no Kanban.</BbFieldDescription>
+                </BbField>
+
+                @* Paleta fechada em vez de campo livre: a cor é só o traço da
+                   coluna, e hex digitado à mão erra o contraste no tema escuro. *@
+                <BbField Class="w-[14rem]">
+                    <BbFieldLabel>Cor</BbFieldLabel>
+                    <div class="flex items-center gap-1.5 h-9">
+                        @foreach (var cor in Paleta)
+                        {
+                            <button type="button" @onclick="() => _etapa.Cor = cor"
+                                    class="h-6 w-6 rounded-full border-2 transition-transform hover:scale-110
+                                           @(_etapa.Cor == cor ? "border-foreground" : "border-transparent")"
+                                    style="@($"background: {cor}")"
+                                    aria-label="@cor"></button>
+                        }
+                    </div>
+                </BbField>
+
+                <BbField Class="w-full">
+                    <BbFieldLabel>Descrição</BbFieldLabel>
+                    <BbInput @bind-Value="_etapa.Descricao" Placeholder="O que precisa acontecer nesta etapa" />
+                </BbField>
+
+                <BbField Class="w-[12rem]">
+                    <BbFieldLabel>Situação</BbFieldLabel>
+                    <div class="flex items-center gap-2 h-9">
+                        <BbSwitch @bind-Checked="_etapa.Ativo" />
+                        <span class="text-sm">@(_etapa.Ativo ? "Ativa" : "Inativa")</span>
+                    </div>
+                    <BbFieldDescription>Inativa sai do quadro, mas não some do histórico.</BbFieldDescription>
+                </BbField>
+            </div>
+
+            <BbDialogFooter>
+                @if (_erro is not null)
+                {
+                    <span class="text-sm text-destructive mr-auto">@_erro</span>
+                }
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="Descartar">
+                        <ChildContent>Descartar</ChildContent>
+                        <Icon><LucideIcon Name="trash" Size="16" Color="grey" /></Icon>
+                    </BbButton>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="Salvar" Disabled="_salvando">
+                        <ChildContent>Salvar</ChildContent>
+                        <Icon><LucideIcon Name="circle-check" Size="16" Color="lightgreen" /></Icon>
+                    </BbButton>
+                </ActionArea>
+            </BbDialogFooter>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+
+    /// <summary>Etapa a editar. Nula abre em branco (nova).</summary>
+    [Parameter] public Etapa? Etapa { get; set; }
+
+    [Parameter] public EventCallback OnSalvo { get; set; }
+
+    private static readonly string[] Paleta =
+        ["#89CFF0", "#E4A0F7", "#ADFF2F", "#FCF75E", "#FF4F00", "#DE3163", "#4F7942"];
+
+    private Etapa _etapa = new();
+    private bool _salvando;
+    private string? _erro;
+    private bool _abertoAnterior;
+
+    protected override void OnParametersSet()
+    {
+        if (Aberto && !_abertoAnterior)
+            CarregarFormulario();
+
+        _abertoAnterior = Aberto;
+    }
+
+    private void CarregarFormulario()
+    {
+        _erro = null;
+
+        _etapa = Etapa is null
+            ? new Etapa()
+            : new Etapa
+            {
+                Id = Etapa.Id,
+                Nome = Etapa.Nome,
+                Descricao = Etapa.Descricao,
+                Ordem = Etapa.Ordem,
+                Cor = Etapa.Cor,
+                Ativo = Etapa.Ativo,
+                CriadoEm = Etapa.CriadoEm,
+                ModificadoEm = Etapa.ModificadoEm,
+            };
+    }
+
+    private async Task Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_etapa.Nome))
+        {
+            _erro = "Informe o nome da etapa.";
+            return;
+        }
+
+        _salvando = true;
+        try
+        {
+            var nova = _etapa.Id == 0;
+
+            if (nova)
+                await Etapas.Criar(_etapa);
+            else
+                await Etapas.Atualizar(_etapa);
+
+            Toasts.Success(nova ? "Etapa criada" : "Etapa atualizada", _etapa.Nome);
+
+            await OnSalvo.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+            Toasts.Error("Não foi possível salvar", ex.Message);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private Task Descartar() => AbertoChanged.InvokeAsync(false);
+}

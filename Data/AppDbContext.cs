@@ -28,6 +28,22 @@ namespace Erp.Data
 
         public DbSet<Erp.Model.Produto.Produto> Produtos => Set<Erp.Model.Produto.Produto>();
 
+        public DbSet<Erp.Model.Solicitacao.SolicitacaoCompra> Solicitacoes => Set<Erp.Model.Solicitacao.SolicitacaoCompra>();
+
+        public DbSet<Erp.Model.Solicitacao.ItemSolicitacao> ItensSolicitacao => Set<Erp.Model.Solicitacao.ItemSolicitacao>();
+
+        public DbSet<Erp.Model.Etapa.Etapa> Etapas => Set<Erp.Model.Etapa.Etapa>();
+
+        public DbSet<Erp.Model.Cotacao.Cotacao> Cotacoes => Set<Erp.Model.Cotacao.Cotacao>();
+
+        public DbSet<Erp.Model.Cotacao.CotacaoItem> CotacaoItens => Set<Erp.Model.Cotacao.CotacaoItem>();
+
+        public DbSet<Erp.Model.Cotacao.ConviteFornecedor> Convites => Set<Erp.Model.Cotacao.ConviteFornecedor>();
+
+        public DbSet<Erp.Model.Cotacao.PropostaItem> Propostas => Set<Erp.Model.Cotacao.PropostaItem>();
+
+        public DbSet<Erp.Model.Log.RegistroLog> Logs => Set<Erp.Model.Log.RegistroLog>();
+
 
         protected override void OnModelCreating(ModelBuilder mb)
         {
@@ -59,9 +75,132 @@ namespace Erp.Data
               .HasForeignKey(c => c.PaiId)
               .OnDelete(DeleteBehavior.Restrict);
 
+            // Item não existe sem cabeçalho: apagar a solicitação leva os itens.
+            // Já produto e centro de custo são referência — Restrict, senão
+            // excluir um centro apagaria itens de solicitações antigas.
+            mb.Entity<Erp.Model.Solicitacao.ItemSolicitacao>()
+              .HasOne(i => i.Solicitacao)
+              .WithMany(s => s.Itens)
+              .HasForeignKey(i => i.SolicitacaoId)
+              .OnDelete(DeleteBehavior.Cascade);
+
+            mb.Entity<Erp.Model.Solicitacao.ItemSolicitacao>()
+              .HasOne(i => i.Produto)
+              .WithMany()
+              .HasForeignKey(i => i.ProdutoId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Erp.Model.Solicitacao.ItemSolicitacao>()
+              .HasOne(i => i.CentroCusto)
+              .WithMany()
+              .HasForeignKey(i => i.CentroCustoId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            // Etapa é referência: desativar/apagar uma etapa não pode levar
+            // junto as solicitações que estavam nela.
+            mb.Entity<Erp.Model.Solicitacao.SolicitacaoCompra>()
+              .HasOne(s => s.Etapa)
+              .WithMany()
+              .HasForeignKey(s => s.EtapaId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Erp.Model.Solicitacao.SolicitacaoCompra>()
+              .HasOne(s => s.Solicitante)
+              .WithMany()
+              .HasForeignKey(s => s.SolicitanteId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Erp.Model.Solicitacao.ItemSolicitacao>()
+              .HasOne(i => i.DecididoPor)
+              .WithMany()
+              .HasForeignKey(i => i.DecididoPorId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            // O token é a credencial do fornecedor: a busca da tela pública é
+            // POR ELE, e duas linhas com o mesmo token dariam acesso cruzado.
+            mb.Entity<Erp.Model.Cotacao.ConviteFornecedor>()
+              .HasIndex(c => c.Token)
+              .IsUnique();
+
+            // Itens e convites não existem sem a cotação; as propostas não
+            // existem sem o convite. Apagar a rodada leva tudo junto.
+            mb.Entity<Erp.Model.Cotacao.CotacaoItem>()
+              .HasOne(i => i.Cotacao)
+              .WithMany(c => c.Itens)
+              .HasForeignKey(i => i.CotacaoId)
+              .OnDelete(DeleteBehavior.Cascade);
+
+            mb.Entity<Erp.Model.Cotacao.ConviteFornecedor>()
+              .HasOne(c => c.Cotacao)
+              .WithMany(c => c.Convites)
+              .HasForeignKey(c => c.CotacaoId)
+              .OnDelete(DeleteBehavior.Cascade);
+
+            mb.Entity<Erp.Model.Cotacao.PropostaItem>()
+              .HasOne(p => p.ConviteFornecedor)
+              .WithMany(c => c.Propostas)
+              .HasForeignKey(p => p.ConviteFornecedorId)
+              .OnDelete(DeleteBehavior.Cascade);
+
+            // Já produto, pessoa e item de solicitação são referência.
+            mb.Entity<Erp.Model.Cotacao.PropostaItem>()
+              .HasOne(p => p.CotacaoItem)
+              .WithMany(i => i.Propostas)
+              .HasForeignKey(p => p.CotacaoItemId)
+              .OnDelete(DeleteBehavior.Cascade);
+
+            mb.Entity<Erp.Model.Cotacao.CotacaoItem>()
+              .HasOne(i => i.Produto)
+              .WithMany()
+              .HasForeignKey(i => i.ProdutoId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Erp.Model.Cotacao.CotacaoItem>()
+              .HasOne(i => i.ItemSolicitacao)
+              .WithMany()
+              .HasForeignKey(i => i.ItemSolicitacaoId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Erp.Model.Cotacao.ConviteFornecedor>()
+              .HasOne(c => c.Pessoa)
+              .WithMany()
+              .HasForeignKey(c => c.PessoaId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            // O vencedor é referência ao convite, e apagar um convite não pode
+            // levar junto o item cotado — por isso Restrict, não Cascade.
+            mb.Entity<Erp.Model.Cotacao.CotacaoItem>()
+              .HasOne(i => i.ConviteVencedor)
+              .WithMany()
+              .HasForeignKey(i => i.ConviteVencedorId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Erp.Model.Cotacao.CotacaoItem>()
+              .HasOne(i => i.EscolhidoPor)
+              .WithMany()
+              .HasForeignKey(i => i.EscolhidoPorId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Erp.Model.Cotacao.Cotacao>()
+              .HasOne(c => c.CriadoPor)
+              .WithMany()
+              .HasForeignKey(c => c.CriadoPorId)
+              .OnDelete(DeleteBehavior.Restrict);
+
             // Propriedades calculadas não viram coluna.
             mb.Entity<Erp.Model.Produto.Produto>().Ignore(p => p.PontoPedidoSugerido);
             mb.Entity<Erp.Model.Produto.Produto>().Ignore(p => p.PrecisaRepor);
+            mb.Entity<Erp.Model.Solicitacao.SolicitacaoCompra>().Ignore(s => s.Editavel);
+            mb.Entity<Erp.Model.Solicitacao.SolicitacaoCompra>().Ignore(s => s.QuantidadeTotal);
+            mb.Entity<Erp.Model.Solicitacao.SolicitacaoCompra>().Ignore(s => s.PrazoMaisCurto);
+            mb.Entity<Erp.Model.Cotacao.Cotacao>().Ignore(c => c.Editavel);
+            mb.Entity<Erp.Model.Cotacao.Cotacao>().Ignore(c => c.Respostas);
+            mb.Entity<Erp.Model.Cotacao.PropostaItem>().Ignore(p => p.Total);
+            mb.Entity<Erp.Model.Cotacao.ConviteFornecedor>().Ignore(c => c.Identificacao);
+            mb.Entity<Erp.Model.Log.RegistroLog>().Ignore(l => l.TemStackTrace);
+
+            // Toda consulta da tela de logs ordena e filtra por data.
+            mb.Entity<Erp.Model.Log.RegistroLog>().HasIndex(l => l.Quando);
 
             // Automatically treats Unspecified DateTimes as UTC when saving or reading
             foreach (var entityType in mb.Model.GetEntityTypes())

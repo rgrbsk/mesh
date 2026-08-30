@@ -1,0 +1,297 @@
+@using Usuario = Erp.Model.Usuario.Usuario
+@using Erp.Model.Usuario
+@using Erp.Components.Modules.Usuarios.Dialogs
+@using Erp.Repository.Usuario
+@using Erp.Repository.PermissoesUsuario
+@using BlazorBlueprint.Primitives.Filtering
+@inject UsuarioRepository Usuarios
+@inject PermissoesRepository Acessos
+@inject ToastService Toasts
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Usuários e permissões</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                Quem entra no sistema e o que cada um pode fazer.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-none">
+            <ActionArea>
+                @if (_buscaAberta)
+                {
+                    <BbInput @ref="_campoBusca"
+                             @bind-Value="_busca"
+                             UpdateTiming="UpdateTiming.Debounced"
+                             DebounceInterval="250"
+                             Placeholder="Buscar nesta lista…"
+                             Class="w-64 border-0 shadow-none focus-visible:ring-0"
+                             @onblur="FecharBuscaSeVazia" />
+                }
+                <BbButton OnClick="AlternarBusca"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>@(_buscaAberta ? "" : "Pesquisar")</ChildContent>
+                    <Icon><LucideIcon Name="@(_buscaAberta ? "x" : "search")" Size="16" /></Icon>
+                </BbButton>
+                <BbButton OnClick="() => _painelFiltros = !_painelFiltros"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Filtros@(_condicoes > 0 ? $" ({_condicoes})" : "")</ChildContent>
+                    <Icon><LucideIcon Name="funnel" Size="16" Color="magenta" /></Icon>
+                </BbButton>
+                <BbButton OnClick="NovoUsuario"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Novo Usuário</ChildContent>
+                    <Icon><LucideIcon Name="plus" Size="16" Color="lightgreen" /></Icon>
+                </BbButton>
+            </ActionArea>
+            <UsuarioDialog @bind-Aberto="_dialogCadastroAberto"
+                           Usuario="_emEdicao"
+                           OnSalvo="Recarregar" />
+        </div>
+    </div>
+
+    @if (_painelFiltros)
+    {
+        <div class="mb-4 mx-2 p-4 rounded-lg border border-border bg-card">
+            <BbFilterBuilder Fields="_campos"
+                             @bind-Filter="_filtro"
+                             OnFilterChanged="Recarregar"
+                             ApplyButtonText="Aplicar filtros"
+                             ClearButtonText="Limpar" />
+        </div>
+    }
+
+    <div class="flex-1 min-h-0 px-2">
+        <BbDataGrid TData="Usuario"
+                    Items="@_usuarios"
+                    IsLoading="_carregando"
+                    Striped
+                    StripeClass="bg-muted/40"
+                    StickyHeader
+                    ShowSearch="false"
+                    SearchText="@_busca"
+                    ShowPagination
+                    InitialPageSize="20"
+                    Resizable>
+            <Columns>
+                <BbDataGridPropertyColumn Property="@(u => (u.Nome + " " + u.Sobrenome).Trim())" Title="Nome" Sortable />
+                <BbDataGridPropertyColumn Property="@(u => u.Email ?? "")" Title="E-mail" Sortable />
+                <BbDataGridPropertyColumn Property="@(u => u.Cargo)" Title="Cargo" Sortable />
+
+                <BbDataGridTemplateColumn Title="Papel" Width="160px" NoWrap>
+                    @if (Papel(context) is { } papel)
+                    {
+                        <BbBadge Variant="BadgeVariant.Secondary">@papel</BbBadge>
+                    }
+                    else
+                    {
+                        <span class="text-xs text-muted-foreground">—</span>
+                    }
+                </BbDataGridTemplateColumn>
+
+                @* Só as diretas: as do papel já estão contadas no badge ao lado,
+                   e somar as duas faria o número mudar sem ninguém ter mexido
+                   nas permissões desse usuário. *@
+                <BbDataGridTemplateColumn Title="Permissões diretas" Width="150px" NoWrap>
+                    <span class="text-sm tabular-nums">@Diretas(context)</span>
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn Title="Situação" Width="110px" NoWrap>
+                    @if (context.Status == StatusUsuario.Ativo)
+                    {
+                        <span class="text-xs text-muted-foreground">Ativo</span>
+                    }
+                    else
+                    {
+                        <span class="inline-flex items-center gap-1 text-xs font-medium text-destructive">
+                            <LucideIcon Name="ban" Size="14" />
+                            Inativo
+                        </span>
+                    }
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn Title="Ações" Width="110px" NoWrap>
+                    <div class="flex items-center justify-end gap-1">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                  OnClick="() => Editar(context)" aria-label="Editar">
+                            <LucideIcon Name="pencil" Size="15" />
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                  OnClick="() => PedirExclusao(context)" aria-label="Excluir">
+                            <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                        </BbButton>
+                    </div>
+                </BbDataGridTemplateColumn>
+            </Columns>
+
+            <EmptyTemplate>
+                <BbEmpty Title="Nenhum usuário encontrado"
+                         Description="Ajuste os filtros ou a busca para ver outros resultados."
+                         Class="py-10">
+                    <Icon><LucideIcon Name="user-key" Size="40" Class="text-muted-foreground" /></Icon>
+                </BbEmpty>
+            </EmptyTemplate>
+        </BbDataGrid>
+    </div>
+</div>
+
+@* Excluir usuário apaga junto o histórico de quem solicitou e aprovou o quê.
+   Inativar costuma ser o que se quer — a confirmação diz isso. *@
+<BbDialog @bind-Open="_dialogExclusaoAberto">
+    <BbDialogContent Class="max-w-md p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>Excluir usuário</BbDialogTitle>
+            <p class="text-sm text-muted-foreground">
+                Excluir <strong class="text-foreground">@($"{_aExcluir?.Nome} {_aExcluir?.Sobrenome}".Trim())</strong>?
+                Esta ação não pode ser desfeita. Para só tirar o acesso, marque o usuário como inativo.
+            </p>
+            @if (_erroExclusao is not null)
+            {
+                <p class="text-sm text-destructive">@_erroExclusao</p>
+            }
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogExclusaoAberto = false">
+                    Cancelar
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Destructive" OnClick="ConfirmarExclusao" Disabled="_excluindo">
+                    Excluir
+                </BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    private bool _dialogCadastroAberto;
+    private Usuario? _emEdicao;
+
+    private List<Usuario> _usuarios = new();
+    private Dictionary<Guid, (string? Papel, int Diretas)> _resumo = new();
+    private bool _carregando = true;
+
+    private bool _painelFiltros;
+
+    private bool _buscaAberta;
+    private bool _focarBusca;
+    private string _busca = string.Empty;
+    private BbInput? _campoBusca;
+
+    private FilterDefinition _filtro = new();
+    private int _condicoes => _filtro?.TotalConditionCount ?? 0;
+
+    private readonly List<FilterField> _campos = new()
+    {
+        new FilterField { Name = nameof(Usuario.Nome),          Label = "Nome",       Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(Usuario.Sobrenome),     Label = "Sobrenome",  Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(Usuario.Email),         Label = "E-mail",     Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(Usuario.Cargo),         Label = "Cargo",      Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(Usuario.CPF),           Label = "CPF",        Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(Usuario.DataCadastro),  Label = "Cadastro",   Type = FilterFieldType.Date },
+        new FilterField { Name = nameof(Usuario.Status),        Label = "Situação",   Type = FilterFieldType.Enum,
+                          Options = Enum.GetValues<StatusUsuario>()
+                                        .Select(s => new SelectOption<string>(s.ToString(), s.ToString()))
+                                        .ToList() },
+    };
+
+    private bool _dialogExclusaoAberto;
+    private Usuario? _aExcluir;
+    private bool _excluindo;
+    private string? _erroExclusao;
+
+    protected override Task OnInitializedAsync() => Recarregar();
+
+    protected override async Task OnAfterRenderAsync(bool primeiroRender)
+    {
+        if (_focarBusca && _campoBusca is not null)
+        {
+            _focarBusca = false;
+            await _campoBusca.Element.FocusAsync();
+        }
+    }
+
+    private string? Papel(Usuario usuario) =>
+        _resumo.TryGetValue(usuario.Id, out var linha) ? linha.Papel : null;
+
+    private int Diretas(Usuario usuario) =>
+        _resumo.TryGetValue(usuario.Id, out var linha) ? linha.Diretas : 0;
+
+    private void AlternarBusca()
+    {
+        _buscaAberta = !_buscaAberta;
+
+        if (_buscaAberta)
+            _focarBusca = true;
+        else
+            _busca = string.Empty;
+    }
+
+    private void FecharBuscaSeVazia()
+    {
+        if (string.IsNullOrWhiteSpace(_busca))
+            _buscaAberta = false;
+    }
+
+    private async Task Recarregar()
+    {
+        _carregando = true;
+        _usuarios = await Usuarios.Buscar(_filtro.ToExpression<Usuario>(_campos));
+        _resumo = await Acessos.Resumo();
+        _carregando = false;
+    }
+
+    private void NovoUsuario()
+    {
+        _emEdicao = null;
+        _dialogCadastroAberto = true;
+    }
+
+    private void Editar(Usuario usuario)
+    {
+        _emEdicao = usuario;
+        _dialogCadastroAberto = true;
+    }
+
+    private void PedirExclusao(Usuario usuario)
+    {
+        _aExcluir = usuario;
+        _erroExclusao = null;
+        _dialogExclusaoAberto = true;
+    }
+
+    private async Task ConfirmarExclusao()
+    {
+        if (_aExcluir is null)
+            return;
+
+        _excluindo = true;
+        try
+        {
+            var nome = $"{_aExcluir.Nome} {_aExcluir.Sobrenome}".Trim();
+
+            var resultado = await Usuarios.Excluir(_aExcluir.Id);
+            if (!resultado.Succeeded)
+            {
+                _erroExclusao = string.Join("; ", resultado.Errors.Select(e => e.Description));
+                return;
+            }
+
+            _dialogExclusaoAberto = false;
+            _aExcluir = null;
+            await Recarregar();
+
+            Toasts.Success("Usuário excluído", nome);
+        }
+        catch (Exception ex)
+        {
+            // Tipicamente FK: o usuário já responde por um centro de custo.
+            _erroExclusao = ex.Message;
+            Toasts.Error("Não foi possível excluir", ex.Message);
+        }
+        finally
+        {
+            _excluindo = false;
+        }
+    }
+}

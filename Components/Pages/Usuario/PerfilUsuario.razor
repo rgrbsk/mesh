@@ -1,6 +1,5 @@
-﻿
 @page "/perfil"
-@* @attribute [Authorize] *@
+@attribute [Authorize]
 @layout ShellLayout
 @using Erp.Model.Usuario
 @using Erp.Model.Empresa
@@ -10,16 +9,20 @@
 @inject EmpresaRepository _empresaRepository
 @rendermode InteractiveServer
 
+@* Perfil do PRÓPRIO usuário: ele edita o que é dele (nome, contato, tema) e
+   apenas vê o que é decisão de quem administra (status, cargo, datas). A tela
+   de Usuários é que muda essas coisas. *@
+
 <BbTabs Class="flex flex-col h-full" DefaultValue="dados">
-    <BbTabsList class="grid w-full grid-cols-3 rounded-none">
+    <BbTabsList class="grid w-full grid-cols-2 rounded-none">
         <BbTabsTrigger Value="dados">Dados da Conta</BbTabsTrigger>
-        <BbTabsTrigger Value="documentos">Documentos</BbTabsTrigger>
         <BbTabsTrigger Value="empresas">Empresas</BbTabsTrigger>
     </BbTabsList>
+
     <BbTabsContent Value="dados" class="flex flex-col flex-1 min-h-0">
         @if (_usuario is null)
         {
-            <div class="space-y-6">
+            <div class="space-y-6 p-4">
                 @for (int i = 0; i < 3; i++)
                 {
                     <div class="space-y-3 align-self-center">
@@ -40,225 +43,176 @@
         {
             <div class="flex-1 min-h-0 overflow-y-auto grid grid-cols-3 gap-3 p-4">
                 <BbField>
-                    <BbFieldLabel >Email</BbFieldLabel>
+                    <BbFieldLabel>Email</BbFieldLabel>
                     <BbFieldContent>
-                        <BbInput Disabled="true" Type="InputType.Email" Placeholder="email@example.com" @bind-Value="_usuario.Email" />
+                        <BbInput Disabled="true" Type="InputType.Email" @bind-Value="_usuario.Email" />
                     </BbFieldContent>
+                    <BbFieldDescription>É o seu login. Trocar exige quem administra.</BbFieldDescription>
                 </BbField>
+
                 <BbField>
                     <BbFieldLabel>Nome</BbFieldLabel>
                     <BbFieldContent>
-                        <BbInput Type="InputType.Email" @bind-Value="_usuario.Nome" />
+                        <BbInput Type="InputType.Text" @bind-Value="_usuario.Nome" />
                     </BbFieldContent>
                 </BbField>
+
                 <BbField>
                     <BbFieldLabel>Sobrenome</BbFieldLabel>
                     <BbFieldContent>
-                        <BbInput Type="InputType.Email" @bind-Value="_usuario.Sobrenome" />
+                        <BbInput Type="InputType.Text" @bind-Value="_usuario.Sobrenome" />
                     </BbFieldContent>
                 </BbField>
+
                 <BbField>
                     <BbFieldLabel>CPF</BbFieldLabel>
                     <BbFieldContent>
-                        <BbInput Type="InputType.Email" @bind-Value="_usuario.CPF" />
+                        <BbInput Type="InputType.Text" @bind-Value="_usuario.CPF" />
                     </BbFieldContent>
                 </BbField>
 
+                @* Cargo e status são decisão de quem administra, não do dono da
+                   conta: editáveis aqui, qualquer um se promoveria ou se
+                   reativaria depois de ser desligado. *@
                 <BbField>
                     <BbFieldLabel>Cargo</BbFieldLabel>
                     <BbFieldContent>
-                        <BbInput @bind-Value="_usuario.Cargo" Type="InputType.Text" />
+                        <BbInput Disabled="true" Type="InputType.Text" @bind-Value="_usuario.Cargo" />
                     </BbFieldContent>
                 </BbField>
+
                 <BbField>
-                    <BbFieldLabel>Data Cadastro</BbFieldLabel>
+                    <BbFieldLabel>Situação</BbFieldLabel>
                     <BbFieldContent>
-                        <BbDateTimePicker MinDate="DateTime.Today"
-                                          MinuteStep="15"
-                                          @bind-Value="_usuario.DataCadastro"
-                                          Class="w-full" />
+                        <BbInput Disabled="true" Value="@_usuario.Status.ToString()" />
                     </BbFieldContent>
                 </BbField>
+
+                <BbFormFieldMaskedInput @bind-Value="_usuario.NumeroContato"
+                                        Label="Número para contato (telefone / celular)"
+                                        Mask="(99)99999-9999" />
+
+                @* Datas são exibição: quem as escreve é o salvamento. *@
                 <BbField>
-                    <BbFieldLabel>Data Modificação</BbFieldLabel>
+                    <BbFieldLabel>Cadastrado em</BbFieldLabel>
                     <BbFieldContent>
-                        <BbDateTimePicker MinDate="DateTime.Today"
-                                          MinuteStep="15"
-                                          @bind-Value="_usuario.DataCadastro"
-                                          Class="w-full" />
+                        <BbInput Disabled="true"
+                                 Value="@(_usuario.DataCadastro?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")" />
                     </BbFieldContent>
                 </BbField>
+
                 <BbField>
-                    <BbSelect TValue="StatusUsuario" @bind-Value="_usuario.Status">
-                        <BbFieldLabel>Status</BbFieldLabel>
-                        <BbFieldContent>
-                            <BbSelectTrigger>
-                                <BbSelectValue Placeholder="Selecione o status..." />
-                            </BbSelectTrigger>
-                            <BbSelectContent>
-                                <BbSelectItem Value="StatusUsuario.Ativo">Ativo</BbSelectItem>
-                                <BbSelectItem Value="StatusUsuario.Inativo">Inativo</BbSelectItem>
-                            </BbSelectContent>
-                        </BbFieldContent>
-                    </BbSelect>
+                    <BbFieldLabel>Modificado em</BbFieldLabel>
+                    <BbFieldContent>
+                        <BbInput Disabled="true"
+                                 Value="@(_usuario.DataModificacao?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")" />
+                    </BbFieldContent>
                 </BbField>
-                
 
-
-
-                    <BbField>
-                        <BbFieldLabel>Tags</BbFieldLabel>
-                        <BbFieldContent>
+                <BbField>
+                    <BbFieldLabel>Tags</BbFieldLabel>
+                    <BbFieldContent>
                         <BbTagInput Tags="_usuario.Tag" Placeholder="Administrativo, Gestor, Compras..." />
-                        </BbFieldContent>
-                    </BbField>
+                    </BbFieldContent>
+                </BbField>
 
-                    <BbFormFieldMaskedInput @bind-Value="_usuario.NumeroContato" Label="Número para contato (telefone / celular)"
-                                            Mask="(99)99999-99999" />
+                @* Antes era campo de texto livre — dava para escrever qualquer
+                   coisa num valor que só aceita três. *@
+                <BbField>
+                    <BbFieldLabel>Tema preferencial</BbFieldLabel>
+                    <BbFieldContent>
+                        <BbSelect TValue="string" @bind-Value="_tema" Options="_temas" />
+                    </BbFieldContent>
+                    <BbFieldDescription>
+                        Fica salvo na sua conta. O botão da barra superior continua mandando na sessão atual.
+                    </BbFieldDescription>
+                </BbField>
 
-                    <BbField>
-                        <BbFieldLabel>Tema</BbFieldLabel>
-                        <BbFieldContent>
-                                <BbInput  @bind-Value="_usuario.TemaPreferencial" />
-                        </BbFieldContent>
-                    </BbField>
-
-                    <BbField>
+                <BbField>
                     <BbFieldLabel>Dispositivo</BbFieldLabel>
-                        <BbFieldContent>
-                        <BbButton Variant="ButtonVariant.Secondary" OnClick="() => _deviceAberto = true" IconPosition="IconPosition.End">
-                            <ChildContent>Clique aqui para ver as informações sobre o dispositivo logado.</ChildContent>
-                            <Icon><LucideIcon Name="monitor-cog" Size="16" Color="black" /></Icon>
+                    <BbFieldContent>
+                        <BbButton Variant="ButtonVariant.Secondary" OnClick="() => _deviceAberto = true"
+                                  IconPosition="IconPosition.End">
+                            <ChildContent>Ver informações do dispositivo logado</ChildContent>
+                            <Icon><LucideIcon Name="monitor-cog" Size="16" /></Icon>
                         </BbButton>
-                        </BbFieldContent>
-                    </BbField>
-                <DeviceDialog @bind-Aberto="_deviceAberto" />
-                    
-                
-                <BbSeparator Class="col-span-3 my-3"></BbSeparator>
+                    </BbFieldContent>
+                </BbField>
 
-                <BbRichTextEditor @bind-Value="_usuario.Observacao" Height="275px" Class="col-span-3 h-full" Toolbar="ToolbarPreset.Full" Placeholder="Digite aqui observações sobre o Usuário." />
+                <DeviceDialog @bind-Aberto="_deviceAberto" />
+
+                <BbSeparator Class="col-span-3 my-3" />
+
+                <BbRichTextEditor @bind-Value="_usuario.Observacao" Height="275px"
+                                  Class="col-span-3 h-full" Toolbar="ToolbarPreset.Full"
+                                  Placeholder="Anotações suas." />
             </div>
-            
+
             <ActionBar Class="flex-none" Sticky="false">
                 <BbButton Variant="ButtonVariant.Outline" OnClick="Descartar" IconPosition="IconPosition.End">
                     <ChildContent>Descartar</ChildContent>
                     <Icon><LucideIcon Name="trash" Size="16" Color="red" /></Icon>
                 </BbButton>
-                <BbButton Variant="ButtonVariant.Outline" OnClick="Salvar" IconPosition="IconPosition.End">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="Salvar" IconPosition="IconPosition.End"
+                          Disabled="_salvando">
                     <ChildContent>Salvar alterações</ChildContent>
                     <Icon><LucideIcon Name="cloud-check" Size="16" Color="lightgreen" /></Icon>
                 </BbButton>
             </ActionBar>
         }
-        
     </BbTabsContent>
-    <BbTabsContent Value="documentos" Class="flex flex-col flex-1 min-h-0">
-        <div class="flex-1 min-h-0 overflow-y-auto">
-            <BbTreeView TItem="FileNode" Items="files"
-                        TextField="@(n => n.Name)"
-                        ValueField="@(n => n.Id)"
-                        ChildrenProperty="@(n => n.Children)"
-                        IconField="@(n => n.Icon)"
-                        SelectionMode="TreeSelectionMode.Single"
-                        @bind-SelectedValue="selected"
-                        DefaultExpandAll="true"
-                        ShowSearch="false" />
-        </div>
-        <ActionBar Class="flex-none" Sticky="false">
-            <BbButton Variant="ButtonVariant.Outline" OnClick="Descartar" IconPosition="IconPosition.End">
-                <ChildContent>Remover Documento</ChildContent>
-                <Icon><LucideIcon Name="file-x-corner" Color="red" Size="16" /></Icon>
-            </BbButton>
-            <BbButton Variant="ButtonVariant.Outline" OnClick="Salvar" IconPosition="IconPosition.End">
-                <ChildContent>Baixar Arquivo</ChildContent>
-                <Icon><LucideIcon Name="download" Size="16" Color="lightblue" /></Icon>
-            </BbButton>
-            <BbButton Variant="ButtonVariant.Outline" OnClick="Salvar" IconPosition="IconPosition.End">
-                <ChildContent>Upload de Arquivo</ChildContent>
-                <Icon><LucideIcon Name="upload" Size="16" Color="lightgreen" /></Icon>
-            </BbButton>
-        </ActionBar>
-        
 
-    </BbTabsContent>
-    <BbTabsContent Value="empresas">
-        <div class="col-1 text-center">
-            <p class="text-sm text-muted-foreground mt-1">Empresas vinculadas ao email </p>
-            <BbLabel For="name" Class="text-base font-semibold py-5">rogerbie50@gmail.com</BbLabel>
+    <BbTabsContent Value="empresas" Class="flex flex-col flex-1 min-h-0">
+        <div class="text-center py-4">
+            <p class="text-sm text-muted-foreground">Empresas vinculadas a</p>
+            @* Era o e-mail do desenvolvedor, escrito no HTML. *@
+            <p class="text-base font-semibold">@(_usuario?.Email ?? "—")</p>
         </div>
-        
-        <BbDataGrid class="p-3 g-3" TData="Empresa" Items="@_empresa" Striped StripeClass="bg-muted/40">
-            <Columns>
-                <BbDataGridPropertyColumn Property="@(e => e.CNPJ)" Sortable Filterable />
-                <BbDataGridPropertyColumn Property="@(e => e.Nome)" Sortable Filterable />
-                <BbDataGridPropertyColumn Property="@(e => e.IE)" Sortable Filterable />
-                <BbDataGridPropertyColumn Property="@(e => e.CriadoEm)" Filterable />
-            </Columns>
-        </BbDataGrid>
+
+        <div class="flex-1 min-h-0 overflow-y-auto px-3 pb-3">
+            <BbDataGrid TData="Empresa" Items="@_empresas" Striped StripeClass="bg-muted/40">
+                <Columns>
+                    <BbDataGridPropertyColumn Property="@(e => e.CNPJ)" Sortable Filterable />
+                    <BbDataGridPropertyColumn Property="@(e => e.Nome)" Sortable Filterable />
+                    <BbDataGridPropertyColumn Property="@(e => e.IE)" Sortable Filterable />
+                    <BbDataGridPropertyColumn Property="@(e => e.CriadoEm)" Format="dd/MM/yyyy" Sortable />
+                </Columns>
+            </BbDataGrid>
+        </div>
     </BbTabsContent>
 </BbTabs>
 
 @code {
-    private string? selected;
     [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
-    private Usuario? _usuario;
-    private List<Empresa> _empresa;
-    private List<string> _tags = new();
-    private record FileNode(string Id, string Name, string? Icon = null,
-    List<FileNode>? Children = null);
-    private string? selectedColor;
-    private record Employee(string Name, string Department, string Email, decimal Salary);
-    private bool _deviceAberto;
 
+    private Erp.Model.Usuario.Usuario? _usuario;
+    private List<Empresa> _empresas = new();
+    private bool _deviceAberto;
+    private bool _salvando;
+    private string _tema = "light";
+
+    private readonly List<SelectOption<string>> _temas = new()
+    {
+        new("light", "Claro"),
+        new("dark", "Escuro"),
+        new("system", "Seguir o sistema"),
+    };
 
     protected override async Task OnInitializedAsync()
     {
         var principal = (await AuthState).User;
-        if(principal is null)
-        {   
+
+        _usuario = await Users.GetUserAsync(principal);
+
+        if (_usuario is null)
+        {
             ToastService.Show("Ocorreu um erro ao buscar as informações do perfil");
             return;
         }
-        _usuario = await Users.GetUserAsync(principal);
-        _empresa = await _empresaRepository.BuscarEmpresas();
+
+        _tema = string.IsNullOrWhiteSpace(_usuario.TemaPreferencial) ? "light" : _usuario.TemaPreferencial;
+        _empresas = await _empresaRepository.BuscarEmpresas();
     }
-
-
-    private List<Employee> employees = new()
-    {
-        new("Alice Smith", "Engineering", "alice@example.com", 95000),
-        new("Bob Jones", "Marketing", "bob@example.com", 78000),
-        new("Carol White", "Engineering", "carol@example.com", 102000),
-        new("Dave Brown", "Sales", "dave@example.com", 85000),
-        new("Eve Davis", "Marketing", "eve@example.com", 72000),
-    };
-    private List<FileNode> files = new()
-    {
-        new("documentos", "Documentos do Usuário", "folder", new()
-        {
-            new("empresarial", "Documentos Empresariais", "folder", new()
-            {
-                new("contrato", "Contrato", "file-text"),
-                new("exames", "Exames", "file-text")
-            }),
-            new("pessoal", "Documentos Pessoais", "folder", new()
-            {
-                new("home", "Carteira de Trabalho", "file-text"),
-                new("about", "Identidade", "file-text")
-            }),
-            new("favoritos", "Arquivos marcados como 'Favorito'", "folder-heart", new()
-            {
-                new("home", "Foto 3x4", "image"),
-                new("about", "Bonificação 03/05", "file-text"),
-            })
-        }),
-    };
-    private List<SelectOption<string>> colorOptions = new()
-    {
-        new("1", "Ativo"),
-        new("0", "Inativo")
-    };
 
     private void Descartar()
     {
@@ -268,19 +222,36 @@
 
     private async Task Salvar()
     {
-        _usuario.DataModificacao = DateTime.UtcNow;
-        
-        var resultado = await Users.UpdateAsync(_usuario);
-        if (resultado.Succeeded)
+        // O null-check aqui não é formalidade: sem ele o método explodia em
+        // NullReferenceException quando o usuário não fosse encontrado.
+        if (_usuario is null)
         {
-
-            ToastService.Show("Cadastro alterado com sucesso.", "Perfil", ToastVariant.Success);
-            Nav.NavigateTo("/home");
-
+            ToastService.Error("Perfil", "Nada a salvar: perfil não carregado.");
+            return;
         }
-        else
+
+        _salvando = true;
+        try
         {
-            ToastService.Show("Houve um erro");
+            _usuario.TemaPreferencial = _tema;
+            _usuario.DataModificacao = DateTime.UtcNow;
+
+            var resultado = await Users.UpdateAsync(_usuario);
+
+            if (resultado.Succeeded)
+            {
+                ToastService.Show("Cadastro alterado com sucesso.", "Perfil", ToastVariant.Success);
+                Nav.NavigateTo("/home");
+                return;
+            }
+
+            ToastService.Error(
+                "Não foi possível salvar",
+                string.Join("; ", resultado.Errors.Select(e => e.Description)));
+        }
+        finally
+        {
+            _salvando = false;
         }
     }
 }

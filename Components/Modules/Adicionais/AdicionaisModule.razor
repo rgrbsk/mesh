@@ -1,0 +1,261 @@
+@using Etapa = Erp.Model.Etapa.Etapa
+@using Erp.Components.Modules.Adicionais.Dialogs
+@using Erp.Repository.Etapa
+@inject EtapaRepository Etapas
+@inject ToastService Toasts
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Adicionais</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                Cadastros que ajustam o funcionamento do sistema. Por enquanto, as etapas do fluxo de compra.
+            </p>
+        </div>
+
+        @if (_podeGerir)
+        {
+            <div class="flex items-center gap-2 flex-none">
+                <ActionArea>
+                    <BbButton OnClick="NovaEtapa"
+                              Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                        <ChildContent>Nova Etapa</ChildContent>
+                        <Icon><LucideIcon Name="plus" Size="16" Color="lightgreen" /></Icon>
+                    </BbButton>
+                </ActionArea>
+                <EtapaDialog @bind-Aberto="_dialogAberto" Etapa="_emEdicao" OnSalvo="Recarregar" />
+            </div>
+        }
+    </div>
+
+    @if (!_podeGerir)
+    {
+        @* A tela é alcançável por URL mesmo sem a aba aparecer no topo — a
+           checagem tem que estar aqui também, não só no catálogo de módulos. *@
+        <BbEmpty Title="Sem acesso a este cadastro"
+                 Description="Customizar as etapas do fluxo exige a permissão etapas.gerir."
+                 Class="py-16">
+            <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
+        </BbEmpty>
+    }
+    else
+    {
+        <div class="px-2 max-w-4xl">
+            <div class="mb-3 flex items-baseline gap-2">
+                <span class="text-sm font-medium">Etapas até a aprovação</span>
+                <span class="text-xs text-muted-foreground">
+                    São as colunas do Kanban, nesta ordem. A aprovação vem depois da última e não se edita aqui.
+                </span>
+            </div>
+
+            @if (_etapas.Count == 0)
+            {
+                <BbEmpty Title="Nenhuma etapa cadastrada"
+                         Description="Sem etapas, o Kanban mostra tudo numa coluna só antes da aprovação."
+                         Class="py-10">
+                    <Icon><LucideIcon Name="columns-3" Size="40" Class="text-muted-foreground" /></Icon>
+                    <ChildContent>
+                        <BbButton Class="mt-3" Size="ButtonSize.Small" OnClick="NovaEtapa">
+                            Criar a primeira
+                        </BbButton>
+                    </ChildContent>
+                </BbEmpty>
+            }
+            else
+            {
+                <div class="border border-border rounded-lg overflow-hidden">
+                    <table class="erp-table w-full">
+                        <thead>
+                            <tr>
+                                <th class="w-[5rem]">Ordem</th>
+                                <th>Etapa</th>
+                                <th class="w-[8rem]">Situação</th>
+                                <th class="w-[10rem]"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var etapa in _etapas)
+                            {
+                                var primeira = etapa == _etapas[0];
+                                var ultima = etapa == _etapas[^1];
+
+                                <tr>
+                                    <td>
+                                        <div class="flex items-center gap-2">
+                                            <span class="h-4 w-1.5 rounded-full flex-none"
+                                                  style="@($"background: {etapa.Cor}")"></span>
+                                            <span class="text-sm tabular-nums text-muted-foreground">@etapa.Ordem</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="text-sm">@etapa.Nome</div>
+                                        @if (!string.IsNullOrWhiteSpace(etapa.Descricao))
+                                        {
+                                            <div class="text-xs text-muted-foreground">@etapa.Descricao</div>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (etapa.Ativo)
+                                        {
+                                            <span class="text-xs text-muted-foreground">Ativa</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-xs text-destructive">Inativa</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="flex items-center justify-end gap-1">
+                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                      OnClick="() => Mover(etapa.Id, true)"
+                                                      Disabled="primeira" aria-label="Subir">
+                                                <LucideIcon Name="chevron-up" Size="15" />
+                                            </BbButton>
+                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                      OnClick="() => Mover(etapa.Id, false)"
+                                                      Disabled="ultima" aria-label="Descer">
+                                                <LucideIcon Name="chevron-down" Size="15" />
+                                            </BbButton>
+                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                      OnClick="() => Editar(etapa)" aria-label="Editar">
+                                                <LucideIcon Name="pencil" Size="15" />
+                                            </BbButton>
+                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                      OnClick="() => PedirExclusao(etapa)" aria-label="Excluir">
+                                                <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                                            </BbButton>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+
+                            @* A aprovação fecha a esteira. Aparece aqui em cinza
+                               para deixar claro onde as etapas terminam. *@
+                            <tr class="bg-muted/40">
+                                <td>
+                                    <div class="flex items-center gap-2">
+                                        <span class="h-4 w-1.5 rounded-full flex-none bg-muted-foreground"></span>
+                                        <LucideIcon Name="lock" Size="14" Class="text-muted-foreground" />
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="text-sm text-muted-foreground">Aprovação</div>
+                                    <div class="text-xs text-muted-foreground">
+                                        Fixa. Vai para o responsável pelo centro de custo de cada item.
+                                    </div>
+                                </td>
+                                <td><span class="text-xs text-muted-foreground">Sempre ativa</span></td>
+                                <td></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<BbDialog @bind-Open="_dialogExclusaoAberto">
+    <BbDialogContent Class="max-w-md p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>Excluir etapa</BbDialogTitle>
+            <p class="text-sm text-muted-foreground">
+                Excluir <strong class="text-foreground">@_aExcluir?.Nome</strong>?
+                Esta ação não pode ser desfeita.
+            </p>
+            @if (_erroExclusao is not null)
+            {
+                <p class="text-sm text-destructive">@_erroExclusao</p>
+            }
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogExclusaoAberto = false">
+                    Cancelar
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Destructive" OnClick="ConfirmarExclusao" Disabled="_excluindo">
+                    Excluir
+                </BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private List<Etapa> _etapas = new();
+    private bool _podeGerir;
+
+    private bool _dialogAberto;
+    private Etapa? _emEdicao;
+
+    private bool _dialogExclusaoAberto;
+    private Etapa? _aExcluir;
+    private bool _excluindo;
+    private string? _erroExclusao;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+            _podeGerir = (await EstadoAutenticacao).User
+                .HasClaim(Permissoes.ClaimType, Permissoes.EtapasGerir);
+
+        await Recarregar();
+    }
+
+    private async Task Recarregar() => _etapas = await Etapas.Buscar();
+
+    private void NovaEtapa()
+    {
+        _emEdicao = null;
+        _dialogAberto = true;
+    }
+
+    private void Editar(Etapa etapa)
+    {
+        _emEdicao = etapa;
+        _dialogAberto = true;
+    }
+
+    private async Task Mover(int id, bool paraCima)
+    {
+        await Etapas.Mover(id, paraCima);
+        await Recarregar();
+    }
+
+    private void PedirExclusao(Etapa etapa)
+    {
+        _aExcluir = etapa;
+        _erroExclusao = null;
+        _dialogExclusaoAberto = true;
+    }
+
+    private async Task ConfirmarExclusao()
+    {
+        if (_aExcluir is null)
+            return;
+
+        _excluindo = true;
+        try
+        {
+            var nome = _aExcluir.Nome;
+
+            await Etapas.Excluir(_aExcluir.Id);
+            _dialogExclusaoAberto = false;
+            _aExcluir = null;
+            await Recarregar();
+
+            Toasts.Success("Etapa excluída", nome);
+        }
+        catch (Exception ex)
+        {
+            // Tipicamente: há solicitação parada nesta etapa.
+            _erroExclusao = ex.Message;
+            Toasts.Error("Não foi possível excluir", ex.Message);
+        }
+        finally
+        {
+            _excluindo = false;
+        }
+    }
+}

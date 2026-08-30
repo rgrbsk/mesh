@@ -1,0 +1,314 @@
+@using Etapa = Erp.Model.Etapa.Etapa
+@using Erp.Model.Solicitacao
+@using Erp.Components.Modules.Solicitacoes
+@using Erp.Components.Modules.Solicitacoes.Dialogs
+@using Erp.Repository.Etapa
+@using Erp.Repository.Solicitacao
+@inject EtapaRepository Etapas
+@inject SolicitacaoRepository Solicitacoes
+@inject ToastService Toasts
+
+@* Quadro das solicitações de compra. As colunas até a aprovação são as etapas
+   cadastradas em Adicionais; a de aprovação e a de decididas são fixas, porque
+   quem manda nelas é a regra do centro de custo, não o arrasto. *@
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Kanban</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                Arraste o cartão para a próxima etapa. Soltar em <strong>Aprovação</strong> envia a solicitação.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-none">
+            <ActionArea>
+                <BbButton OnClick="Recarregar"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Atualizar</ChildContent>
+                    <Icon><LucideIcon Name="refresh-cw" Size="16" Color="lightblue" /></Icon>
+                </BbButton>
+                <BbButton OnClick="() => NovaSolicitacao(null)"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Nova solicitação</ChildContent>
+                    <Icon><LucideIcon Name="plus" Size="16" Color="lightgreen" /></Icon>
+                </BbButton>
+            </ActionArea>
+            <SolicitacaoDialog @bind-Aberto="_dialogAberto"
+                               Solicitacao="_emEdicao"
+                               EtapaInicial="_etapaDaNova"
+                               OnSalvo="Recarregar" />
+        </div>
+    </div>
+
+    <div class="flex-1 min-h-0 px-2 overflow-x-auto">
+        <div class="flex gap-4 h-full min-h-0 items-start">
+
+            @foreach (var etapa in _etapas)
+            {
+                var cartoes = DaEtapa(etapa);
+
+                <div class="w-80 flex-none flex flex-col max-h-full min-h-0 rounded-lg border border-border bg-muted/40"
+                     @ondragover:preventDefault="true"
+                     @ondrop="() => SoltarEmEtapa(etapa.Id)">
+
+                    @* O traço colorido no topo é o que identifica a coluna de
+                       relance — o mesmo tom volta no cartão. *@
+                    <div class="flex-none rounded-t-lg bg-card border-b border-border px-3 py-2.5"
+                         style="@($"border-top: 3px solid {etapa.Cor}")">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-semibold truncate" style="@($"color: {etapa.Cor}")">
+                                @etapa.Nome
+                            </span>
+                            <span class="text-xs text-muted-foreground tabular-nums">@cartoes.Count</span>
+                            <button type="button" @onclick="() => NovaSolicitacao(etapa.Id)"
+                                    class="ml-auto h-6 w-6 flex-none inline-flex items-center justify-center
+                                           rounded-full text-white cursor-pointer hover:opacity-85 transition-opacity"
+                                    style="@($"background: {etapa.Cor}")"
+                                    aria-label="@($"Nova solicitação em {etapa.Nome}")">
+                                <LucideIcon Name="plus" Size="14" />
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(etapa.Descricao))
+                        {
+                            <p class="text-xs text-muted-foreground mt-1 truncate">@etapa.Descricao</p>
+                        }
+                    </div>
+
+                    <div class="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-2">
+                        @foreach (var solicitacao in cartoes)
+                        {
+                            @Cartao(solicitacao, etapa.Cor, arrastavel: true)
+                        }
+                        @if (cartoes.Count == 0)
+                        {
+                            <p class="text-xs text-muted-foreground text-center py-6">Vazia</p>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* Aprovação aceita soltar (é o envio), mas não deixa arrastar de
+               volta — o que está aqui já é fila de outra pessoa. *@
+            <div class="w-80 flex-none flex flex-col max-h-full min-h-0 rounded-lg border border-border bg-muted/40"
+                 @ondragover:preventDefault="true"
+                 @ondrop="Enviar">
+
+                <div class="flex-none rounded-t-lg bg-card border-b border-border px-3 py-2.5"
+                     style="@($"border-top: 3px solid {CorAprovacao}")">
+                    <div class="flex items-center gap-2">
+                        <LucideIcon Name="lock" Size="14" Class="text-muted-foreground" />
+                        <span class="text-sm font-semibold truncate" style="@($"color: {CorAprovacao}")">
+                            Aprovação
+                        </span>
+                        <span class="ml-auto text-xs text-muted-foreground tabular-nums">@_emAprovacao.Count</span>
+                    </div>
+                    <p class="text-xs text-muted-foreground mt-1 truncate">
+                        Solicitações aguardando o responsável pelo centro de custo.
+                    </p>
+                </div>
+
+                <div class="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-2">
+                    @foreach (var solicitacao in _emAprovacao)
+                    {
+                        @Cartao(solicitacao, CorAprovacao, arrastavel: false)
+                    }
+                    @if (_emAprovacao.Count == 0)
+                    {
+                        <p class="text-xs text-muted-foreground text-center py-6">Vazia</p>
+                    }
+                </div>
+            </div>
+
+            <div class="w-80 flex-none flex flex-col max-h-full min-h-0 rounded-lg border border-border bg-muted/40">
+                <div class="flex-none rounded-t-lg bg-card border-b border-border px-3 py-2.5"
+                     style="@($"border-top: 3px solid {CorDecididas}")">
+                    <div class="flex items-center gap-2">
+                        <LucideIcon Name="flag" Size="14" Class="text-muted-foreground" />
+                        <span class="text-sm font-semibold truncate" style="@($"color: {CorDecididas}")">
+                            Decididas
+                        </span>
+                        <span class="ml-auto text-xs text-muted-foreground tabular-nums">@_decididas.Count</span>
+                    </div>
+                    <p class="text-xs text-muted-foreground mt-1 truncate">Aprovadas ou recusadas.</p>
+                </div>
+
+                <div class="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-2">
+                    @foreach (var solicitacao in _decididas)
+                    {
+                        @Cartao(solicitacao, CorDecididas, arrastavel: false)
+                    }
+                    @if (_decididas.Count == 0)
+                    {
+                        <p class="text-xs text-muted-foreground text-center py-6">Vazia</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>As duas colunas fixas não vêm do cadastro, então a cor mora
+    /// aqui. Tons neutros de propósito: elas não são etapa de ninguém.</summary>
+    private const string CorAprovacao = "#7C6CF0";
+    private const string CorDecididas = "#6B7280";
+
+    private List<Etapa> _etapas = new();
+    private List<SolicitacaoCompra> _solicitacoes = new();
+
+    private bool _dialogAberto;
+    private SolicitacaoCompra? _emEdicao;
+    private int? _etapaDaNova;
+
+    /// <summary>Cartão em trânsito. Guardado no dragstart porque o evento de
+    /// drop não carrega o dado — só diz onde soltou.</summary>
+    private int? _arrastando;
+
+    private List<SolicitacaoCompra> _emAprovacao =>
+        _solicitacoes.Where(s => s.Status == StatusSolicitacao.Enviada).ToList();
+
+    private List<SolicitacaoCompra> _decididas =>
+        _solicitacoes.Where(s => s.Status is StatusSolicitacao.Aprovada
+                                        or StatusSolicitacao.AprovadaParcialmente
+                                        or StatusSolicitacao.Recusada).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _etapas = await Etapas.BuscarAtivas();
+        await Recarregar();
+    }
+
+    private async Task Recarregar() => _solicitacoes = await Solicitacoes.Buscar();
+
+    /// <summary>
+    /// Os cartões da coluna. Solicitação sem etapa cai na primeira: sem isso, o
+    /// que foi criado antes de existirem etapas sumiria do quadro.
+    /// </summary>
+    private List<SolicitacaoCompra> DaEtapa(Etapa etapa)
+    {
+        var primeira = _etapas.Count > 0 && etapa.Id == _etapas[0].Id;
+
+        return _solicitacoes
+            .Where(s => s.Editavel
+                     && (s.EtapaId == etapa.Id || (s.EtapaId is null && primeira)))
+            .ToList();
+    }
+
+    /// <summary>O que o cartão chama de si mesmo: a observação, se houver;
+    /// senão o primeiro produto da lista. Um cartão só com número não diz do que
+    /// se trata.</summary>
+    private static string Titulo(SolicitacaoCompra solicitacao)
+    {
+        if (!string.IsNullOrWhiteSpace(solicitacao.Observacao))
+            return solicitacao.Observacao;
+
+        var primeiro = solicitacao.Itens.FirstOrDefault()?.Produto?.Descricao;
+
+        return string.IsNullOrWhiteSpace(primeiro) ? "Sem descrição" : primeiro;
+    }
+
+    private static string CentrosDeCusto(SolicitacaoCompra solicitacao)
+    {
+        var nomes = solicitacao.Itens
+            .Where(i => i.CentroCusto is not null)
+            .Select(i => i.CentroCusto!.Nome)
+            .Distinct()
+            .ToList();
+
+        return nomes.Count == 0 ? "—" : string.Join(", ", nomes);
+    }
+
+    private RenderFragment Cartao(SolicitacaoCompra solicitacao, string cor, bool arrastavel) => @<div
+        class="rounded-md border border-border bg-card p-3 cursor-pointer hover:border-foreground/30 hover:shadow-sm transition-all"
+        draggable="@(arrastavel ? "true" : "false")"
+        @ondragstart="() => _arrastando = solicitacao.Id"
+        @ondragend="() => _arrastando = null"
+        @onclick="() => Abrir(solicitacao)">
+
+        <span class="block h-2 w-16 rounded-full mb-2.5" style="@($"background: {cor}")"></span>
+
+        <p class="text-sm font-medium leading-snug line-clamp-2">@Titulo(solicitacao)</p>
+
+        <p class="text-[10px] uppercase tracking-wider text-muted-foreground mt-2.5">Centro de custo</p>
+        <p class="text-xs truncate">@CentrosDeCusto(solicitacao)</p>
+
+        <div class="flex items-center gap-3 mt-2.5 text-xs text-muted-foreground">
+            <span class="tabular-nums">#@solicitacao.Id</span>
+            <span class="inline-flex items-center gap-1">
+                <LucideIcon Name="package" Size="12" />
+                @solicitacao.Itens.Count
+            </span>
+            @if (solicitacao.PrazoMaisCurto is { } prazo)
+            {
+                <span class="inline-flex items-center gap-1 @(prazo.Date <= DateTime.Today ? "text-destructive font-medium" : "")">
+                    <LucideIcon Name="clock" Size="12" />
+                    @prazo.ToString("dd/MM")
+                </span>
+            }
+            @if (solicitacao.Status == StatusSolicitacao.Devolvida)
+            {
+                <span class="inline-flex items-center gap-1 text-destructive font-medium ml-auto">
+                    <LucideIcon Name="undo-2" Size="12" />
+                    Devolvida
+                </span>
+            }
+        </div>
+    </div>;
+
+    private void NovaSolicitacao(int? etapaId)
+    {
+        _emEdicao = null;
+        _etapaDaNova = etapaId;
+        _dialogAberto = true;
+    }
+
+    private void Abrir(SolicitacaoCompra solicitacao)
+    {
+        _emEdicao = solicitacao;
+        _etapaDaNova = null;
+        _dialogAberto = true;
+    }
+
+    private async Task SoltarEmEtapa(int etapaId)
+    {
+        if (_arrastando is not { } id)
+            return;
+
+        _arrastando = null;
+
+        try
+        {
+            await Solicitacoes.MoverParaEtapa(id, etapaId);
+            await Recarregar();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível mover", ex.Message);
+        }
+    }
+
+    /// <summary>Soltar na coluna de aprovação é o mesmo que apertar "enviar":
+    /// a solicitação sai da mão de quem montou.</summary>
+    private async Task Enviar()
+    {
+        if (_arrastando is not { } id)
+            return;
+
+        _arrastando = null;
+
+        try
+        {
+            await Solicitacoes.Enviar(id);
+            await Recarregar();
+
+            Toasts.Success("Solicitação enviada", $"#{id} foi para aprovação.");
+        }
+        catch (Exception ex)
+        {
+            // Tipicamente: solicitação sem itens.
+            Toasts.Error("Não foi possível enviar", ex.Message);
+        }
+    }
+}

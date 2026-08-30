@@ -88,6 +88,22 @@ namespace Erp.Repository.CentroCusto
                 .ToListAsync();
         }
 
+        /// <summary>
+        /// Centros que esta pessoa aprova. Responsabilidade é DIRETA, não
+        /// herdada pela árvore: quem responde pelo centro pai não decide
+        /// automaticamente pelos filhos — cada centro aponta o seu aprovador.
+        /// </summary>
+        public async Task<List<int>> IdsPorResponsavel(Guid responsavelId)
+        {
+            await using var contexto = await _fabrica.CreateDbContextAsync();
+
+            return await contexto.CentrosCusto
+                .AsNoTracking()
+                .Where(c => c.ResponsavelId == responsavelId)
+                .Select(c => c.Id)
+                .ToListAsync();
+        }
+
         public async Task<CentroCusto?> ObterPorId(int id)
         {
             await using var contexto = await _fabrica.CreateDbContextAsync();

@@ -22,18 +22,16 @@
             <LucideIcon Name="external-link" Size="14" Class="text-muted-foreground" />
         </button>
 
-        <button type="button"
-                class="flex items-center gap-2 h-8 px-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors">
+        <button type="button" @onclick='() => Nav.NavigateTo("/home/kanban")'
+                class="flex items-center gap-2 h-8 px-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors cursor-pointer">
             <LucideIcon Name="kanban" Size="16" />
             <span>Kanban</span>
-            <LucideIcon Name="external-link" Size="14" Class="text-muted-foreground" />
         </button>
 
-        <button type="button"
-                class="flex items-center gap-2 h-8 px-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors">
+        <button type="button" @onclick='() => Nav.NavigateTo("/home/cotacoes")'
+                class="flex items-center gap-2 h-8 px-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors cursor-pointer">
             <LucideIcon Name="mail" Size="16" />
             <span>Cotações</span>
-            <LucideIcon Name="external-link" Size="14" Class="text-muted-foreground" />
         </button>
 
         @* Ações à direita *@
@@ -91,7 +89,7 @@
 
     @* ---------- Linha 2: abas de módulos (NavLink nativo) ---------- *@
     <nav class="h-11 flex items-center gap-0.5 px-2">
-        @foreach (var m in Modules)
+        @foreach (var m in Modules.Where(m => !m.ForaDasAbas))
         {
             <NavLink href="@($"/home/{m.Key}")"
                      Match="NavLinkMatch.All"

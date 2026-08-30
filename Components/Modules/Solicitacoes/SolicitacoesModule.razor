@@ -1,44 +1,305 @@
-@using Erp.Components.Shell
+@using Erp.Model.Solicitacao
+@using Erp.Components.Modules.Solicitacoes.Dialogs
+@using Erp.Repository.Solicitacao
+@using BlazorBlueprint.Primitives.Filtering
+@inject SolicitacaoRepository Solicitacoes
+@inject ToastService Toasts
 
 <div class="flex flex-col h-full min-h-0 p-6">
     <div class="mb-5 px-2 flex items-center justify-between gap-4">
 
         <div class="min-w-0">
             <h2 class="text-xl font-semibold tracking-tight truncate">Solicitações de Compra</h2>
-            <p class="text-sm text-muted-foreground mt-1">Crie, edite ou valide suas solicitações de compra.</p>
+            <p class="text-sm text-muted-foreground mt-1">
+                Rascunho enquanto se monta; depois de enviada, quem decide é o responsável pelo centro de custo de cada item.
+            </p>
         </div>
 
         <div class="flex items-center gap-2 flex-none">
             <ActionArea>
-                <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
-                    <ChildContent>Exportar</ChildContent>
-                    <Icon><LucideIcon Name="file-text" Size="16" Color="lightblue"/></Icon>
+                @if (_buscaAberta)
+                {
+                    <BbInput @ref="_campoBusca"
+                             @bind-Value="_busca"
+                             UpdateTiming="UpdateTiming.Debounced"
+                             DebounceInterval="250"
+                             Placeholder="Buscar nesta lista…"
+                             Class="w-64 border-0 shadow-none focus-visible:ring-0"
+                             @onblur="FecharBuscaSeVazia" />
+                }
+                <BbButton OnClick="AlternarBusca"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>@(_buscaAberta ? "" : "Pesquisar")</ChildContent>
+                    <Icon><LucideIcon Name="@(_buscaAberta ? "x" : "search")" Size="16" /></Icon>
                 </BbButton>
-                <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
-                    <ChildContent>Filtros</ChildContent>
-                    <Icon><LucideIcon Name="funnel" Size="16" Color="magenta"/></Icon>
+                <BbButton OnClick="() => _painelFiltros = !_painelFiltros"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Filtros@(_condicoes > 0 ? $" ({_condicoes})" : "")</ChildContent>
+                    <Icon><LucideIcon Name="funnel" Size="16" Color="magenta" /></Icon>
                 </BbButton>
-                <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                <BbButton OnClick="NovaSolicitacao"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
                     <ChildContent>Nova solicitação</ChildContent>
-                    <Icon><LucideIcon Name="plus" Size="16" Color="lightgreen"/></Icon>
+                    <Icon><LucideIcon Name="plus" Size="16" Color="lightgreen" /></Icon>
                 </BbButton>
             </ActionArea>
-            
+            <SolicitacaoDialog @bind-Aberto="_dialogAberto"
+                               Solicitacao="_emEdicao"
+                               OnSalvo="Recarregar" />
         </div>
     </div>
 
-        
+    <div class="grid gap-4 mb-5 px-2 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+        <StatCard Label="Rascunhos" Value="@_rascunhos.ToString()" />
+        <StatCard Label="Aguardando aprovação" Value="@_enviadas.ToString()" />
+        <StatCard Label="Devolvidas para ajuste" Value="@_devolvidas.ToString()" />
+    </div>
 
-        <div class="flex-1 min-h-0 rounded-lg ">
-            <table class="erp-table">
-                <thead><tr><th>#</th><th>Cliente</th><th>Data</th><th>Status</th></tr></thead>
-                <tbody>
-                    <tr><td>#10432</td><td>Padaria Central</td><td class="text-muted-foreground">04/08/2026</td><td><BbBadge Variant="BadgeVariant.Default">Faturado</BbBadge></td></tr>
-                    <tr><td>#10431</td><td>Mercado Silva</td><td class="text-muted-foreground">04/08/2026</td><td><BbBadge Variant="BadgeVariant.Secondary">Em separação</BbBadge></td></tr>
-                    <tr><td>#10428</td><td>Empório Verde</td><td class="text-muted-foreground">03/08/2026</td><td><BbBadge Variant="BadgeVariant.Outline">Aguardando pgto.</BbBadge></td></tr>
-                    <tr><td>#10429</td><td>Lanchonete do Zé</td><td class="text-muted-foreground">03/08/2026</td><td><BbBadge Variant="BadgeVariant.Destructive">Cancelado</BbBadge></td></tr>
-                </tbody>
-            </table>
+    @if (_painelFiltros)
+    {
+        <div class="mb-4 mx-2 p-4 rounded-lg border border-border bg-card">
+            <BbFilterBuilder Fields="_campos"
+                             @bind-Filter="_filtro"
+                             OnFilterChanged="Recarregar"
+                             ApplyButtonText="Aplicar filtros"
+                             ClearButtonText="Limpar" />
         </div>
+    }
+
+    <div class="flex-1 min-h-0 px-2">
+        <BbDataGrid TData="SolicitacaoCompra"
+                    Items="@_solicitacoes"
+                    IsLoading="_carregando"
+                    Striped
+                    StripeClass="bg-muted/40"
+                    StickyHeader
+                    ShowSearch="false"
+                    SearchText="@_busca"
+                    ShowPagination
+                    InitialPageSize="20"
+                    Resizable>
+            <Columns>
+                <BbDataGridPropertyColumn Property="@(s => s.Id)" Title="#" Width="80px" Sortable />
+                <BbDataGridPropertyColumn Property="@(s => s.Solicitante != null ? (s.Solicitante.Nome + " " + s.Solicitante.Sobrenome).Trim() : "—")" Title="Solicitante" Sortable />
+                <BbDataGridPropertyColumn Property="@(s => s.Itens.Count)" Title="Itens" Width="80px" Sortable />
+                <BbDataGridPropertyColumn Property="@(s => s.CriadoEm)" Title="Criada" Format="dd/MM/yyyy" Sortable />
+
+                @* O prazo que importa é o do item mais urgente: é quando alguém
+                   começa a ficar sem material. *@
+                <BbDataGridTemplateColumn Title="Prazo mais curto" Width="140px" NoWrap>
+                    @if (context.PrazoMaisCurto is { } prazo)
+                    {
+                        <span class="text-sm tabular-nums @(prazo.Date <= DateTime.Today ? "text-destructive font-medium" : "")">
+                            @prazo.ToString("dd/MM/yyyy")
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="text-xs text-muted-foreground">—</span>
+                    }
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn Title="Centros de custo" NoWrap>
+                    <span class="text-sm text-muted-foreground truncate">@Centros(context)</span>
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn Title="Situação" Width="180px" NoWrap>
+                    <BbBadge Variant="@StatusVisual.Badge(context.Status)">@StatusVisual.Texto(context.Status)</BbBadge>
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn Title="Ações" Width="110px" NoWrap>
+                    <div class="flex items-center justify-end gap-1">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                  OnClick="() => Abrir(context)"
+                                  aria-label="@(context.Editavel ? "Editar" : "Ver")">
+                            <LucideIcon Name="@(context.Editavel ? "pencil" : "eye")" Size="15" />
+                        </BbButton>
+                        @* Enviada já é fila de outra pessoa: excluir apagaria o
+                           que ela ainda tem para decidir. *@
+                        @if (context.Status == StatusSolicitacao.Rascunho)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => PedirExclusao(context)" aria-label="Excluir">
+                                <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                            </BbButton>
+                        }
+                    </div>
+                </BbDataGridTemplateColumn>
+            </Columns>
+
+            <EmptyTemplate>
+                <BbEmpty Title="@(_condicoes > 0 || !string.IsNullOrWhiteSpace(_busca)
+                                  ? "Nenhuma solicitação encontrada"
+                                  : "Nenhuma solicitação ainda")"
+                         Description="@(_condicoes > 0 || !string.IsNullOrWhiteSpace(_busca)
+                                        ? "Ajuste os filtros ou a busca para ver outros resultados."
+                                        : "Monte a primeira com os itens que precisam ser comprados.")"
+                         Class="py-10">
+                    <Icon><LucideIcon Name="shopping-cart" Size="40" Class="text-muted-foreground" /></Icon>
+                    <ChildContent>
+                        <BbButton Class="mt-3" Size="ButtonSize.Small" OnClick="NovaSolicitacao">
+                            Criar a primeira
+                        </BbButton>
+                    </ChildContent>
+                </BbEmpty>
+            </EmptyTemplate>
+        </BbDataGrid>
+    </div>
 </div>
-    
+
+<BbDialog @bind-Open="_dialogExclusaoAberto">
+    <BbDialogContent Class="max-w-md p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>Excluir rascunho</BbDialogTitle>
+            <p class="text-sm text-muted-foreground">
+                Excluir a solicitação <strong class="text-foreground">#@_aExcluir?.Id</strong> e seus itens?
+                Esta ação não pode ser desfeita.
+            </p>
+            @if (_erroExclusao is not null)
+            {
+                <p class="text-sm text-destructive">@_erroExclusao</p>
+            }
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogExclusaoAberto = false">
+                    Cancelar
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Destructive" OnClick="ConfirmarExclusao" Disabled="_excluindo">
+                    Excluir
+                </BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    private bool _dialogAberto;
+    private SolicitacaoCompra? _emEdicao;
+
+    private List<SolicitacaoCompra> _solicitacoes = new();
+    private bool _carregando = true;
+
+    private bool _painelFiltros;
+
+    private bool _buscaAberta;
+    private bool _focarBusca;
+    private string _busca = string.Empty;
+    private BbInput? _campoBusca;
+
+    private FilterDefinition _filtro = new();
+    private int _condicoes => _filtro?.TotalConditionCount ?? 0;
+
+    private int _rascunhos => _solicitacoes.Count(s => s.Status == StatusSolicitacao.Rascunho);
+    private int _enviadas => _solicitacoes.Count(s => s.Status == StatusSolicitacao.Enviada);
+    private int _devolvidas => _solicitacoes.Count(s => s.Status == StatusSolicitacao.Devolvida);
+
+    private readonly List<FilterField> _campos = new()
+    {
+        new FilterField { Name = nameof(SolicitacaoCompra.Id),         Label = "Número",       Type = FilterFieldType.Number },
+        new FilterField { Name = nameof(SolicitacaoCompra.Observacao), Label = "Observação",   Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(SolicitacaoCompra.CriadoEm),   Label = "Criada em",    Type = FilterFieldType.Date },
+        new FilterField { Name = nameof(SolicitacaoCompra.EnviadaEm),  Label = "Enviada em",   Type = FilterFieldType.Date },
+        new FilterField { Name = nameof(SolicitacaoCompra.Status),     Label = "Situação",     Type = FilterFieldType.Enum,
+                          Options = Enum.GetValues<StatusSolicitacao>()
+                                        .Select(s => new SelectOption<string>(s.ToString(), StatusVisual.Texto(s)))
+                                        .ToList() },
+    };
+
+    private bool _dialogExclusaoAberto;
+    private SolicitacaoCompra? _aExcluir;
+    private bool _excluindo;
+    private string? _erroExclusao;
+
+    protected override Task OnInitializedAsync() => Recarregar();
+
+    protected override async Task OnAfterRenderAsync(bool primeiroRender)
+    {
+        if (_focarBusca && _campoBusca is not null)
+        {
+            _focarBusca = false;
+            await _campoBusca.Element.FocusAsync();
+        }
+    }
+
+    /// <summary>Os centros envolvidos, sem repetir — é o que diz de relance por
+    /// quantas mesas o pedido vai passar.</summary>
+    private static string Centros(SolicitacaoCompra solicitacao)
+    {
+        var nomes = solicitacao.Itens
+            .Where(i => i.CentroCusto is not null)
+            .Select(i => i.CentroCusto!.Nome)
+            .Distinct()
+            .ToList();
+
+        return nomes.Count == 0 ? "—" : string.Join(", ", nomes);
+    }
+
+    private void AlternarBusca()
+    {
+        _buscaAberta = !_buscaAberta;
+
+        if (_buscaAberta)
+            _focarBusca = true;
+        else
+            _busca = string.Empty;
+    }
+
+    private void FecharBuscaSeVazia()
+    {
+        if (string.IsNullOrWhiteSpace(_busca))
+            _buscaAberta = false;
+    }
+
+    private async Task Recarregar()
+    {
+        _carregando = true;
+        _solicitacoes = await Solicitacoes.Buscar(_filtro.ToExpression<SolicitacaoCompra>(_campos));
+        _carregando = false;
+    }
+
+    private void NovaSolicitacao()
+    {
+        _emEdicao = null;
+        _dialogAberto = true;
+    }
+
+    private void Abrir(SolicitacaoCompra solicitacao)
+    {
+        _emEdicao = solicitacao;
+        _dialogAberto = true;
+    }
+
+    private void PedirExclusao(SolicitacaoCompra solicitacao)
+    {
+        _aExcluir = solicitacao;
+        _erroExclusao = null;
+        _dialogExclusaoAberto = true;
+    }
+
+    private async Task ConfirmarExclusao()
+    {
+        if (_aExcluir is null)
+            return;
+
+        _excluindo = true;
+        try
+        {
+            var numero = _aExcluir.Id;
+
+            await Solicitacoes.Excluir(_aExcluir.Id);
+            _dialogExclusaoAberto = false;
+            _aExcluir = null;
+            await Recarregar();
+
+            Toasts.Success("Rascunho excluído", $"#{numero}");
+        }
+        catch (Exception ex)
+        {
+            _erroExclusao = ex.Message;
+            Toasts.Error("Não foi possível excluir", ex.Message);
+        }
+        finally
+        {
+            _excluindo = false;
+        }
+    }
+}

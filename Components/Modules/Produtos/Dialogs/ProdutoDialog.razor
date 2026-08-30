@@ -1,0 +1,312 @@
+@using Produto = Erp.Model.Produto.Produto
+@using Erp.Model.Pessoa
+@using Erp.Repository.Produto
+@using Erp.Repository.Pessoa
+@using Erp.Repository.CentroCusto
+@inject ProdutoRepository Produtos
+@inject ToastService Toasts
+
+@* Mesmo desenho do PessoaDialog / CentroCustoDialog: faixa cinza no topo,
+   seções separadas por BbSeparator, rodapé com ActionArea. Edita uma cópia —
+   descartar não suja a linha da grade. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    @* Altura fixa e corpo rolável: sem isso o conteúdo estourava a viewport em
+       tela baixa, sem barra de rolagem — o mesmo defeito que o diálogo de
+       usuário tinha. *@
+    <BbDialogContent Class="w-[52rem] max-w-none h-[88vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="package" Size="20" />
+                <BbDialogTitle>Cadastro de produto</BbDialogTitle>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto flex flex-wrap items-end gap-y-5 gap-x-5 content-start">
+
+                <div class="w-full">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Identificação</span>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
+
+                <BbField Class="w-[12rem]">
+                    <BbFieldLabel>Código</BbFieldLabel>
+                    <BbInput @bind-Value="_produto.Codigo" Placeholder="CAF-1000" />
+                </BbField>
+
+                <BbField Class="grow min-w-72">
+                    <BbFieldLabel>Descrição</BbFieldLabel>
+                    <BbInput @bind-Value="_produto.Descricao" Placeholder="Café torrado 1kg" />
+                </BbField>
+
+                <BbField Class="w-[8rem]">
+                    <BbFieldLabel>Unidade</BbFieldLabel>
+                    <BbInput @bind-Value="_produto.Unidade" Placeholder="UN" />
+                </BbField>
+
+                <BbField Class="w-[10rem]">
+                    <BbFieldLabel>Situação</BbFieldLabel>
+                    <div class="flex items-center gap-2 h-9">
+                        <BbSwitch @bind-Checked="_produto.Ativo" />
+                        <span class="text-sm">@(_produto.Ativo ? "Ativo" : "Inativo")</span>
+                    </div>
+                </BbField>
+
+                <div class="w-full">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estoque e reposição</span>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
+
+                <BbField Class="w-[11rem]">
+                    <BbFieldLabel>Saldo atual</BbFieldLabel>
+                    <BbInput @bind-Value="_saldo" @bind-Value:after="Recalcular" Placeholder="0" />
+                    <BbFieldDescription>Sem movimentação de estoque ainda: hoje é digitado.</BbFieldDescription>
+                </BbField>
+
+                <BbField Class="w-[11rem]">
+                    <BbFieldLabel>Estoque mínimo</BbFieldLabel>
+                    <BbInput @bind-Value="_minimo" @bind-Value:after="Recalcular" Placeholder="0" />
+                    <BbFieldDescription>Piso que não deveria ser cruzado.</BbFieldDescription>
+                </BbField>
+
+                <BbField Class="w-[11rem]">
+                    <BbFieldLabel>Consumo médio diário</BbFieldLabel>
+                    <BbInput @bind-Value="_consumo" @bind-Value:after="Recalcular" Placeholder="0" />
+                </BbField>
+
+                <BbField Class="w-[11rem]">
+                    <BbFieldLabel>Prazo de entrega (dias)</BbFieldLabel>
+                    <BbInput @bind-Value="_prazo" @bind-Value:after="Recalcular" Placeholder="0" />
+                </BbField>
+
+                @* O número que dispara a compra. A fórmula fica visível e a
+                   sugestão é um clique — o usuário não tem que adivinhar, mas
+                   também não fica preso a ela. *@
+                <BbField Class="w-[13rem]">
+                    <BbFieldLabel>Ponto de pedido</BbFieldLabel>
+                    <BbInput @bind-Value="_pontoPedido" Placeholder="0" />
+                </BbField>
+
+                <div class="flex items-center gap-3 pb-1">
+                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
+                              OnClick="UsarSugerido" Disabled="@(_sugerido == _pontoPedidoNumero)">
+                        Usar sugerido: @Formatar(_sugerido)
+                    </BbButton>
+                    <span class="text-xs text-muted-foreground">
+                        mínimo + consumo médio diário × prazo de entrega
+                    </span>
+                </div>
+
+                <div class="w-full">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Padrões de compra</span>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
+
+                <BbField Class="w-[22rem]">
+                    <BbFieldLabel>Fornecedor padrão</BbFieldLabel>
+                    <BbCombobox TValue="string"
+                                Class="w-[22rem]"
+                                Options="@_fornecedores"
+                                @bind-Value="_fornecedorSelecionado"
+                                Placeholder="Nenhum"
+                                SearchPlaceholder="Buscar fornecedor..."
+                                EmptyMessage="Nenhum fornecedor cadastrado." />
+                    <BbFieldDescription>Vira sugestão na hora de montar a cotação.</BbFieldDescription>
+                </BbField>
+
+                <BbField Class="w-[22rem]">
+                    <BbFieldLabel>Centro de custo padrão</BbFieldLabel>
+                    <BbCombobox TValue="string"
+                                Class="w-[22rem]"
+                                Options="@_centros"
+                                @bind-Value="_centroSelecionado"
+                                Placeholder="Nenhum"
+                                SearchPlaceholder="Buscar centro..."
+                                EmptyMessage="Nenhum centro cadastrado." />
+                    <BbFieldDescription>Preenche o item da solicitação de compra.</BbFieldDescription>
+                </BbField>
+            </div>
+
+            <BbDialogFooter>
+                @if (_erro is not null)
+                {
+                    <span class="text-sm text-destructive mr-auto">@_erro</span>
+                }
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="Descartar">
+                        <ChildContent>Descartar</ChildContent>
+                        <Icon><LucideIcon Name="trash" Size="16" Color="grey" /></Icon>
+                    </BbButton>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="Salvar" Disabled="_salvando">
+                        <ChildContent>Salvar</ChildContent>
+                        <Icon><LucideIcon Name="circle-check" Size="16" Color="lightgreen" /></Icon>
+                    </BbButton>
+                </ActionArea>
+            </BbDialogFooter>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+
+    /// <summary>Produto a editar. Nulo abre em branco (novo).</summary>
+    [Parameter] public Produto? Produto { get; set; }
+
+    [Parameter] public EventCallback OnSalvo { get; set; }
+
+    [Inject] private PessoaRepository Pessoas { get; set; } = default!;
+    [Inject] private CentroCustoRepository CentrosCusto { get; set; } = default!;
+
+    private Produto _produto = new();
+
+    // Os números vivem como texto no formulário: BbInput é de texto, e assim o
+    // campo aceita ficar vazio enquanto está sendo digitado, sem virar 0.
+    private string _saldo = "0";
+    private string _minimo = "0";
+    private string _consumo = "0";
+    private string _prazo = "0";
+    private string _pontoPedido = "0";
+
+    private List<SelectOption<string>> _fornecedores = new();
+    private List<SelectOption<string>> _centros = new();
+    private string _fornecedorSelecionado = "";
+    private string _centroSelecionado = "";
+
+    private bool _salvando;
+    private string? _erro;
+    private bool _abertoAnterior;
+
+    private decimal _sugerido;
+    private decimal _pontoPedidoNumero => Numero(_pontoPedido);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _fornecedores = (await Pessoas.Buscar(TipoPessoa.Fornecedor))
+            .Select(p => new SelectOption<string>(p.Id.ToString(), p.RazaoSocial))
+            .ToList();
+
+        _centros = (await CentrosCusto.BuscarAtivos())
+            .Select(c => new SelectOption<string>(c.Id.ToString(), $"{c.Codigo} — {c.Nome}"))
+            .ToList();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Aberto && !_abertoAnterior)
+            CarregarFormulario();
+
+        _abertoAnterior = Aberto;
+    }
+
+    private void CarregarFormulario()
+    {
+        _erro = null;
+
+        _produto = Produto is null
+            ? new Produto()
+            : new Produto
+            {
+                Id = Produto.Id,
+                Codigo = Produto.Codigo,
+                Descricao = Produto.Descricao,
+                Unidade = Produto.Unidade,
+                SaldoAtual = Produto.SaldoAtual,
+                EstoqueMinimo = Produto.EstoqueMinimo,
+                PontoPedido = Produto.PontoPedido,
+                PrazoEntregaDias = Produto.PrazoEntregaDias,
+                ConsumoMedioDiario = Produto.ConsumoMedioDiario,
+                FornecedorPadraoId = Produto.FornecedorPadraoId,
+                CentroCustoPadraoId = Produto.CentroCustoPadraoId,
+                Ativo = Produto.Ativo,
+                CriadoEm = Produto.CriadoEm,
+                ModificadoEm = Produto.ModificadoEm,
+            };
+
+        _saldo = Texto(_produto.SaldoAtual);
+        _minimo = Texto(_produto.EstoqueMinimo);
+        _consumo = Texto(_produto.ConsumoMedioDiario);
+        _prazo = _produto.PrazoEntregaDias.ToString();
+        _pontoPedido = Texto(_produto.PontoPedido);
+
+        _fornecedorSelecionado = _produto.FornecedorPadraoId?.ToString() ?? "";
+        _centroSelecionado = _produto.CentroCustoPadraoId?.ToString() ?? "";
+
+        Recalcular();
+    }
+
+    /// <summary>Mantém a sugestão em dia enquanto os três insumos mudam. Não
+    /// escreve no ponto de pedido: quem decide é o usuário, no botão.</summary>
+    private void Recalcular()
+        => _sugerido = Numero(_minimo) + (Numero(_consumo) * Numero(_prazo));
+
+    private void UsarSugerido() => _pontoPedido = Texto(_sugerido);
+
+    private static decimal Numero(string? texto)
+        => decimal.TryParse(texto, System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.CurrentCulture, out var valor)
+            ? valor
+            : 0m;
+
+    private static string Texto(decimal valor) => valor.ToString("0.####");
+
+    private static string Formatar(decimal valor) => valor.ToString("N2");
+
+    private async Task Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_produto.Codigo) || string.IsNullOrWhiteSpace(_produto.Descricao))
+        {
+            _erro = "Informe código e descrição.";
+            return;
+        }
+
+        _salvando = true;
+        try
+        {
+            _produto.SaldoAtual = Numero(_saldo);
+            _produto.EstoqueMinimo = Numero(_minimo);
+            _produto.ConsumoMedioDiario = Numero(_consumo);
+            _produto.PrazoEntregaDias = (int)Numero(_prazo);
+            _produto.PontoPedido = Numero(_pontoPedido);
+
+            if (string.IsNullOrWhiteSpace(_produto.Unidade))
+                _produto.Unidade = "UN";
+
+            _produto.FornecedorPadraoId = int.TryParse(_fornecedorSelecionado, out var fid) ? fid : null;
+            _produto.CentroCustoPadraoId = int.TryParse(_centroSelecionado, out var cid) ? cid : null;
+
+            // Navegações vindas do Include da grade: mandar de volta faria o EF
+            // tentar reinserir Pessoa e CentroCusto junto com o produto.
+            _produto.FornecedorPadrao = null;
+            _produto.CentroCustoPadrao = null;
+
+            var novo = _produto.Id == 0;
+
+            if (novo)
+                await Produtos.Criar(_produto);
+            else
+                await Produtos.Atualizar(_produto);
+
+            Toasts.Success(novo ? "Produto criado" : "Produto atualizado", _produto.Descricao);
+
+            await OnSalvo.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            // Tipicamente índice único: já existe produto com esse código.
+            _erro = ex.Message;
+            Toasts.Error("Não foi possível salvar", ex.Message);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private Task Descartar() => AbertoChanged.InvokeAsync(false);
+}

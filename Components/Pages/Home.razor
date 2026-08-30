@@ -1,25 +1,58 @@
 @page "/home"
 @page "/home/{ModuleKey}"
-@* @attribute [Authorize] *@
+@attribute [Authorize]
 @layout ShellLayout
 @rendermode InteractiveServer
 @inject NavigationManager Nav
 
 <PageTitle>mesh · ERP</PageTitle>
 
-@* Renderiza o conteúdo do módulo ativo direto do catálogo (sem ModuleHost).
-   Chave desconhecida cai no módulo padrão. *@
-<DynamicComponent Type="@Tipo" />
+@* Renderiza o conteúdo do módulo ativo direto do catálogo (sem ModuleHost). *@
+@if (_semAcesso)
+{
+    @* Esconder a aba não protege nada: a chave vem da URL, e sem esta checagem
+       qualquer autenticado abriria /home/usuarios digitando. *@
+    <div class="h-full flex items-center justify-center p-6">
+        <BbEmpty Title="Você não tem acesso a este módulo"
+                 Description="Se precisa dele, peça a permissão a quem administra o sistema."
+                 Class="py-10">
+            <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
+            <ChildContent>
+                <BbButton Class="mt-3" Size="ButtonSize.Small"
+                          OnClick='() => Nav.NavigateTo($"/home/{Modulos.Padrao}")'>
+                    Voltar ao início
+                </BbButton>
+            </ChildContent>
+        </BbEmpty>
+    </div>
+}
+else
+{
+    <DynamicComponent Type="@Tipo" />
+}
 
 @code {
     [Parameter] public string? ModuleKey { get; set; }
 
+    [CascadingParameter] private Task<AuthenticationState> EstadoAutenticacao { get; set; } = default!;
+
+    private bool _semAcesso;
+
     // /home cru → redireciona para /home/{padrão} pra a URL sempre ter uma chave
     // (assim a aba correspondente fica destacada no menu).
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         if (string.IsNullOrEmpty(ModuleKey))
+        {
             Nav.NavigateTo($"/home/{Modulos.Padrao}", replace: true);
+            return;
+        }
+
+        var modulo = Modulos.Find(ModuleKey) ?? Modulos.Find(Modulos.Padrao);
+        var usuario = (await EstadoAutenticacao).User;
+
+        _semAcesso = modulo?.Permissao is not null
+                  && !usuario.HasClaim(Permissoes.ClaimType, modulo.Permissao);
     }
 
     private Type Tipo =>

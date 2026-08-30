@@ -1,0 +1,383 @@
+@using Erp.Model.Solicitacao
+@using Erp.Repository.Solicitacao
+@using Erp.Repository.Produto
+@using Erp.Repository.CentroCusto
+@using System.Security.Claims
+@inject SolicitacaoRepository Solicitacoes
+@inject ToastService Toasts
+
+@* Cabeçalho enxuto e a lista de itens ocupando a tela: o que se preenche aqui
+   são as linhas. Cada linha carrega o centro de custo porque é ele que decide
+   quem aprova aquele item. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[80rem] max-w-none h-[92vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="shopping-cart" Size="20" />
+                <BbDialogTitle>
+                    @(_solicitacao.Id == 0 ? "Nova solicitação de compra" : $"Solicitação #{_solicitacao.Id}")
+                </BbDialogTitle>
+                @if (_solicitacao.Id != 0)
+                {
+                    <BbBadge Variant="@StatusVisual.Badge(_solicitacao.Status)">@StatusVisual.Texto(_solicitacao.Status)</BbBadge>
+                }
+            </div>
+
+            <div class="flex flex-wrap items-end gap-y-4 gap-x-5">
+                <BbField Class="grow min-w-96">
+                    <BbFieldLabel>Observação</BbFieldLabel>
+                    <BbInput @bind-Value="_solicitacao.Observacao"
+                             Placeholder="Contexto do pedido como um todo"
+                             Disabled="!_editavel" />
+                </BbField>
+
+                <BbField Class="w-[14rem]">
+                    <BbFieldLabel>Solicitante</BbFieldLabel>
+                    <BbInput Value="@_nomeSolicitante" Disabled="true" />
+                </BbField>
+            </div>
+
+            <div class="w-full">
+                <div class="flex items-center justify-between gap-4">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Itens</span>
+                    @if (_editavel)
+                    {
+                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
+                                  OnClick="AdicionarLinha" IconPosition="IconPosition.Start">
+                            <ChildContent>Adicionar item</ChildContent>
+                            <Icon><LucideIcon Name="plus" Size="14" /></Icon>
+                        </BbButton>
+                    }
+                </div>
+                <BbSeparator Class="mt-1.5" />
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto">
+                @if (_linhas.Count == 0)
+                {
+                    <BbEmpty Title="Nenhum item"
+                             Description="Uma solicitação sem itens não tem o que aprovar."
+                             Class="py-10">
+                        <Icon><LucideIcon Name="package" Size="36" Class="text-muted-foreground" /></Icon>
+                    </BbEmpty>
+                }
+                else
+                {
+                    <table class="erp-table w-full">
+                        <thead>
+                            <tr>
+                                <th class="w-[22rem]">Produto</th>
+                                <th class="w-[8rem]">Quantidade</th>
+                                <th class="w-[20rem]">Centro de custo</th>
+                                <th class="w-[10rem]">Prazo</th>
+                                <th>Justificativa</th>
+                                @if (_editavel)
+                                {
+                                    <th class="w-[4rem]"></th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var linha in _linhas)
+                            {
+                                <tr>
+                                    <td>
+                                        <BbCombobox TValue="string"
+                                                    Class="w-full"
+                                                    Options="@_produtos"
+                                                    Value="@linha.ProdutoId"
+                                                    ValueChanged="@(id => TrocarProduto(linha, id))"
+                                                    Placeholder="Selecione o produto"
+                                                    SearchPlaceholder="Buscar produto..."
+                                                    EmptyMessage="Nenhum produto cadastrado."
+                                                    Disabled="!_editavel" />
+                                    </td>
+                                    <td>
+                                        <BbInput @bind-Value="linha.Quantidade" Placeholder="0" Disabled="!_editavel" />
+                                    </td>
+                                    <td>
+                                        <BbCombobox TValue="string"
+                                                    Class="w-full"
+                                                    Options="@_centros"
+                                                    @bind-Value="linha.CentroCustoId"
+                                                    Placeholder="Selecione o centro"
+                                                    SearchPlaceholder="Buscar centro..."
+                                                    EmptyMessage="Nenhum centro ativo."
+                                                    Disabled="!_editavel" />
+                                    </td>
+                                    <td>
+                                        <BbInput @bind-Value="linha.Prazo" Type="InputType.Date" Disabled="!_editavel" />
+                                    </td>
+                                    <td>
+                                        <BbInput @bind-Value="linha.Justificativa"
+                                                 Placeholder="Por que este item é necessário"
+                                                 Disabled="!_editavel" />
+                                    </td>
+                                    @if (_editavel)
+                                    {
+                                        <td>
+                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                      OnClick="() => _linhas.Remove(linha)" aria-label="Remover item">
+                                                <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                                            </BbButton>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+
+            <BbDialogFooter>
+                @if (_erro is not null)
+                {
+                    <span class="text-sm text-destructive mr-auto">@_erro</span>
+                }
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="Descartar">
+                        <ChildContent>Fechar</ChildContent>
+                        <Icon><LucideIcon Name="x" Size="16" Color="grey" /></Icon>
+                    </BbButton>
+                    @if (_editavel)
+                    {
+                        <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                                  OnClick="() => Salvar(false)" Disabled="_salvando">
+                            <ChildContent>Salvar rascunho</ChildContent>
+                            <Icon><LucideIcon Name="save" Size="16" Color="lightblue" /></Icon>
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                                  OnClick="() => Salvar(true)" Disabled="_salvando">
+                            <ChildContent>Enviar para aprovação</ChildContent>
+                            <Icon><LucideIcon Name="send" Size="16" Color="lightgreen" /></Icon>
+                        </BbButton>
+                    }
+                </ActionArea>
+            </BbDialogFooter>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+
+    /// <summary>Solicitação a abrir. Nula abre em branco (nova).</summary>
+    [Parameter] public SolicitacaoCompra? Solicitacao { get; set; }
+
+    [Parameter] public EventCallback OnSalvo { get; set; }
+
+    /// <summary>Coluna em que a nova solicitação nasce. É o "+" do Kanban: quem
+    /// clica no cabeçalho de uma etapa espera o cartão aparecer ali, não na
+    /// primeira coluna.</summary>
+    [Parameter] public int? EtapaInicial { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    [Inject] private ProdutoRepository Produtos { get; set; } = default!;
+    [Inject] private CentroCustoRepository Centros { get; set; } = default!;
+
+    /// <summary>Uma linha em edição. Os números e datas ficam como texto para o
+    /// campo poder estar vazio enquanto está sendo preenchido.</summary>
+    private sealed class Linha
+    {
+        public int Id { get; set; }
+        public string ProdutoId { get; set; } = "";
+        public string Quantidade { get; set; } = "";
+        public string CentroCustoId { get; set; } = "";
+        public string Prazo { get; set; } = "";
+        public string Justificativa { get; set; } = "";
+        public StatusItem Status { get; set; } = StatusItem.Pendente;
+    }
+
+    private SolicitacaoCompra _solicitacao = new();
+    private List<Linha> _linhas = new();
+
+    private List<SelectOption<string>> _produtos = new();
+    private List<SelectOption<string>> _centros = new();
+
+    /// <summary>Centro de custo padrão do produto, para preencher a linha
+    /// sozinho quando o produto é escolhido.</summary>
+    private Dictionary<string, string> _centroPadraoDoProduto = new();
+
+    private Guid _usuarioAtual;
+    private string _nomeSolicitante = "";
+
+    private bool _editavel => _solicitacao.Editavel;
+    private bool _salvando;
+    private string? _erro;
+    private bool _abertoAnterior;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var produtos = await Produtos.Buscar(p => p.Ativo);
+
+        _produtos = produtos
+            .Select(p => new SelectOption<string>(p.Id.ToString(), $"{p.Codigo} — {p.Descricao}"))
+            .ToList();
+
+        _centroPadraoDoProduto = produtos
+            .Where(p => p.CentroCustoPadraoId is not null)
+            .ToDictionary(p => p.Id.ToString(), p => p.CentroCustoPadraoId!.Value.ToString());
+
+        _centros = (await Centros.BuscarAtivos())
+            .Select(c => new SelectOption<string>(c.Id.ToString(), $"{c.Codigo} — {c.Nome}"))
+            .ToList();
+
+        if (EstadoAutenticacao is not null)
+        {
+            var usuario = (await EstadoAutenticacao).User;
+
+            _usuarioAtual = Guid.TryParse(usuario.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+
+            _nomeSolicitante = usuario.Identity?.Name ?? "";
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Aberto && !_abertoAnterior)
+            CarregarFormulario();
+
+        _abertoAnterior = Aberto;
+    }
+
+    private void CarregarFormulario()
+    {
+        _erro = null;
+
+        _solicitacao = Solicitacao is null
+            ? new SolicitacaoCompra { SolicitanteId = _usuarioAtual, EtapaId = EtapaInicial }
+            : new SolicitacaoCompra
+            {
+                Id = Solicitacao.Id,
+                SolicitanteId = Solicitacao.SolicitanteId,
+                Status = Solicitacao.Status,
+                Observacao = Solicitacao.Observacao,
+                EnviadaEm = Solicitacao.EnviadaEm,
+                CriadoEm = Solicitacao.CriadoEm,
+            };
+
+        if (Solicitacao?.Solicitante is not null)
+            _nomeSolicitante = $"{Solicitacao.Solicitante.Nome} {Solicitacao.Solicitante.Sobrenome}".Trim();
+
+        _linhas = Solicitacao is null
+            ? new List<Linha> { new() }
+            : Solicitacao.Itens.Select(i => new Linha
+            {
+                Id = i.Id,
+                ProdutoId = i.ProdutoId.ToString(),
+                Quantidade = i.Quantidade.ToString("0.####"),
+                CentroCustoId = i.CentroCustoId.ToString(),
+                Prazo = i.PrazoDesejado?.ToString("yyyy-MM-dd") ?? "",
+                Justificativa = i.Justificativa,
+                Status = i.Status,
+            }).ToList();
+    }
+
+    private void AdicionarLinha() => _linhas.Add(new Linha());
+
+    /// <summary>Escolher o produto já traz o centro de custo padrão dele — quem
+    /// preenche não precisa lembrar de onde aquele item costuma sair.</summary>
+    private void TrocarProduto(Linha linha, string produtoId)
+    {
+        linha.ProdutoId = produtoId;
+
+        if (string.IsNullOrWhiteSpace(linha.CentroCustoId)
+            && _centroPadraoDoProduto.TryGetValue(produtoId, out var centro))
+            linha.CentroCustoId = centro;
+    }
+
+    private async Task Salvar(bool enviar)
+    {
+        var itens = new List<ItemSolicitacao>();
+
+        foreach (var linha in _linhas)
+        {
+            // Linha inteiramente em branco é resto de "adicionar item": ignora.
+            if (string.IsNullOrWhiteSpace(linha.ProdutoId)
+                && string.IsNullOrWhiteSpace(linha.Quantidade)
+                && string.IsNullOrWhiteSpace(linha.CentroCustoId))
+                continue;
+
+            if (!int.TryParse(linha.ProdutoId, out var produtoId))
+            {
+                _erro = "Todo item precisa de um produto.";
+                return;
+            }
+
+            if (!int.TryParse(linha.CentroCustoId, out var centroId))
+            {
+                _erro = "Todo item precisa de um centro de custo — é ele que define quem aprova.";
+                return;
+            }
+
+            if (!decimal.TryParse(linha.Quantidade, out var quantidade) || quantidade <= 0)
+            {
+                _erro = "Informe uma quantidade maior que zero em todos os itens.";
+                return;
+            }
+
+            itens.Add(new ItemSolicitacao
+            {
+                Id = linha.Id,
+                ProdutoId = produtoId,
+                CentroCustoId = centroId,
+                Quantidade = quantidade,
+                PrazoDesejado = DateTime.TryParse(linha.Prazo, out var prazo)
+                    ? DateTime.SpecifyKind(prazo, DateTimeKind.Utc)
+                    : null,
+                Justificativa = linha.Justificativa,
+                Status = linha.Status,
+            });
+        }
+
+        if (enviar && itens.Count == 0)
+        {
+            _erro = "Adicione ao menos um item antes de enviar.";
+            return;
+        }
+
+        _salvando = true;
+        try
+        {
+            _solicitacao.Itens = itens;
+
+            if (_solicitacao.Id == 0)
+            {
+                _solicitacao.SolicitanteId = _usuarioAtual;
+                await Solicitacoes.Criar(_solicitacao);
+            }
+            else
+            {
+                await Solicitacoes.Atualizar(_solicitacao);
+            }
+
+            if (enviar)
+                await Solicitacoes.Enviar(_solicitacao.Id);
+
+            Toasts.Success(enviar ? "Solicitação enviada" : "Rascunho salvo",
+                           $"#{_solicitacao.Id} — {itens.Count} " + (itens.Count == 1 ? "item" : "itens"));
+
+            await OnSalvo.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+            Toasts.Error("Não foi possível salvar", ex.Message);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private Task Descartar() => AbertoChanged.InvokeAsync(false);
+}

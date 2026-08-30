@@ -1,4 +1,3 @@
-@using Erp.Components.Shell
 @using Erp.Components.Modules.Pessoas.Dialogs
 @using Erp.Model.Pessoa
 @using Erp.Repository.Pessoa
@@ -16,14 +15,9 @@
 
         <div class="flex items-center gap-2 flex-none">
             <ActionArea>
-                <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
-                    <ChildContent>Exportar</ChildContent>
-                    <Icon><LucideIcon Name="file-text" Size="16" Color="lightblue" /></Icon>
-                </BbButton>
-                <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
-                    <ChildContent>Importar Planilha</ChildContent>
-                    <Icon><LucideIcon Name="upload" Size="16" Color="orange" /></Icon>
-                </BbButton>
+                @* Exportar e Importar Planilha viviam aqui sem handler nenhum.
+                   Botão que não faz nada é pior que botão ausente: ensina o
+                   usuário a desconfiar da tela. Voltam quando existirem. *@
                 @* Pesquisa que só ocupa espaço quando é usada: o botão vira
                    campo, e o campo some ao ficar vazio e perder o foco. *@
                 @if (_buscaAberta)
@@ -46,11 +40,14 @@
                     <ChildContent>Filtros@(_condicoes > 0 ? $" ({_condicoes})" : "")</ChildContent>
                     <Icon><LucideIcon Name="funnel" Size="16" Color="magenta" /></Icon>
                 </BbButton>
-                <BbButton OnClick="NovoCadastro"
-                     Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
-                    <ChildContent>Novo Cadastro</ChildContent>
-                    <Icon><LucideIcon Name="plus" Size="16" Color="lightgreen" /></Icon>
-                </BbButton>
+                @if (_podeEditar)
+                {
+                    <BbButton OnClick="NovoCadastro"
+                         Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                        <ChildContent>Novo Cadastro</ChildContent>
+                        <Icon><LucideIcon Name="plus" Size="16" Color="lightgreen" /></Icon>
+                    </BbButton>
+                }
             </ActionArea>
             <PessoaDialog @bind-Aberto="_dialogCadastroAberto"
                           Pessoa="_emEdicao"
@@ -94,16 +91,28 @@
                 <BbDataGridPropertyColumn Property="@(p => p.Tipo.ToString())" Title="Tipo" Sortable />
                 <BbDataGridPropertyColumn Property="@(p => p.CriadoEm)" Title="Cadastro" Format="dd/MM/yyyy" Sortable />
 
+                @* Sem fornecedor.editar a tela é de consulta: quem só tem
+                   fornecedor.ver enxergava a lista e apagava cadastro. *@
                 <BbDataGridTemplateColumn Title="Ações" Width="110px" NoWrap>
                     <div class="flex items-center justify-end gap-1">
-                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
-                                  OnClick="() => Editar(context)" aria-label="Editar">
-                            <LucideIcon Name="pencil" Size="15" />
-                        </BbButton>
-                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
-                                  OnClick="() => PedirExclusao(context)" aria-label="Excluir">
-                            <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
-                        </BbButton>
+                        @if (_podeEditar)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => Editar(context)" aria-label="Editar">
+                                <LucideIcon Name="pencil" Size="15" />
+                            </BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => PedirExclusao(context)" aria-label="Excluir">
+                                <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                            </BbButton>
+                        }
+                        else
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => Editar(context)" aria-label="Ver">
+                                <LucideIcon Name="eye" Size="15" />
+                            </BbButton>
+                        }
                     </div>
                 </BbDataGridTemplateColumn>
             </Columns>
@@ -154,6 +163,10 @@
 </BbDialog>
 
 @code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private bool _podeEditar;
+
     private bool _dialogCadastroAberto;
     private Pessoa? _emEdicao;
 
@@ -194,7 +207,14 @@
     private bool _excluindo;
     private string? _erroExclusao;
 
-    protected override Task OnInitializedAsync() => Recarregar();
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+            _podeEditar = (await EstadoAutenticacao).User
+                .HasClaim(Permissoes.ClaimType, Permissoes.FornecedorEditar);
+
+        await Recarregar();
+    }
 
     protected override async Task OnAfterRenderAsync(bool primeiroRender)
     {

@@ -1,0 +1,290 @@
+@using Erp.Model.Log
+@using Erp.Repository.Log
+@using BlazorBlueprint.Primitives.Filtering
+@inject LogRepository Logs
+
+@* Histórico do que foi feito. Leitura pura: log não se edita nem se apaga pela
+   tela — um histórico que a própria aplicação altera não serve de histórico. *@
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Logs</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                Quem fez o quê, quando e em qual módulo. Somente leitura.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-none">
+            <ActionArea>
+                @if (_buscaAberta)
+                {
+                    <BbInput @ref="_campoBusca"
+                             @bind-Value="_busca"
+                             UpdateTiming="UpdateTiming.Debounced"
+                             DebounceInterval="250"
+                             Placeholder="Buscar nesta lista…"
+                             Class="w-64 border-0 shadow-none focus-visible:ring-0"
+                             @onblur="FecharBuscaSeVazia" />
+                }
+                <BbButton OnClick="AlternarBusca"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>@(_buscaAberta ? "" : "Pesquisar")</ChildContent>
+                    <Icon><LucideIcon Name="@(_buscaAberta ? "x" : "search")" Size="16" /></Icon>
+                </BbButton>
+                <BbButton OnClick="() => _painelFiltros = !_painelFiltros"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Filtros@(_condicoes > 0 ? $" ({_condicoes})" : "")</ChildContent>
+                    <Icon><LucideIcon Name="funnel" Size="16" Color="magenta" /></Icon>
+                </BbButton>
+                <BbButton OnClick="Recarregar"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Atualizar</ChildContent>
+                    <Icon><LucideIcon Name="refresh-cw" Size="16" Color="lightblue" /></Icon>
+                </BbButton>
+            </ActionArea>
+        </div>
+    </div>
+
+    @if (!_podeVer)
+    {
+        <BbEmpty Title="Sem acesso aos logs"
+                 Description="Ver o histórico exige a permissão logs.ver."
+                 Class="py-16">
+            <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
+        </BbEmpty>
+    }
+    else
+    {
+        <div class="grid gap-4 mb-5 px-2 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+            <StatCard Label="Registros carregados" Value="@_registros.Count.ToString()" />
+            <StatCard Label="Erros" Value="@_erros.ToString()" />
+            <StatCard Label="Nas últimas 24h" Value="@_ultimasHoras.ToString()" />
+        </div>
+
+        @if (_painelFiltros)
+        {
+            <div class="mb-4 mx-2 p-4 rounded-lg border border-border bg-card">
+                <BbFilterBuilder Fields="_campos"
+                                 @bind-Filter="_filtro"
+                                 OnFilterChanged="Recarregar"
+                                 ApplyButtonText="Aplicar filtros"
+                                 ClearButtonText="Limpar" />
+            </div>
+        }
+
+        <div class="flex-1 min-h-0 px-2">
+            <BbDataGrid TData="RegistroLog"
+                        Items="@_registros"
+                        IsLoading="_carregando"
+                        Striped
+                        StripeClass="bg-muted/40"
+                        StickyHeader
+                        ShowSearch="false"
+                        SearchText="@_busca"
+                        ShowPagination
+                        InitialPageSize="50"
+                        Resizable>
+                <Columns>
+                    <BbDataGridTemplateColumn Title="Data" Width="150px" NoWrap>
+                        <div class="text-sm tabular-nums">@context.Quando.ToLocalTime().ToString("dd/MM/yyyy")</div>
+                        <div class="text-xs text-muted-foreground tabular-nums">
+                            @context.Quando.ToLocalTime().ToString("HH:mm:ss")
+                        </div>
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="Ação" Width="140px" NoWrap>
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs @AcaoVisual.Classe(context.Acao)">
+                            <LucideIcon Name="@AcaoVisual.Icone(context.Acao)" Size="12" />
+                            @AcaoVisual.Texto(context.Acao)
+                        </span>
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridPropertyColumn Property="@(l => l.Modulo)" Title="Módulo" Width="130px" Sortable />
+
+                    <BbDataGridTemplateColumn Title="Usuário" Width="180px" NoWrap>
+                        @if (string.IsNullOrWhiteSpace(context.UsuarioNome))
+                        {
+                            @* Ação sem login: a resposta do fornecedor pelo link
+                               público é o caso normal disso. *@
+                            <span class="text-xs text-muted-foreground italic">externo / sistema</span>
+                        }
+                        else
+                        {
+                            <span class="text-sm">@context.UsuarioNome</span>
+                        }
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridPropertyColumn Property="@(l => l.Descricao)" Title="Descrição" />
+
+                    <BbDataGridTemplateColumn Title="Registro" Width="170px" NoWrap>
+                        @if (!string.IsNullOrWhiteSpace(context.Entidade))
+                        {
+                            <span class="text-xs text-muted-foreground">
+                                @context.Entidade@(string.IsNullOrWhiteSpace(context.EntidadeId) ? "" : $" #{context.EntidadeId}")
+                            </span>
+                        }
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="" Width="90px" NoWrap>
+                        @if (context.TemStackTrace)
+                        {
+                            @* O stack expõe caminho de arquivo e estrutura
+                               interna: quem não tem logs.stacktrace vê que
+                               existe, mas não abre. *@
+                            @if (_podeVerStackTrace)
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                          OnClick="() => AbrirStackTrace(context)">
+                                    <LucideIcon Name="bug" Size="15" />
+                                </BbButton>
+                            }
+                            else
+                            {
+                                <BbTooltip>
+                                    <BbTooltipTrigger AsChild="false" Class="inline-flex text-muted-foreground/50">
+                                        <LucideIcon Name="bug-off" Size="15" />
+                                    </BbTooltipTrigger>
+                                    <BbTooltipContent>Exige a permissão logs.stacktrace</BbTooltipContent>
+                                </BbTooltip>
+                            }
+                        }
+                    </BbDataGridTemplateColumn>
+                </Columns>
+
+                <EmptyTemplate>
+                    <BbEmpty Title="Nenhum registro"
+                             Description="As ações do sistema aparecem aqui conforme acontecem."
+                             Class="py-10">
+                        <Icon><LucideIcon Name="footprints" Size="40" Class="text-muted-foreground" /></Icon>
+                    </BbEmpty>
+                </EmptyTemplate>
+            </BbDataGrid>
+        </div>
+    }
+</div>
+
+<BbDialog @bind-Open="_dialogStackAberto">
+    <BbDialogContent Class="w-[64rem] max-w-none h-[80vh] p-6">
+        <div class="flex flex-col h-full gap-4 min-h-0">
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="bug" Size="20" />
+                <BbDialogTitle>Rastreamento do erro</BbDialogTitle>
+            </div>
+
+            <div>
+                <p class="text-sm">@_registroAberto?.Descricao</p>
+                <p class="text-xs text-muted-foreground mt-1">
+                    @_registroAberto?.Quando.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
+                    · @_registroAberto?.Modulo
+                </p>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-auto rounded-lg border border-border bg-muted/40 p-3">
+                <pre class="text-xs whitespace-pre-wrap break-words">@_registroAberto?.StackTrace</pre>
+            </div>
+
+            <div class="flex items-center justify-end">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogStackAberto = false">
+                    Fechar
+                </BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private List<RegistroLog> _registros = new();
+    private bool _carregando = true;
+    private bool _podeVer;
+    private bool _podeVerStackTrace;
+
+    private bool _painelFiltros;
+    private bool _buscaAberta;
+    private bool _focarBusca;
+    private string _busca = string.Empty;
+    private BbInput? _campoBusca;
+
+    private FilterDefinition _filtro = new();
+    private int _condicoes => _filtro?.TotalConditionCount ?? 0;
+
+    private int _erros => _registros.Count(l => l.Acao == TipoAcao.Erro);
+    private int _ultimasHoras => _registros.Count(l => l.Quando >= DateTime.UtcNow.AddHours(-24));
+
+    private bool _dialogStackAberto;
+    private RegistroLog? _registroAberto;
+
+    private readonly List<FilterField> _campos = new()
+    {
+        new FilterField { Name = nameof(RegistroLog.Quando),      Label = "Data",      Type = FilterFieldType.Date },
+        new FilterField { Name = nameof(RegistroLog.Modulo),      Label = "Módulo",    Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(RegistroLog.UsuarioNome), Label = "Usuário",   Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(RegistroLog.Descricao),   Label = "Descrição", Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(RegistroLog.Entidade),    Label = "Registro",  Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(RegistroLog.Acao),        Label = "Ação",      Type = FilterFieldType.Enum,
+                          Options = Enum.GetValues<TipoAcao>()
+                                        .Select(a => new SelectOption<string>(a.ToString(), AcaoVisual.Texto(a)))
+                                        .ToList() },
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+        {
+            var usuario = (await EstadoAutenticacao).User;
+
+            _podeVer = usuario.HasClaim(Permissoes.ClaimType, Permissoes.LogsVer);
+            _podeVerStackTrace = usuario.HasClaim(Permissoes.ClaimType, Permissoes.LogsStackTrace);
+        }
+
+        if (_podeVer)
+            await Recarregar();
+
+        _carregando = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool primeiroRender)
+    {
+        if (_focarBusca && _campoBusca is not null)
+        {
+            _focarBusca = false;
+            await _campoBusca.Element.FocusAsync();
+        }
+    }
+
+    private void AlternarBusca()
+    {
+        _buscaAberta = !_buscaAberta;
+
+        if (_buscaAberta)
+            _focarBusca = true;
+        else
+            _busca = string.Empty;
+    }
+
+    private void FecharBuscaSeVazia()
+    {
+        if (string.IsNullOrWhiteSpace(_busca))
+            _buscaAberta = false;
+    }
+
+    private async Task Recarregar()
+    {
+        _carregando = true;
+        _registros = await Logs.Buscar(_filtro.ToExpression<RegistroLog>(_campos));
+        _carregando = false;
+    }
+
+    private void AbrirStackTrace(RegistroLog registro)
+    {
+        if (!_podeVerStackTrace)
+            return;
+
+        _registroAberto = registro;
+        _dialogStackAberto = true;
+    }
+}

@@ -1,0 +1,365 @@
+@using Usuario = Erp.Model.Usuario.Usuario
+@using Erp.Model.Usuario
+@using Erp.Repository.Usuario
+@using Erp.Repository.PermissoesUsuario
+@inject UsuarioRepository Usuarios
+@inject PermissoesRepository Acessos
+@inject ToastService Toasts
+
+@* Mesmo desenho dos outros diálogos: faixa cinza no topo, seções separadas por
+   BbSeparator, rodapé com ActionArea. Edita uma cópia. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    @* Altura FIXA, não max-height: o corpo rola por causa do flex-1 + min-h-0,
+       e flex-1 só tem contra o que medir se o pai tiver altura definida. Com
+       max-h o conteúdo simplesmente transbordava. *@
+    <BbDialogContent Class="w-[56rem] max-w-none h-[92vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="user-pen" Size="20" />
+                <BbDialogTitle>Usuário e permissões</BbDialogTitle>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto flex flex-wrap items-end gap-y-5 gap-x-5 content-start">
+
+                <div class="w-full">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Identificação</span>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
+
+                <BbField Class="w-[16rem]">
+                    <BbFieldLabel>Nome</BbFieldLabel>
+                    <BbInput @bind-Value="_usuario.Nome" Placeholder="Maria" />
+                </BbField>
+
+                <BbField Class="w-[16rem]">
+                    <BbFieldLabel>Sobrenome</BbFieldLabel>
+                    <BbInput @bind-Value="_usuario.Sobrenome" Placeholder="Almeida" />
+                </BbField>
+
+                <BbField Class="w-[12rem]">
+                    <BbFieldLabel>CPF</BbFieldLabel>
+                    <BbInput @bind-Value="_usuario.CPF" Placeholder="000.000.000-00" />
+                </BbField>
+
+                <BbField Class="w-[14rem]">
+                    <BbFieldLabel>Cargo</BbFieldLabel>
+                    <BbInput @bind-Value="_usuario.Cargo" Placeholder="Comprador" />
+                </BbField>
+
+                <BbField Class="w-[20rem]">
+                    <BbFieldLabel>E-mail</BbFieldLabel>
+                    <BbInput @bind-Value="_email" Type="InputType.Email" Placeholder="nome@empresa.com" />
+                    <BbFieldDescription>É também o login.</BbFieldDescription>
+                </BbField>
+
+                <BbField Class="w-[12rem]">
+                    <BbFieldLabel>Contato</BbFieldLabel>
+                    <BbInput @bind-Value="_usuario.NumeroContato" Placeholder="(00) 00000-0000" />
+                </BbField>
+
+                <BbField Class="w-[10rem]">
+                    <BbFieldLabel>Situação</BbFieldLabel>
+                    <div class="flex items-center gap-2 h-9">
+                        <BbSwitch @bind-Checked="_ativo" />
+                        <span class="text-sm">@(_ativo ? "Ativo" : "Inativo")</span>
+                    </div>
+                </BbField>
+
+                <div class="w-full">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Acesso</span>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
+
+                <BbField Class="w-[20rem]">
+                    <BbFieldLabel>Papel</BbFieldLabel>
+                    <BbCombobox TValue="string"
+                                Class="w-[20rem]"
+                                Options="@_papeis"
+                                Value="@_papelSelecionado"
+                                ValueChanged="TrocarPapel"
+                                Placeholder="Nenhum papel"
+                                SearchPlaceholder="Buscar papel..."
+                                EmptyMessage="Nenhum papel cadastrado." />
+                    <BbFieldDescription>O papel concede um conjunto pronto de permissões.</BbFieldDescription>
+                </BbField>
+
+                @if (_novo)
+                {
+                    <BbField Class="w-[16rem]">
+                        <BbFieldLabel>Senha inicial</BbFieldLabel>
+                        <BbInput @bind-Value="_senha" Type="InputType.Password" />
+                        <BbFieldDescription>Mínimo de 8 caracteres.</BbFieldDescription>
+                    </BbField>
+                }
+                else
+                {
+                    <BbField Class="w-[16rem]">
+                        <BbFieldLabel>Nova senha</BbFieldLabel>
+                        <BbInput @bind-Value="_senha" Type="InputType.Password" />
+                        <BbFieldDescription>Deixe vazio para manter a atual.</BbFieldDescription>
+                    </BbField>
+                }
+
+                <div class="w-full">
+                    <div class="flex items-baseline justify-between gap-4">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Permissões</span>
+                        <span class="text-xs text-muted-foreground">
+                            O que vem do papel não se desliga aqui.
+                            Mudanças valem na próxima revalidação da sessão (até 5 min).
+                        </span>
+                    </div>
+                    <BbSeparator Class="mt-1.5" />
+                </div>
+
+                @* Uma tabela por módulo, com a chave à mostra. A chave é o que
+                   aparece na policy e no claim — quem confere acesso procura por
+                   ela, não pelo rótulo em português. *@
+                @foreach (var grupo in Permissoes.Catalogo.GroupBy(p => p.Grupo))
+                {
+                    <div class="w-full">
+                        <div class="flex items-baseline gap-2 mb-2">
+                            <span class="text-sm font-medium">@grupo.Key</span>
+                            <span class="text-xs text-muted-foreground">
+                                @Concedidas(grupo) de @grupo.Count()
+                            </span>
+                        </div>
+
+                        <div class="border border-border rounded-lg overflow-hidden">
+                            <table class="erp-table w-full">
+                                <thead>
+                                    <tr>
+                                        <th class="w-[15rem]">Chave</th>
+                                        <th>Permissão</th>
+                                        <th class="w-[12rem]">Valor</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var permissao in grupo)
+                                    {
+                                        var herdada = _herdadas.Contains(permissao.Chave);
+                                        var concedida = herdada || _diretas.Contains(permissao.Chave);
+
+                                        <tr>
+                                            <td>
+                                                <code class="text-xs text-muted-foreground">@permissao.Chave</code>
+                                            </td>
+                                            <td>
+                                                <div class="text-sm">@permissao.Titulo</div>
+                                                <div class="text-xs text-muted-foreground">@permissao.Descricao</div>
+                                            </td>
+                                            <td>
+                                                <div class="flex items-center gap-2">
+                                                    <BbSwitch Checked="concedida"
+                                                              CheckedChanged="@(ligado => Alternar(permissao.Chave, ligado))"
+                                                              Disabled="herdada" />
+                                                    <span class="text-xs @(concedida ? "text-foreground" : "text-muted-foreground")">
+                                                        @(herdada ? $"Do papel {_papelSelecionado}" : concedida ? "Concedida" : "Negada")
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <BbDialogFooter>
+                @if (_erro is not null)
+                {
+                    <span class="text-sm text-destructive mr-auto">@_erro</span>
+                }
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="Descartar">
+                        <ChildContent>Descartar</ChildContent>
+                        <Icon><LucideIcon Name="trash" Size="16" Color="grey" /></Icon>
+                    </BbButton>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="Salvar" Disabled="_salvando">
+                        <ChildContent>Salvar</ChildContent>
+                        <Icon><LucideIcon Name="circle-check" Size="16" Color="lightgreen" /></Icon>
+                    </BbButton>
+                </ActionArea>
+            </BbDialogFooter>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+
+    /// <summary>Usuário a editar. Nulo abre em branco (novo).</summary>
+    [Parameter] public Usuario? Usuario { get; set; }
+
+    [Parameter] public EventCallback OnSalvo { get; set; }
+
+    private Usuario _usuario = new();
+    private string _email = string.Empty;
+    private string _senha = string.Empty;
+    private bool _ativo = true;
+    private bool _novo => Usuario is null;
+
+    private List<SelectOption<string>> _papeis = new();
+    private Dictionary<string, HashSet<string>> _permissoesPorPapel = new();
+    private string _papelSelecionado = "";
+
+    private HashSet<string> _diretas = new();
+    private HashSet<string> _herdadas = new();
+
+    private bool _salvando;
+    private string? _erro;
+    private bool _abertoAnterior;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _permissoesPorPapel = await Acessos.PermissoesPorPapel();
+
+        _papeis = (await Acessos.Papeis())
+            .Where(p => p.Name is not null)
+            .Select(p => new SelectOption<string>(p.Name!, p.Name!))
+            .ToList();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Aberto && !_abertoAnterior)
+            await CarregarFormulario();
+
+        _abertoAnterior = Aberto;
+    }
+
+    private async Task CarregarFormulario()
+    {
+        _erro = null;
+        _senha = string.Empty;
+
+        _usuario = Usuario is null
+            ? new Usuario()
+            : new Usuario
+            {
+                Id = Usuario.Id,
+                Nome = Usuario.Nome,
+                Sobrenome = Usuario.Sobrenome,
+                CPF = Usuario.CPF,
+                Cargo = Usuario.Cargo,
+                NumeroContato = Usuario.NumeroContato,
+                Observacao = Usuario.Observacao,
+                Status = Usuario.Status,
+                Email = Usuario.Email,
+            };
+
+        _email = _usuario.Email ?? string.Empty;
+        _ativo = _usuario.Status == StatusUsuario.Ativo;
+
+        if (Usuario is null)
+        {
+            _diretas = [];
+            _papelSelecionado = "";
+        }
+        else
+        {
+            _diretas = await Acessos.Diretas(Usuario.Id);
+            _papelSelecionado = (await Acessos.PapeisDoUsuario(Usuario.Id)).FirstOrDefault() ?? "";
+        }
+
+        AtualizarHerdadas();
+    }
+
+    private void TrocarPapel(string papel)
+    {
+        _papelSelecionado = papel;
+        AtualizarHerdadas();
+    }
+
+    private void AtualizarHerdadas() =>
+        _herdadas = !string.IsNullOrWhiteSpace(_papelSelecionado)
+                    && _permissoesPorPapel.TryGetValue(_papelSelecionado, out var doPapel)
+            ? [.. doPapel]
+            : [];
+
+    /// <summary>Quantas do módulo o usuário tem, contando o que vem do papel —
+    /// é a leitura rápida de "esse cara enxerga esse módulo?".</summary>
+    private int Concedidas(IEnumerable<Permissao> grupo) =>
+        grupo.Count(p => _herdadas.Contains(p.Chave) || _diretas.Contains(p.Chave));
+
+    private void Alternar(string chave, bool marcado)
+    {
+        if (marcado)
+            _diretas.Add(chave);
+        else
+            _diretas.Remove(chave);
+    }
+
+    private async Task Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_usuario.Nome) || string.IsNullOrWhiteSpace(_email))
+        {
+            _erro = "Informe nome e e-mail.";
+            return;
+        }
+
+        if (_novo && _senha.Length < 8)
+        {
+            _erro = "A senha inicial precisa de pelo menos 8 caracteres.";
+            return;
+        }
+
+        _salvando = true;
+        try
+        {
+            _usuario.Email = _email.Trim();
+            _usuario.Status = _ativo ? StatusUsuario.Ativo : StatusUsuario.Inativo;
+
+            var novo = _novo;
+
+            var resultado = novo
+                ? await Usuarios.Criar(_usuario, _senha)
+                : await Usuarios.Atualizar(_usuario);
+
+            if (!resultado.Succeeded)
+            {
+                _erro = string.Join("; ", resultado.Errors.Select(e => e.Description));
+                return;
+            }
+
+            if (!novo && !string.IsNullOrWhiteSpace(_senha))
+            {
+                var senha = await Usuarios.RedefinirSenha(_usuario.Id, _senha);
+                if (!senha.Succeeded)
+                {
+                    _erro = string.Join("; ", senha.Errors.Select(e => e.Description));
+                    return;
+                }
+            }
+
+            // Papel primeiro: ele decide o que é herdado, e o que é herdado não
+            // precisa virar permissão direta.
+            await Acessos.DefinirPapel(_usuario.Id, _papelSelecionado);
+            await Acessos.Definir(_usuario.Id, _diretas.Except(_herdadas));
+
+            Toasts.Success(novo ? "Usuário criado" : "Usuário atualizado",
+                           $"{_usuario.Nome} {_usuario.Sobrenome}".Trim());
+
+            await OnSalvo.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+            Toasts.Error("Não foi possível salvar", ex.Message);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private Task Descartar() => AbertoChanged.InvokeAsync(false);
+}

@@ -1,0 +1,300 @@
+@using Erp.Model.Solicitacao
+@using Erp.Components.Modules.Solicitacoes
+@using Erp.Repository.Solicitacao
+@using Erp.Repository.CentroCusto
+@using System.Security.Claims
+@inject SolicitacaoRepository Solicitacoes
+@inject CentroCustoRepository Centros
+@inject ToastService Toasts
+
+@* Fila do aprovador. A decisão é por ITEM, não pela solicitação inteira: cada
+   linha responde a um centro de custo, e só aparece aqui o que é desta pessoa
+   decidir. *@
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Aprovações</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                Itens esperando sua decisão, nos centros de custo que você responde.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-none">
+            <ActionArea>
+                <BbButton OnClick="Recarregar"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Atualizar</ChildContent>
+                    <Icon><LucideIcon Name="refresh-cw" Size="16" Color="lightblue" /></Icon>
+                </BbButton>
+            </ActionArea>
+        </div>
+    </div>
+
+    @if (!_podeAprovar)
+    {
+        <BbEmpty Title="Sem acesso às aprovações"
+                 Description="Decidir solicitações exige a permissão compras.aprovar."
+                 Class="py-16">
+            <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
+        </BbEmpty>
+    }
+    else if (_centrosDoUsuario.Count == 0)
+    {
+        @* Ter a permissão não basta: é preciso ser o responsável de algum
+           centro, senão não há fila. *@
+        <BbEmpty Title="Você não responde por nenhum centro de custo"
+                 Description="O roteamento é pelo responsável do centro. Peça para alguém indicar você em Centros de Custo."
+                 Class="py-16">
+            <Icon><LucideIcon Name="currency" Size="40" Class="text-muted-foreground" /></Icon>
+        </BbEmpty>
+    }
+    else if (_solicitacoes.Count == 0)
+    {
+        <BbEmpty Title="Nada esperando você"
+                 Description="Quando alguém enviar uma solicitação de um centro seu, ela aparece aqui."
+                 Class="py-16">
+            <Icon><LucideIcon Name="circle-check" Size="40" Class="text-muted-foreground" /></Icon>
+        </BbEmpty>
+    }
+    else
+    {
+        <div class="flex-1 min-h-0 px-2 overflow-y-auto flex flex-col gap-4">
+            @foreach (var solicitacao in _solicitacoes)
+            {
+                var meus = ItensMeus(solicitacao);
+
+                <div class="rounded-lg border border-border bg-card">
+                    <div class="px-4 py-3 border-b border-border flex items-center gap-3 flex-wrap">
+                        <span class="text-sm font-semibold tabular-nums">#@solicitacao.Id</span>
+                        <BbBadge Variant="@StatusVisual.Badge(solicitacao.Status)">
+                            @StatusVisual.Texto(solicitacao.Status)
+                        </BbBadge>
+                        <span class="text-sm text-muted-foreground">
+                            @(solicitacao.Solicitante is null
+                                ? "—"
+                                : $"{solicitacao.Solicitante.Nome} {solicitacao.Solicitante.Sobrenome}".Trim())
+                        </span>
+                        @if (solicitacao.EnviadaEm is { } enviada)
+                        {
+                            <span class="text-xs text-muted-foreground">
+                                enviada em @enviada.ToLocalTime().ToString("dd/MM/yyyy")
+                            </span>
+                        }
+                        <span class="ml-auto text-xs text-muted-foreground">
+                            @meus.Count de @solicitacao.Itens.Count @(solicitacao.Itens.Count == 1 ? "item é seu" : "itens são seus")
+                        </span>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(solicitacao.Observacao))
+                    {
+                        <p class="px-4 pt-3 text-sm">@solicitacao.Observacao</p>
+                    }
+
+                    <div class="p-2">
+                        <table class="erp-table w-full">
+                            <thead>
+                                <tr>
+                                    <th>Produto</th>
+                                    <th class="w-[7rem]">Qtde.</th>
+                                    <th class="w-[14rem]">Centro de custo</th>
+                                    <th class="w-[8rem]">Prazo</th>
+                                    <th>Justificativa</th>
+                                    <th class="w-[13rem]">Decisão</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in meus)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="text-sm">@(item.Produto?.Descricao ?? "Item")</div>
+                                            <div class="text-xs text-muted-foreground">@item.Produto?.Codigo</div>
+                                        </td>
+                                        <td class="text-sm tabular-nums">
+                                            @item.Quantidade.ToString("0.####") @item.Produto?.Unidade
+                                        </td>
+                                        <td class="text-sm">@item.CentroCusto?.Nome</td>
+                                        <td class="text-sm tabular-nums">
+                                            @(item.PrazoDesejado?.ToString("dd/MM/yyyy") ?? "—")
+                                        </td>
+                                        <td class="text-sm">@item.Justificativa</td>
+                                        <td>
+                                            @if (item.Status == StatusItem.Pendente)
+                                            {
+                                                <div class="flex items-center gap-1">
+                                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                              OnClick="() => Aprovar(item)" aria-label="Aprovar">
+                                                        <LucideIcon Name="circle-check" Size="15" Class="text-emerald-600" />
+                                                    </BbButton>
+                                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                              OnClick="() => PedirMotivo(item, StatusItem.Recusado)"
+                                                              aria-label="Recusar">
+                                                        <LucideIcon Name="circle-x" Size="15" Class="text-destructive" />
+                                                    </BbButton>
+                                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                              OnClick="() => PedirMotivo(item, StatusItem.Devolvido)"
+                                                              aria-label="Devolver para ajuste">
+                                                        <LucideIcon Name="undo-2" Size="15" />
+                                                    </BbButton>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div>
+                                                    <span class="text-xs font-medium">@StatusVisual.Texto(item.Status)</span>
+                                                    @if (!string.IsNullOrWhiteSpace(item.MotivoDecisao))
+                                                    {
+                                                        <p class="text-xs text-muted-foreground">@item.MotivoDecisao</p>
+                                                    }
+                                                </div>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@* Recusa e devolução exigem motivo. A diferença entre as duas: recusar encerra
+   aquele item, devolver joga a solicitação inteira de volta para ajuste. *@
+<BbDialog @bind-Open="_dialogMotivoAberto">
+    <BbDialogContent Class="max-w-lg p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>
+                @(_decisao == StatusItem.Recusado ? "Recusar item" : "Devolver para ajuste")
+            </BbDialogTitle>
+            <p class="text-sm text-muted-foreground">
+                @(_decisao == StatusItem.Recusado
+                    ? "O item é encerrado e não vai para cotação."
+                    : "A solicitação volta para o solicitante editar e reenviar.")
+            </p>
+
+            <BbField>
+                <BbFieldLabel>Motivo</BbFieldLabel>
+                <BbInput @bind-Value="_motivo" Placeholder="O que levou a essa decisão" />
+                <BbFieldDescription>Obrigatório — é o que o solicitante vai ler.</BbFieldDescription>
+            </BbField>
+
+            @if (_erroMotivo is not null)
+            {
+                <p class="text-sm text-destructive">@_erroMotivo</p>
+            }
+
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogMotivoAberto = false">
+                    Cancelar
+                </BbButton>
+                <BbButton Variant="@(_decisao == StatusItem.Recusado
+                                     ? ButtonVariant.Destructive
+                                     : ButtonVariant.Default)"
+                          OnClick="ConfirmarMotivo" Disabled="_decidindo">
+                    @(_decisao == StatusItem.Recusado ? "Recusar" : "Devolver")
+                </BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private List<SolicitacaoCompra> _solicitacoes = new();
+    private List<int> _centrosDoUsuario = new();
+    private Guid _usuarioAtual;
+    private bool _podeAprovar;
+
+    private bool _dialogMotivoAberto;
+    private ItemSolicitacao? _emDecisao;
+    private StatusItem _decisao = StatusItem.Recusado;
+    private string _motivo = string.Empty;
+    private bool _decidindo;
+    private string? _erroMotivo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+        {
+            var usuario = (await EstadoAutenticacao).User;
+
+            _podeAprovar = usuario.HasClaim(Permissoes.ClaimType, Permissoes.ComprasAprovar);
+            _usuarioAtual = Guid.TryParse(usuario.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+        }
+
+        if (_podeAprovar)
+            await Recarregar();
+    }
+
+    private async Task Recarregar()
+    {
+        _centrosDoUsuario = await Centros.IdsPorResponsavel(_usuarioAtual);
+
+        _solicitacoes = _centrosDoUsuario.Count == 0
+            ? new()
+            : await Solicitacoes.ParaAprovar(_centrosDoUsuario);
+    }
+
+    /// <summary>Os itens que são desta pessoa decidir. Os outros centros da
+    /// mesma solicitação não aparecem: não são dela, e mostrar dá a impressão de
+    /// que faltou decidir.</summary>
+    private List<ItemSolicitacao> ItensMeus(SolicitacaoCompra solicitacao) =>
+        solicitacao.Itens.Where(i => _centrosDoUsuario.Contains(i.CentroCustoId)).ToList();
+
+    private Task Aprovar(ItemSolicitacao item) => Decidir(item, StatusItem.Aprovado, null);
+
+    private void PedirMotivo(ItemSolicitacao item, StatusItem decisao)
+    {
+        _emDecisao = item;
+        _decisao = decisao;
+        _motivo = string.Empty;
+        _erroMotivo = null;
+        _dialogMotivoAberto = true;
+    }
+
+    private async Task ConfirmarMotivo()
+    {
+        if (string.IsNullOrWhiteSpace(_motivo))
+        {
+            _erroMotivo = "Informe o motivo.";
+            return;
+        }
+
+        if (_emDecisao is null)
+            return;
+
+        _decidindo = true;
+        try
+        {
+            await Decidir(_emDecisao, _decisao, _motivo);
+            _dialogMotivoAberto = false;
+        }
+        finally
+        {
+            _decidindo = false;
+        }
+    }
+
+    private async Task Decidir(ItemSolicitacao item, StatusItem decisao, string? motivo)
+    {
+        try
+        {
+            await Solicitacoes.Decidir(item.Id, decisao, motivo, _usuarioAtual, _centrosDoUsuario);
+            await Recarregar();
+
+            Toasts.Success($"Item {StatusVisual.Texto(decisao).ToLowerInvariant()}",
+                           item.Produto?.Descricao ?? $"Item #{item.Id}");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível decidir", ex.Message);
+        }
+    }
+}

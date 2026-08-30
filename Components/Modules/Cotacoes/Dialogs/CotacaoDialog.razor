@@ -1,0 +1,574 @@
+@using Cotacao = Erp.Model.Cotacao.Cotacao
+@using Erp.Model.Cotacao
+@using Erp.Model.Pessoa
+@using Erp.Repository.Cotacao
+@using Erp.Repository.Produto
+@using Erp.Repository.Pessoa
+@using System.Security.Claims
+@inject CotacaoRepository Cotacoes
+@inject NavigationManager Navegacao
+@inject IJSRuntime JS
+@inject Erp.Service.Email.EmailService Emails
+@inject ToastService Toasts
+
+@* Monta a rodada: o que se quer comprar e quem vai precificar. Depois de aberta
+   nada disso muda — mexer nos itens com fornecedor respondendo tornaria as
+   propostas incomparáveis. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[76rem] max-w-none h-[92vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="mail" Size="20" />
+                <BbDialogTitle>
+                    @(_cotacao.Id == 0 ? "Nova cotação" : $"Cotação #{_cotacao.Id}")
+                </BbDialogTitle>
+                @if (_cotacao.Id != 0)
+                {
+                    <BbBadge Variant="@(_cotacao.Status == StatusCotacao.Aberta
+                                        ? BadgeVariant.Default
+                                        : BadgeVariant.Outline)">
+                        @_cotacao.Status
+                    </BbBadge>
+                }
+            </div>
+
+            <div class="flex flex-wrap items-end gap-y-4 gap-x-5">
+                <BbField Class="grow min-w-80">
+                    <BbFieldLabel>Título</BbFieldLabel>
+                    <BbInput @bind-Value="_cotacao.Titulo"
+                             Placeholder="Reposição de insumos — setembro"
+                             Disabled="!_editavel" />
+                </BbField>
+
+                <BbField Class="w-[12rem]">
+                    <BbFieldLabel>Prazo de resposta</BbFieldLabel>
+                    <BbInput @bind-Value="_prazo" Type="InputType.Date" Disabled="!_editavel" />
+                    <BbFieldDescription>Vence o link do fornecedor.</BbFieldDescription>
+                </BbField>
+
+                <BbField Class="w-full">
+                    <BbFieldLabel>Observação</BbFieldLabel>
+                    <BbInput @bind-Value="_cotacao.Observacao"
+                             Placeholder="Instruções que o fornecedor verá na tela dele"
+                             Disabled="!_editavel" />
+                </BbField>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5">
+
+                <div>
+                    <div class="flex items-center justify-between gap-4">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Itens a cotar</span>
+                        @if (_editavel)
+                        {
+                            <div class="flex items-center gap-2">
+                                @* Traz o que já foi aprovado e ainda não foi
+                                   cotado — é o caminho normal; item avulso é a
+                                   exceção. *@
+                                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
+                                          OnClick="ImportarAprovados" IconPosition="IconPosition.Start">
+                                    <ChildContent>Importar itens aprovados (@_aprovadosDisponiveis.Count)</ChildContent>
+                                    <Icon><LucideIcon Name="download" Size="14" /></Icon>
+                                </BbButton>
+                                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
+                                          OnClick="() => _itens.Add(new())" IconPosition="IconPosition.Start">
+                                    <ChildContent>Adicionar item</ChildContent>
+                                    <Icon><LucideIcon Name="plus" Size="14" /></Icon>
+                                </BbButton>
+                            </div>
+                        }
+                    </div>
+                    <BbSeparator Class="mt-1.5 mb-2" />
+
+                    <table class="erp-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Produto</th>
+                                <th class="w-[10rem]">Quantidade</th>
+                                @if (_editavel)
+                                {
+                                    <th class="w-[4rem]"></th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in _itens)
+                            {
+                                <tr>
+                                    <td>
+                                        <BbCombobox TValue="string"
+                                                    Class="w-full"
+                                                    Options="@_produtos"
+                                                    @bind-Value="item.ProdutoId"
+                                                    Placeholder="Selecione o produto"
+                                                    SearchPlaceholder="Buscar produto..."
+                                                    EmptyMessage="Nenhum produto cadastrado."
+                                                    Disabled="!_editavel" />
+                                    </td>
+                                    <td>
+                                        <BbInput @bind-Value="item.Quantidade" Placeholder="0" Disabled="!_editavel" />
+                                    </td>
+                                    @if (_editavel)
+                                    {
+                                        <td>
+                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                      OnClick="() => _itens.Remove(item)" aria-label="Remover item">
+                                                <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                                            </BbButton>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between gap-4">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fornecedores convidados</span>
+                        @if (_editavel)
+                        {
+                            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
+                                      OnClick="() => _convites.Add(new())" IconPosition="IconPosition.Start">
+                                <ChildContent>Adicionar fornecedor</ChildContent>
+                                <Icon><LucideIcon Name="plus" Size="14" /></Icon>
+                            </BbButton>
+                        }
+                    </div>
+                    <BbSeparator Class="mt-1.5 mb-2" />
+
+                    <table class="erp-table w-full">
+                        <thead>
+                            <tr>
+                                <th class="w-[22rem]">Fornecedor</th>
+                                <th class="w-[16rem]">E-mail para o link</th>
+                                <th>Link / situação</th>
+                                @if (_editavel)
+                                {
+                                    <th class="w-[4rem]"></th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var convite in _convites)
+                            {
+                                <tr>
+                                    <td>
+                                        <BbCombobox TValue="string"
+                                                    Class="w-full"
+                                                    Options="@_fornecedores"
+                                                    Value="@convite.PessoaId"
+                                                    ValueChanged="@(id => TrocarFornecedor(convite, id))"
+                                                    Placeholder="Do cadastro (opcional)"
+                                                    SearchPlaceholder="Buscar fornecedor..."
+                                                    EmptyMessage="Nenhum fornecedor cadastrado."
+                                                    Disabled="!_editavel" />
+                                    </td>
+                                    <td>
+                                        <BbInput @bind-Value="convite.Email" Type="InputType.Email"
+                                                 Placeholder="contato@fornecedor.com" Disabled="!_editavel" />
+                                    </td>
+                                    <td>
+                                        @if (string.IsNullOrWhiteSpace(convite.Token))
+                                        {
+                                            <span class="text-xs text-muted-foreground">
+                                                O link é gerado ao salvar.
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <div class="flex items-center gap-2">
+                                                <code class="text-xs text-muted-foreground truncate max-w-[22rem]">
+                                                    @Link(convite.Token)
+                                                </code>
+                                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                          OnClick="() => Copiar(convite.Token)" aria-label="Copiar link">
+                                                    <LucideIcon Name="copy" Size="14" />
+                                                </BbButton>
+                                                @if (_emailConfigurado)
+                                                {
+                                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                              OnClick="() => EnviarEmail(convite)"
+                                                              aria-label="Enviar por e-mail">
+                                                        <LucideIcon Name="send" Size="14" />
+                                                    </BbButton>
+                                                }
+                                                @if (convite.Respondido)
+                                                {
+                                                    <BbBadge Variant="BadgeVariant.Default">Respondida</BbBadge>
+                                                }
+                                            </div>
+                                        }
+                                    </td>
+                                    @if (_editavel)
+                                    {
+                                        <td>
+                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                      OnClick="() => _convites.Remove(convite)" aria-label="Remover fornecedor">
+                                                <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                                            </BbButton>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    @if (_convites.Count > 0)
+                    {
+                        <p class="text-xs text-muted-foreground mt-2">
+                            @(_emailConfigurado
+                                ? "Cada link vale só para aquele fornecedor e trava quando ele envia."
+                                : "Envio por e-mail desligado (SMTP não configurado): copie o link e mande você mesmo. Cada link vale só para aquele fornecedor e trava quando ele envia.")
+                        </p>
+                    }
+                </div>
+            </div>
+
+            <BbDialogFooter>
+                @if (_erro is not null)
+                {
+                    <span class="text-sm text-destructive mr-auto">@_erro</span>
+                }
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="Descartar">
+                        <ChildContent>Fechar</ChildContent>
+                        <Icon><LucideIcon Name="x" Size="16" Color="grey" /></Icon>
+                    </BbButton>
+                    @if (_editavel)
+                    {
+                        <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                                  OnClick="() => Salvar(false)" Disabled="_salvando">
+                            <ChildContent>Salvar rascunho</ChildContent>
+                            <Icon><LucideIcon Name="save" Size="16" Color="lightblue" /></Icon>
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                                  OnClick="() => Salvar(true)" Disabled="_salvando">
+                            <ChildContent>Abrir cotação</ChildContent>
+                            <Icon><LucideIcon Name="send" Size="16" Color="lightgreen" /></Icon>
+                        </BbButton>
+                    }
+                </ActionArea>
+            </BbDialogFooter>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+
+    /// <summary>Cotação a abrir. Nula abre em branco (nova).</summary>
+    [Parameter] public Cotacao? Cotacao { get; set; }
+
+    [Parameter] public EventCallback OnSalvo { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    [Inject] private ProdutoRepository Produtos { get; set; } = default!;
+    [Inject] private PessoaRepository Pessoas { get; set; } = default!;
+
+    private sealed class LinhaItem
+    {
+        public int Id { get; set; }
+        public string ProdutoId { get; set; } = "";
+        public string Quantidade { get; set; } = "";
+        public int? ItemSolicitacaoId { get; set; }
+    }
+
+    private sealed class LinhaConvite
+    {
+        public int Id { get; set; }
+        public string PessoaId { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Token { get; set; } = "";
+        public bool Respondido { get; set; }
+    }
+
+    private Cotacao _cotacao = new();
+    private List<LinhaItem> _itens = new();
+    private List<LinhaConvite> _convites = new();
+    private string _prazo = "";
+
+    private List<Erp.Model.Solicitacao.ItemSolicitacao> _aprovadosDisponiveis = new();
+    private List<SelectOption<string>> _produtos = new();
+    private List<SelectOption<string>> _fornecedores = new();
+    private Dictionary<string, string> _emailDoFornecedor = new();
+
+    private Guid _usuarioAtual;
+    private bool _editavel => _cotacao.Editavel;
+    private bool _salvando;
+    private string? _erro;
+    private bool _abertoAnterior;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _produtos = (await Produtos.Buscar(p => p.Ativo))
+            .Select(p => new SelectOption<string>(p.Id.ToString(), $"{p.Codigo} — {p.Descricao}"))
+            .ToList();
+
+        var fornecedores = await Pessoas.Buscar(TipoPessoa.Fornecedor);
+
+        _fornecedores = fornecedores
+            .Select(p => new SelectOption<string>(p.Id.ToString(), p.RazaoSocial))
+            .ToList();
+
+        _emailDoFornecedor = fornecedores
+            .Where(p => !string.IsNullOrWhiteSpace(p.Email))
+            .ToDictionary(p => p.Id.ToString(), p => p.Email!);
+
+        if (EstadoAutenticacao is not null)
+            _usuarioAtual = Guid.TryParse(
+                (await EstadoAutenticacao).User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Aberto && !_abertoAnterior)
+        {
+            CarregarFormulario();
+
+            // Recarrega a cada abertura: entre um uso e outro pode ter entrado
+            // aprovação nova, ou outra cotação pode ter levado esses itens.
+            _aprovadosDisponiveis = await Cotacoes.ItensAprovadosDisponiveis();
+        }
+
+        _abertoAnterior = Aberto;
+    }
+
+    private void CarregarFormulario()
+    {
+        _erro = null;
+
+        _cotacao = Cotacao is null
+            ? new Cotacao()
+            : new Cotacao
+            {
+                Id = Cotacao.Id,
+                Titulo = Cotacao.Titulo,
+                Observacao = Cotacao.Observacao,
+                Status = Cotacao.Status,
+                PrazoResposta = Cotacao.PrazoResposta,
+                CriadoPorId = Cotacao.CriadoPorId,
+                CriadoEm = Cotacao.CriadoEm,
+            };
+
+        _prazo = _cotacao.PrazoResposta?.ToString("yyyy-MM-dd") ?? "";
+
+        _itens = Cotacao is null
+            ? new List<LinhaItem> { new() }
+            : Cotacao.Itens.Select(i => new LinhaItem
+            {
+                Id = i.Id,
+                ProdutoId = i.ProdutoId.ToString(),
+                Quantidade = i.Quantidade.ToString("0.####"),
+                ItemSolicitacaoId = i.ItemSolicitacaoId,
+            }).ToList();
+
+        _convites = Cotacao is null
+            ? new List<LinhaConvite> { new() }
+            : Cotacao.Convites.Select(c => new LinhaConvite
+            {
+                Id = c.Id,
+                PessoaId = c.PessoaId?.ToString() ?? "",
+                Email = c.Email,
+                Token = c.Token,
+                Respondido = c.Status == StatusConvite.Respondido,
+            }).ToList();
+    }
+
+    /// <summary>Escolher o fornecedor do cadastro já traz o e-mail dele — é para
+    /// lá que o link vai.</summary>
+    private void TrocarFornecedor(LinhaConvite convite, string pessoaId)
+    {
+        convite.PessoaId = pessoaId;
+
+        if (string.IsNullOrWhiteSpace(convite.Email)
+            && _emailDoFornecedor.TryGetValue(pessoaId, out var email))
+            convite.Email = email;
+    }
+
+    /// <summary>
+    /// Puxa os itens aprovados que ainda não foram cotados. Cada linha guarda o
+    /// ItemSolicitacaoId de origem — é o que amarra a compra ao pedido que a
+    /// motivou, e o que impede o mesmo item de ser cotado duas vezes.
+    /// </summary>
+    private async Task ImportarAprovados()
+    {
+        if (_aprovadosDisponiveis.Count == 0)
+        {
+            Toasts.Error("Nada a importar",
+                         "Não há item aprovado fora de cotação. Aprove uma solicitação primeiro.");
+            return;
+        }
+
+        var jaNaTela = _itens.Where(i => i.ItemSolicitacaoId is not null)
+                             .Select(i => i.ItemSolicitacaoId!.Value)
+                             .ToHashSet();
+
+        var importados = 0;
+
+        foreach (var aprovado in _aprovadosDisponiveis.Where(a => !jaNaTela.Contains(a.Id)))
+        {
+            _itens.Add(new LinhaItem
+            {
+                ProdutoId = aprovado.ProdutoId.ToString(),
+                Quantidade = aprovado.Quantidade.ToString("0.####"),
+                ItemSolicitacaoId = aprovado.Id,
+            });
+
+            importados++;
+        }
+
+        // A linha em branco do começo vira ruído depois de importar.
+        _itens.RemoveAll(i => string.IsNullOrWhiteSpace(i.ProdutoId)
+                           && string.IsNullOrWhiteSpace(i.Quantidade));
+
+        Toasts.Success("Itens importados", $"{importados} {(importados == 1 ? "item" : "itens")} de solicitações aprovadas.");
+
+        await Task.CompletedTask;
+    }
+
+    private string Link(string token) => $"{Navegacao.BaseUri.TrimEnd('/')}/cotacao/{token}";
+
+    private bool _emailConfigurado => Emails.Configurado;
+
+    /// <summary>
+    /// Manda o link para o fornecedor. Falha de SMTP não vira exceção na tela:
+    /// o link continua ali para envio manual, e é isso que o toast diz.
+    /// </summary>
+    private async Task EnviarEmail(LinhaConvite convite)
+    {
+        if (string.IsNullOrWhiteSpace(convite.Email) || string.IsNullOrWhiteSpace(convite.Token))
+            return;
+
+        var enviado = await Emails.EnviarConviteCotacao(
+            convite.Email,
+            _cotacao.Titulo,
+            Link(convite.Token),
+            _cotacao.PrazoResposta ?? DateTime.UtcNow.AddDays(7));
+
+        if (enviado)
+            Toasts.Success("Convite enviado", convite.Email);
+        else
+            Toasts.Error("Não foi possível enviar", "Copie o link e mande manualmente.");
+    }
+
+    private async Task Copiar(string token)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", Link(token));
+            Toasts.Success("Link copiado", "Mande para o fornecedor.");
+        }
+        catch (Exception)
+        {
+            // Clipboard exige contexto seguro; em http o navegador recusa.
+            Toasts.Error("Não foi possível copiar", "Selecione o link e copie manualmente.");
+        }
+    }
+
+    private async Task Salvar(bool abrir)
+    {
+        var itens = new List<CotacaoItem>();
+
+        foreach (var linha in _itens)
+        {
+            if (string.IsNullOrWhiteSpace(linha.ProdutoId) && string.IsNullOrWhiteSpace(linha.Quantidade))
+                continue;
+
+            if (!int.TryParse(linha.ProdutoId, out var produtoId))
+            {
+                _erro = "Todo item precisa de um produto.";
+                return;
+            }
+
+            if (!decimal.TryParse(linha.Quantidade, out var quantidade) || quantidade <= 0)
+            {
+                _erro = "Informe uma quantidade maior que zero em todos os itens.";
+                return;
+            }
+
+            itens.Add(new CotacaoItem
+            {
+                Id = linha.Id,
+                ProdutoId = produtoId,
+                Quantidade = quantidade,
+                ItemSolicitacaoId = linha.ItemSolicitacaoId,
+            });
+        }
+
+        var convites = new List<ConviteFornecedor>();
+
+        foreach (var linha in _convites)
+        {
+            if (string.IsNullOrWhiteSpace(linha.Email) && string.IsNullOrWhiteSpace(linha.PessoaId))
+                continue;
+
+            if (string.IsNullOrWhiteSpace(linha.Email))
+            {
+                _erro = "Todo fornecedor precisa de um e-mail — é para onde o link vai.";
+                return;
+            }
+
+            convites.Add(new ConviteFornecedor
+            {
+                Id = linha.Id,
+                PessoaId = int.TryParse(linha.PessoaId, out var pid) ? pid : null,
+                Email = linha.Email.Trim(),
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(_cotacao.Titulo))
+        {
+            _erro = "Informe o título da cotação.";
+            return;
+        }
+
+        _salvando = true;
+        try
+        {
+            _cotacao.Itens = itens;
+            _cotacao.Convites = convites;
+            _cotacao.PrazoResposta = DateTime.TryParse(_prazo, out var prazo)
+                ? DateTime.SpecifyKind(prazo, DateTimeKind.Utc)
+                : null;
+
+            if (_cotacao.Id == 0)
+            {
+                _cotacao.CriadoPorId = _usuarioAtual;
+                await Cotacoes.Criar(_cotacao);
+            }
+            else
+            {
+                await Cotacoes.Atualizar(_cotacao);
+            }
+
+            if (abrir)
+                await Cotacoes.Abrir(_cotacao.Id);
+
+            Toasts.Success(abrir ? "Cotação aberta" : "Rascunho salvo",
+                           abrir ? "Os links dos fornecedores já funcionam." : _cotacao.Titulo);
+
+            await OnSalvo.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+            Toasts.Error("Não foi possível salvar", ex.Message);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private Task Descartar() => AbertoChanged.InvokeAsync(false);
+}

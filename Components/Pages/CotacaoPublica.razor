@@ -1,0 +1,343 @@
+@page "/cotacao/{Token}"
+@layout MainLayout
+@rendermode InteractiveServer
+@using Erp.Model.Cotacao
+@using Erp.Repository.Cotacao
+@inject CotacaoRepository Cotacoes
+
+@* Tela do FORNECEDOR. É a única página do sistema deliberadamente pública: ele
+   não tem login, e a credencial dele é o token da URL. Por isso aqui não se
+   mostra nada além do que pertence a este convite — nem o nome dos outros
+   convidados, nem preço de concorrente, nem id interno. *@
+
+<PageTitle>Cotação · mesh</PageTitle>
+
+<div class="min-h-screen bg-muted/30 py-10 px-4">
+    <div class="max-w-4xl mx-auto">
+
+        <div class="flex items-center gap-2 mb-6">
+            <img src="/favicon.png" alt="mesh" class="h-7 w-7 rounded" />
+            <span class="text-lg font-semibold tracking-tight">mesh</span>
+        </div>
+
+        @if (_carregando)
+        {
+            <p class="text-sm text-muted-foreground">Carregando…</p>
+        }
+        else if (_bloqueio is not null)
+        {
+            @* Recusa e link inválido dizem a mesma coisa de propósito: informar
+               "token existe, mas expirou" já entrega que o token é real. *@
+            <BbCard>
+                <BbCardContent>
+                    <div class="flex flex-col items-center text-center gap-3 py-10">
+                        <LucideIcon Name="link-2-off" Size="40" Class="text-muted-foreground" />
+                        <h1 class="text-lg font-semibold">@_bloqueio</h1>
+                        <p class="text-sm text-muted-foreground max-w-md">
+                            Se você acredita que isso é um engano, procure o comprador que enviou o link.
+                        </p>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+        }
+        else if (_enviado)
+        {
+            <BbCard>
+                <BbCardContent>
+                    <div class="flex flex-col items-center text-center gap-3 py-10">
+                        <LucideIcon Name="circle-check" Size="40" Class="text-emerald-600" />
+                        <h1 class="text-lg font-semibold">Proposta enviada</h1>
+                        <p class="text-sm text-muted-foreground max-w-md">
+                            Obrigado. O comprador foi notificado e o link está travado —
+                            se precisar corrigir algo, fale com ele para reabrir.
+                        </p>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+        }
+        else
+        {
+            <div class="mb-6">
+                <h1 class="text-2xl font-semibold tracking-tight">@_convite!.Cotacao!.Titulo</h1>
+                <p class="text-sm text-muted-foreground mt-1">
+                    Preencha os dados da sua empresa e o preço dos itens abaixo.
+                    Prazo para responder: <strong>@_convite.ExpiraEm.ToLocalTime().ToString("dd/MM/yyyy")</strong>.
+                </p>
+                @if (!string.IsNullOrWhiteSpace(_convite.Cotacao.Observacao))
+                {
+                    <p class="text-sm mt-2">@_convite.Cotacao.Observacao</p>
+                }
+            </div>
+
+            <BbCard Class="mb-4">
+                <BbCardHeader>
+                    <BbCardTitle>Sua empresa</BbCardTitle>
+                    <BbCardDescription>É como você será identificado na comparação.</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    <div class="flex flex-wrap items-end gap-y-4 gap-x-4">
+                        <BbField Class="w-[14rem]">
+                            <BbFieldLabel>CNPJ</BbFieldLabel>
+                            <BbInput @bind-Value="_cnpj" Placeholder="00.000.000/0000-00" />
+                        </BbField>
+
+                        <BbField Class="grow min-w-72">
+                            <BbFieldLabel>Razão social</BbFieldLabel>
+                            <BbInput @bind-Value="_razaoSocial" Placeholder="Empresa X LTDA" />
+                        </BbField>
+
+                        <BbField Class="w-[16rem]">
+                            <BbFieldLabel>Responsável</BbFieldLabel>
+                            <BbInput @bind-Value="_responsavel" Placeholder="Quem está respondendo" />
+                        </BbField>
+
+                        <BbField Class="w-[13rem]">
+                            <BbFieldLabel>Telefone</BbFieldLabel>
+                            <BbInput @bind-Value="_telefone" Placeholder="(00) 00000-0000" />
+                        </BbField>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard Class="mb-4">
+                <BbCardHeader>
+                    <BbCardTitle>Itens</BbCardTitle>
+                    <BbCardDescription>
+                        Deixe o preço em branco no que você não fornece — em branco é "não cotado", diferente de zero.
+                    </BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    <div class="border border-border rounded-lg overflow-hidden">
+                        <table class="erp-table w-full">
+                            <thead>
+                                <tr>
+                                    <th>Produto</th>
+                                    <th class="w-[7rem]">Qtde.</th>
+                                    <th class="w-[10rem]">Preço unitário</th>
+                                    <th class="w-[9rem]">Prazo (dias)</th>
+                                    <th class="w-[14rem]">Observação</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var linha in _linhas)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="text-sm">@linha.Descricao</div>
+                                            <div class="text-xs text-muted-foreground">@linha.Codigo</div>
+                                        </td>
+                                        <td class="text-sm tabular-nums">@linha.Quantidade.ToString("0.####") @linha.Unidade</td>
+                                        <td><BbInput @bind-Value="linha.Preco" Placeholder="0,00" /></td>
+                                        <td><BbInput @bind-Value="linha.Prazo" Placeholder="0" /></td>
+                                        <td><BbInput @bind-Value="linha.Observacao" /></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard Class="mb-4">
+                <BbCardHeader>
+                    <BbCardTitle>Condições comerciais</BbCardTitle>
+                </BbCardHeader>
+                <BbCardContent>
+                    <div class="flex flex-wrap items-end gap-y-4 gap-x-4">
+                        <BbField Class="grow min-w-64">
+                            <BbFieldLabel>Condição de pagamento</BbFieldLabel>
+                            <BbInput @bind-Value="_condicaoPagamento" Placeholder="30/60 dias" />
+                        </BbField>
+
+                        <BbField Class="grow min-w-64">
+                            <BbFieldLabel>Frete</BbFieldLabel>
+                            <BbInput @bind-Value="_frete" Placeholder="CIF — incluso" />
+                        </BbField>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+
+            <div class="flex items-center justify-end gap-3">
+                @if (_erro is not null)
+                {
+                    <span class="text-sm text-destructive mr-auto">@_erro</span>
+                }
+                <p class="text-xs text-muted-foreground mr-2">
+                    Ao enviar, a proposta é travada.
+                </p>
+                <BbButton OnClick="Enviar" Disabled="_enviando">Enviar proposta</BbButton>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Token { get; set; } = string.Empty;
+
+    /// <summary>Uma linha da tabela. Preço e prazo ficam como texto para o campo
+    /// poder estar vazio — vazio aqui significa "não cotado".</summary>
+    private sealed class Linha
+    {
+        public int CotacaoItemId { get; set; }
+        public string Codigo { get; set; } = "";
+        public string Descricao { get; set; } = "";
+        public string Unidade { get; set; } = "";
+        public decimal Quantidade { get; set; }
+        public string Preco { get; set; } = "";
+        public string Prazo { get; set; } = "";
+        public string Observacao { get; set; } = "";
+    }
+
+    private ConviteFornecedor? _convite;
+    private List<Linha> _linhas = new();
+
+    private string _cnpj = "";
+    private string _razaoSocial = "";
+    private string _responsavel = "";
+    private string _telefone = "";
+    private string _condicaoPagamento = "";
+    private string _frete = "";
+
+    private bool _carregando = true;
+    private bool _enviando;
+    private bool _enviado;
+    private string? _bloqueio;
+    private string? _erro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _convite = await Cotacoes.ObterPorToken(Token);
+
+        _bloqueio = Validar(_convite);
+
+        if (_bloqueio is null && _convite is not null)
+            Preencher(_convite);
+
+        _carregando = false;
+    }
+
+    /// <summary>
+    /// Motivo de não poder responder, ou nulo. Link inexistente e link vencido
+    /// devolvem a MESMA mensagem: distinguir os dois confirmaria a quem está
+    /// tentando adivinhar que aquele token existe.
+    /// </summary>
+    private static string? Validar(ConviteFornecedor? convite)
+    {
+        if (convite is null || convite.Cotacao is null)
+            return "Link inválido ou expirado";
+
+        if (convite.Status == StatusConvite.Cancelado)
+            return "Link inválido ou expirado";
+
+        if (convite.Status == StatusConvite.Respondido)
+            return "Esta proposta já foi enviada";
+
+        if (convite.Cotacao.Status != StatusCotacao.Aberta)
+            return "Esta cotação não está aberta para respostas";
+
+        if (convite.ExpiraEm < DateTime.UtcNow)
+            return "Link inválido ou expirado";
+
+        return null;
+    }
+
+    private void Preencher(ConviteFornecedor convite)
+    {
+        // O que o fornecedor já declarou antes vem de volta; se nunca respondeu,
+        // o cadastro que o comprador tinha serve de rascunho.
+        _cnpj = !string.IsNullOrWhiteSpace(convite.Cnpj) ? convite.Cnpj : convite.Pessoa?.CNPJ ?? "";
+        _razaoSocial = convite.Identificacao == convite.Email ? "" : convite.Identificacao;
+        _responsavel = convite.Responsavel;
+        _telefone = convite.Telefone;
+        _condicaoPagamento = convite.CondicaoPagamento;
+        _frete = convite.Frete;
+
+        _linhas = convite.Cotacao!.Itens.Select(item =>
+        {
+            var proposta = convite.Propostas.FirstOrDefault(p => p.CotacaoItemId == item.Id);
+
+            return new Linha
+            {
+                CotacaoItemId = item.Id,
+                Codigo = item.Produto?.Codigo ?? "",
+                Descricao = item.Produto?.Descricao ?? "Item",
+                Unidade = item.Produto?.Unidade ?? "",
+                Quantidade = item.Quantidade,
+                Preco = proposta?.PrecoUnitario?.ToString("0.####") ?? "",
+                Prazo = proposta?.PrazoEntregaDias?.ToString() ?? "",
+                Observacao = proposta?.Observacao ?? "",
+            };
+        }).ToList();
+    }
+
+    private async Task Enviar()
+    {
+        if (string.IsNullOrWhiteSpace(_cnpj)
+            || string.IsNullOrWhiteSpace(_razaoSocial)
+            || string.IsNullOrWhiteSpace(_responsavel))
+        {
+            _erro = "Informe CNPJ, razão social e responsável.";
+            return;
+        }
+
+        if (_linhas.All(l => string.IsNullOrWhiteSpace(l.Preco)))
+        {
+            _erro = "Informe o preço de ao menos um item.";
+            return;
+        }
+
+        var propostas = new List<PropostaItem>();
+
+        foreach (var linha in _linhas)
+        {
+            decimal? preco = null;
+
+            if (!string.IsNullOrWhiteSpace(linha.Preco))
+            {
+                if (!decimal.TryParse(linha.Preco, out var valor) || valor < 0)
+                {
+                    _erro = $"Preço inválido em \"{linha.Descricao}\".";
+                    return;
+                }
+
+                preco = valor;
+            }
+
+            propostas.Add(new PropostaItem
+            {
+                CotacaoItemId = linha.CotacaoItemId,
+                PrecoUnitario = preco,
+                PrazoEntregaDias = int.TryParse(linha.Prazo, out var dias) ? dias : null,
+                Observacao = linha.Observacao,
+            });
+        }
+
+        _enviando = true;
+        _erro = null;
+        try
+        {
+            await Cotacoes.ResponderPorToken(
+                Token,
+                new ConviteFornecedor
+                {
+                    Cnpj = _cnpj,
+                    RazaoSocial = _razaoSocial,
+                    Responsavel = _responsavel,
+                    Telefone = _telefone,
+                    CondicaoPagamento = _condicaoPagamento,
+                    Frete = _frete,
+                },
+                propostas);
+
+            _enviado = true;
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+}

@@ -1,22 +1,332 @@
-<div class="h-full overflow-y-auto p-6">
-    <div class="mb-5">
-        <h2 class="text-xl font-semibold tracking-tight">Produtos</h2>
-        <p class="text-sm text-muted-foreground mt-1">Catálogo, preços e disponibilidade.</p>
+@using Produto = Erp.Model.Produto.Produto
+@using Erp.Components.Modules.Produtos.Dialogs
+@using Erp.Repository.Produto
+@using BlazorBlueprint.Primitives.Filtering
+@inject ProdutoRepository Produtos
+@inject ToastService Toasts
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Produtos</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                Catálogo e parâmetros de reposição. O ponto de pedido é o que dispara a compra.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-none">
+            <ActionArea>
+                @* Pesquisa que só ocupa espaço quando é usada — mesmo desenho
+                   da tela de Pessoas. *@
+                @if (_buscaAberta)
+                {
+                    <BbInput @ref="_campoBusca"
+                             @bind-Value="_busca"
+                             UpdateTiming="UpdateTiming.Debounced"
+                             DebounceInterval="250"
+                             Placeholder="Buscar nesta lista…"
+                             Class="w-64 border-0 shadow-none focus-visible:ring-0"
+                             @onblur="FecharBuscaSeVazia" />
+                }
+                <BbButton OnClick="AlternarBusca"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>@(_buscaAberta ? "" : "Pesquisar")</ChildContent>
+                    <Icon><LucideIcon Name="@(_buscaAberta ? "x" : "search")" Size="16" /></Icon>
+                </BbButton>
+                <BbButton OnClick="() => _painelFiltros = !_painelFiltros"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Filtros@(_condicoes > 0 ? $" ({_condicoes})" : "")</ChildContent>
+                    <Icon><LucideIcon Name="funnel" Size="16" Color="magenta" /></Icon>
+                </BbButton>
+                @if (_podeEditar)
+                {
+                    <BbButton OnClick="NovoProduto"
+                              Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                        <ChildContent>Novo Produto</ChildContent>
+                        <Icon><LucideIcon Name="plus" Size="16" Color="lightgreen" /></Icon>
+                    </BbButton>
+                }
+            </ActionArea>
+            <ProdutoDialog @bind-Aberto="_dialogCadastroAberto"
+                           Produto="_emEdicao"
+                           OnSalvo="Recarregar" />
+        </div>
     </div>
-    <div class="grid gap-4 mb-6 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
-        <StatCard Label="SKUs cadastrados" Value="842" />
-        <StatCard Label="Sem estoque" Value="17" />
-        <StatCard Label="Mais vendido" Value="Café 1kg" />
+
+    <div class="grid gap-4 mb-5 px-2 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+        <StatCard Label="Produtos ativos" Value="@_ativos.ToString()" />
+        <StatCard Label="No ponto de pedido" Value="@_aRepor.ToString()" />
+        <StatCard Label="Abaixo do mínimo" Value="@_abaixoMinimo.ToString()" />
     </div>
-    <div class="border border-border rounded-lg overflow-hidden">
-        <table class="erp-table">
-            <thead><tr><th>Produto</th><th>SKU</th><th class="text-right">Preço</th><th class="text-right">Estoque</th></tr></thead>
-            <tbody>
-                <tr><td>Café Torrado 1kg</td><td class="text-muted-foreground">CAF-1000</td><td class="text-right tabular-nums">R$ 32,90</td><td class="text-right tabular-nums">340</td></tr>
-                <tr><td>Açúcar Refinado 5kg</td><td class="text-muted-foreground">ACU-5000</td><td class="text-right tabular-nums">R$ 18,50</td><td class="text-right tabular-nums">120</td></tr>
-                <tr><td>Farinha de Trigo 1kg</td><td class="text-muted-foreground">FAR-1000</td><td class="text-right tabular-nums">R$ 6,20</td><td class="text-right tabular-nums">0</td></tr>
-                <tr><td>Óleo de Soja 900ml</td><td class="text-muted-foreground">OLE-0900</td><td class="text-right tabular-nums">R$ 7,80</td><td class="text-right tabular-nums">58</td></tr>
-            </tbody>
-        </table>
+
+    @* Filtro montado pelo usuário: vira Expression e desce pro Where do EF. *@
+    @if (_painelFiltros)
+    {
+        <div class="mb-4 mx-2 p-4 rounded-lg border border-border bg-card">
+            <BbFilterBuilder Fields="_campos"
+                             @bind-Filter="_filtro"
+                             OnFilterChanged="Recarregar"
+                             ApplyButtonText="Aplicar filtros"
+                             ClearButtonText="Limpar" />
+        </div>
+    }
+
+    <div class="flex-1 min-h-0 px-2">
+        <BbDataGrid TData="Produto"
+                    Items="@_produtos"
+                    IsLoading="_carregando"
+                    Striped
+                    StripeClass="bg-muted/40"
+                    StickyHeader
+                    ShowSearch="false"
+                    SearchText="@_busca"
+                    ShowPagination
+                    InitialPageSize="20"
+                    Resizable>
+            <Columns>
+                <BbDataGridPropertyColumn Property="@(p => p.Codigo)" Title="Código" Width="140px" Sortable />
+                <BbDataGridPropertyColumn Property="@(p => p.Descricao)" Title="Descrição" Sortable />
+                <BbDataGridPropertyColumn Property="@(p => p.Unidade)" Title="Un." Width="80px" />
+                <BbDataGridPropertyColumn Property="@(p => p.SaldoAtual)" Title="Saldo" Format="N2" Sortable />
+                <BbDataGridPropertyColumn Property="@(p => p.EstoqueMinimo)" Title="Mínimo" Format="N2" Sortable />
+                <BbDataGridPropertyColumn Property="@(p => p.PontoPedido)" Title="Ponto de pedido" Format="N2" Sortable />
+                <BbDataGridPropertyColumn Property="@(p => p.FornecedorPadrao != null ? p.FornecedorPadrao.RazaoSocial : "—")" Title="Fornecedor padrão" Sortable />
+
+                @* A situação é o que a tela existe pra mostrar: quem já cruzou o
+                   ponto de pedido tem que saltar aos olhos. *@
+                <BbDataGridTemplateColumn Title="Situação" Width="150px" NoWrap>
+                    @if (!context.Ativo)
+                    {
+                        <span class="text-xs text-muted-foreground">Inativo</span>
+                    }
+                    else if (context.SaldoAtual <= context.EstoqueMinimo)
+                    {
+                        <span class="inline-flex items-center gap-1 text-xs font-medium text-destructive">
+                            <LucideIcon Name="triangle-alert" Size="14" />
+                            Abaixo do mínimo
+                        </span>
+                    }
+                    else if (context.PrecisaRepor)
+                    {
+                        <span class="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-500">
+                            <LucideIcon Name="shopping-cart" Size="14" />
+                            Repor
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="text-xs text-muted-foreground">Normal</span>
+                    }
+                </BbDataGridTemplateColumn>
+
+                @* produtos.ver abre a tela; mexer no catálogo exige
+                   produtos.editar. Sem isso quem só consulta apagava produto. *@
+                <BbDataGridTemplateColumn Title="Ações" Width="110px" NoWrap>
+                    <div class="flex items-center justify-end gap-1">
+                        @if (_podeEditar)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => Editar(context)" aria-label="Editar">
+                                <LucideIcon Name="pencil" Size="15" />
+                            </BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => PedirExclusao(context)" aria-label="Excluir">
+                                <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                            </BbButton>
+                        }
+                        else
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => Editar(context)" aria-label="Ver">
+                                <LucideIcon Name="eye" Size="15" />
+                            </BbButton>
+                        }
+                    </div>
+                </BbDataGridTemplateColumn>
+            </Columns>
+
+            <EmptyTemplate>
+                <BbEmpty Title="@(_condicoes > 0 || !string.IsNullOrWhiteSpace(_busca)
+                                  ? "Nenhum produto encontrado"
+                                  : "Nenhum produto cadastrado")"
+                         Description="@(_condicoes > 0 || !string.IsNullOrWhiteSpace(_busca)
+                                        ? "Ajuste os filtros ou a busca para ver outros resultados."
+                                        : "Os itens compráveis e estocáveis aparecem aqui.")"
+                         Class="py-10">
+                    <Icon><LucideIcon Name="package" Size="40" Class="text-muted-foreground" /></Icon>
+                    <ChildContent>
+                        <BbButton Class="mt-3" Size="ButtonSize.Small" OnClick="NovoProduto">
+                            Cadastrar o primeiro
+                        </BbButton>
+                    </ChildContent>
+                </BbEmpty>
+            </EmptyTemplate>
+        </BbDataGrid>
     </div>
 </div>
+
+@* Exclusão é irreversível: confirma antes, dizendo de qual produto se trata. *@
+<BbDialog @bind-Open="_dialogExclusaoAberto">
+    <BbDialogContent Class="max-w-md p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>Excluir produto</BbDialogTitle>
+            <p class="text-sm text-muted-foreground">
+                Excluir <strong class="text-foreground">@_aExcluir?.Descricao</strong>?
+                Esta ação não pode ser desfeita.
+            </p>
+            @if (_erroExclusao is not null)
+            {
+                <p class="text-sm text-destructive">@_erroExclusao</p>
+            }
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogExclusaoAberto = false">
+                    Cancelar
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Destructive" OnClick="ConfirmarExclusao" Disabled="_excluindo">
+                    Excluir
+                </BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private bool _podeEditar;
+
+    private bool _dialogCadastroAberto;
+    private Produto? _emEdicao;
+
+    private List<Produto> _produtos = new();
+    private bool _carregando = true;
+
+    private bool _painelFiltros;
+
+    // Busca da grade (sobre o que já foi carregado). Diferente do
+    // BbFilterBuilder, que vira Where no banco.
+    private bool _buscaAberta;
+    private bool _focarBusca;
+    private string _busca = string.Empty;
+    private BbInput? _campoBusca;
+
+    private FilterDefinition _filtro = new();
+    private int _condicoes => _filtro?.TotalConditionCount ?? 0;
+
+    // Os cartões contam o que está carregado — respeitam o filtro em vigor.
+    private int _ativos => _produtos.Count(p => p.Ativo);
+    private int _aRepor => _produtos.Count(p => p.Ativo && p.PrecisaRepor);
+    private int _abaixoMinimo => _produtos.Count(p => p.Ativo && p.SaldoAtual <= p.EstoqueMinimo);
+
+    // O Name tem que bater com a propriedade da entidade: é por ele que o
+    // ToExpression monta o Where.
+    private readonly List<FilterField> _campos = new()
+    {
+        new FilterField { Name = nameof(Produto.Codigo),             Label = "Código",               Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(Produto.Descricao),          Label = "Descrição",            Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(Produto.Unidade),            Label = "Unidade",              Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(Produto.SaldoAtual),         Label = "Saldo atual",          Type = FilterFieldType.Number },
+        new FilterField { Name = nameof(Produto.EstoqueMinimo),      Label = "Estoque mínimo",       Type = FilterFieldType.Number },
+        new FilterField { Name = nameof(Produto.PontoPedido),        Label = "Ponto de pedido",      Type = FilterFieldType.Number },
+        new FilterField { Name = nameof(Produto.PrazoEntregaDias),   Label = "Prazo de entrega",     Type = FilterFieldType.Number },
+        new FilterField { Name = nameof(Produto.ConsumoMedioDiario), Label = "Consumo médio diário", Type = FilterFieldType.Number },
+        new FilterField { Name = nameof(Produto.Ativo),              Label = "Ativo",                Type = FilterFieldType.Boolean },
+        new FilterField { Name = nameof(Produto.CriadoEm),           Label = "Data de cadastro",     Type = FilterFieldType.Date },
+    };
+
+    private bool _dialogExclusaoAberto;
+    private Produto? _aExcluir;
+    private bool _excluindo;
+    private string? _erroExclusao;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+            _podeEditar = (await EstadoAutenticacao).User
+                .HasClaim(Permissoes.ClaimType, Permissoes.ProdutosEditar);
+
+        await Recarregar();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool primeiroRender)
+    {
+        // Abrir a pesquisa e ter que clicar no campo seria um passo a mais.
+        if (_focarBusca && _campoBusca is not null)
+        {
+            _focarBusca = false;
+            await _campoBusca.Element.FocusAsync();
+        }
+    }
+
+    private void AlternarBusca()
+    {
+        _buscaAberta = !_buscaAberta;
+
+        if (_buscaAberta)
+            _focarBusca = true;
+        else
+            _busca = string.Empty;   // fechar limpa: senão a lista fica filtrada por um campo invisível
+    }
+
+    private void FecharBuscaSeVazia()
+    {
+        if (string.IsNullOrWhiteSpace(_busca))
+            _buscaAberta = false;
+    }
+
+    private async Task Recarregar()
+    {
+        _carregando = true;
+        _produtos = await Produtos.Buscar(_filtro.ToExpression<Produto>(_campos));
+        _carregando = false;
+    }
+
+    private void NovoProduto()
+    {
+        _emEdicao = null;
+        _dialogCadastroAberto = true;
+    }
+
+    private void Editar(Produto produto)
+    {
+        _emEdicao = produto;
+        _dialogCadastroAberto = true;
+    }
+
+    private void PedirExclusao(Produto produto)
+    {
+        _aExcluir = produto;
+        _erroExclusao = null;
+        _dialogExclusaoAberto = true;
+    }
+
+    private async Task ConfirmarExclusao()
+    {
+        if (_aExcluir is null)
+            return;
+
+        _excluindo = true;
+        try
+        {
+            var descricao = _aExcluir.Descricao;
+
+            await Produtos.Excluir(_aExcluir.Id);
+            _dialogExclusaoAberto = false;
+            _aExcluir = null;
+            await Recarregar();
+
+            Toasts.Success("Produto excluído", descricao);
+        }
+        catch (Exception ex)
+        {
+            // Tipicamente FK: o produto já é referenciado por outro registro.
+            _erroExclusao = ex.Message;
+            Toasts.Error("Não foi possível excluir", ex.Message);
+        }
+        finally
+        {
+            _excluindo = false;
+        }
+    }
+}

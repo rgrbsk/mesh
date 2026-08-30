@@ -69,6 +69,12 @@ builder.Services.AddScoped<IAuthorizationHandler, PermissaoHandler>();
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+// O Scan abaixo pega só quem termina em "Repository"; este é serviço, então
+// entra à mão. As credenciais vêm do appsettings.Development.local.json.
+builder.Services.Configure<Erp.Service.Email.EmailOptions>(
+    builder.Configuration.GetSection(Erp.Service.Email.EmailOptions.Secao));
+builder.Services.AddScoped<Erp.Service.Email.EmailService>();
+
 builder.Services.Scan(s => s
     .FromAssemblyOf<Program>()
     .AddClasses(c => c.Where(t => t.Name.EndsWith("Repository")))
