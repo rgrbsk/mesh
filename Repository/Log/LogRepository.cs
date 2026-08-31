@@ -41,6 +41,22 @@ namespace Erp.Repository.Log
         }
 
         /// <summary>
+        /// Tudo que aconteceu com UM registro, do mais antigo para o mais novo.
+        /// É a linha do tempo: aqui a ordem é crescente porque se lê como
+        /// história, ao contrário da grade de logs, que mostra o recente primeiro.
+        /// </summary>
+        public async Task<List<RegistroLog>> DaEntidade(string entidade, string entidadeId)
+        {
+            await using var contexto = await _fabrica.CreateDbContextAsync();
+
+            return await contexto.Logs
+                .AsNoTracking()
+                .Where(l => l.Entidade == entidade && l.EntidadeId == entidadeId)
+                .OrderBy(l => l.Quando)
+                .ToListAsync();
+        }
+
+        /// <summary>
         /// Grava uma linha. Nunca lança: auditoria é efeito colateral, e uma
         /// aprovação não pode falhar porque o log falhou. O erro vai para o
         /// logger da aplicação, onde alguém vê sem quebrar o usuário.

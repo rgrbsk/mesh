@@ -15,12 +15,16 @@ namespace Erp.Repository.Solicitacao
 
         private readonly IDbContextFactory<AppDbContext> _fabrica;
         private readonly Erp.Repository.Log.LogRepository _logs;
+        private readonly Erp.Repository.Notificacao.NotificacaoRepository _avisos;
 
         public SolicitacaoRepository(
-            IDbContextFactory<AppDbContext> fabrica, Erp.Repository.Log.LogRepository logs)
+            IDbContextFactory<AppDbContext> fabrica,
+            Erp.Repository.Log.LogRepository logs,
+            Erp.Repository.Notificacao.NotificacaoRepository avisos)
         {
             _fabrica = fabrica;
             _logs = logs;
+            _avisos = avisos;
         }
 
         /// <summary>Lista aplicando o filtro montado no BbFilterBuilder — a
@@ -211,6 +215,22 @@ namespace Erp.Repository.Solicitacao
                 solicitacao.SolicitanteId,
                 entidade: nameof(SolicitacaoCompra),
                 entidadeId: id.ToString());
+
+            // Avisa quem responde pelos centros de custo dos itens. Sem isto o
+            // aprovador só descobre que chegou algo se lembrar de abrir a tela.
+            var centros = solicitacao.Itens.Select(i => i.CentroCustoId).Distinct().ToList();
+
+            var aprovadores = await contexto.CentrosCusto
+                .Where(c => centros.Contains(c.Id) && c.ResponsavelId != null)
+                .Select(c => c.ResponsavelId!.Value)
+                .ToListAsync();
+
+            await _avisos.CriarParaVarios(
+                aprovadores,
+                "Solicitação aguardando sua aprovação",
+                $"A solicitação #{id} tem itens em centros de custo que você responde.",
+                "circle-check",
+                "/home/aprovacoes");
         }
 
         /// <summary>
@@ -265,6 +285,19 @@ namespace Erp.Repository.Solicitacao
                 decisorId,
                 entidade: nameof(SolicitacaoCompra),
                 entidadeId: item.SolicitacaoId.ToString());
+
+            // Recusa e devolução voltam para o solicitante — são as decisões que
+            // exigem ação dele. Aprovação não notifica item a item: numa
+            // solicitação de dez linhas seriam dez avisos iguais.
+            if (decisao is StatusItem.Recusado or StatusItem.Devolvido)
+                await _avisos.Criar(
+                    item.Solicitacao.SolicitanteId,
+                    decisao == StatusItem.Recusado
+                        ? "Item recusado"
+                        : "Solicitação devolvida para ajuste",
+                    $"Solicitação #{item.SolicitacaoId}: {motivo}",
+                    decisao == StatusItem.Recusado ? "circle-x" : "undo-2",
+                    "/home/compras");
         }
 
         /// <summary>

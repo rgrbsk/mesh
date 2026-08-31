@@ -1,24 +1,36 @@
+/* Claro, com o mesmo critério aplicado ao escuro.
+   O que mudou e por quê:
+   - Tudo era croma 0. Num ERP que é quase todo cinza e branco, o neutro puro
+     lê como papel velho sob luz fria; um traço de azul (matiz 265) dá a mesma
+     temperatura do tema escuro e faz os dois parecerem um par.
+   - --background era branco absoluto e --card também: card sobre fundo não se
+     distinguia, e só a borda separava os dois. Agora o fundo recua um pouco
+     (.985) e o card fica branco — a elevação aparece sem depender da borda.
+   - --primary era preto puro. Preto não é a marca de ninguém, o botão primário
+     ficava pesado e o anel de foco preto sumia contra texto preto. Passou ao
+     azul da marca, o MESMO do escuro: a identidade não deveria trocar com o tema.
+   - --muted-foreground foi de .556 para .50, que passa em AA sobre o card. */
 :root {
   /* Core colors */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.985 0.002 265);
+  --foreground: oklch(0.17 0.01 265);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.17 0.01 265);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0 0 0);            /* preto puro */
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.17 0.01 265);
+  --primary: oklch(0.55 0.20 260);
+  --primary-foreground: oklch(0.99 0.005 260);
+  --secondary: oklch(0.96 0.004 265);
+  --secondary-foreground: oklch(0.24 0.012 265);
+  --muted: oklch(0.96 0.004 265);
+  --muted-foreground: oklch(0.50 0.014 265);
+  --accent: oklch(0.95 0.008 265);
+  --accent-foreground: oklch(0.24 0.012 265);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0 0 0);   /* anel de foco preto (inputs, botões, etc.) */
+  --border: oklch(0.90 0.006 265);
+  --input: oklch(0.90 0.006 265);
+  --ring: oklch(0.55 0.20 260);
 
   /* Brand (logo wisp 👻) */
   --brand-500: #227FFF;
@@ -39,22 +51,26 @@
   --alert-danger-foreground: oklch(0.30 0.12 27);
   --alert-danger-bg: oklch(0.993 0.003 27);
 
-  /* Chart colors */
-  --chart-1: oklch(0.81 0.10 252);
-  --chart-2: oklch(0.62 0.19 260);
-  --chart-3: oklch(0.55 0.22 263);
-  --chart-4: oklch(0.49 0.22 264);
-  --chart-5: oklch(0.42 0.18 266);
+  /* Chart colors — CATEGÓRICAS, não uma rampa.
+     Eram cinco tons do mesmo azul (matiz 252→266). Numa rampa isso é certo,
+     mas gráfico de categoria (situações de uma solicitação, centros de custo)
+     vira cinco azuis que ninguém distingue na legenda. Agora são cinco matizes
+     separados, todos com luminosidade parecida para nenhum dominar. */
+  --chart-1: oklch(0.55 0.20 260);   /* azul da marca */
+  --chart-2: oklch(0.60 0.14 175);   /* verde-azulado */
+  --chart-3: oklch(0.70 0.15 70);    /* âmbar */
+  --chart-4: oklch(0.55 0.20 300);   /* violeta */
+  --chart-5: oklch(0.60 0.19 15);    /* rosa-avermelhado */
 
-  /* Sidebar colors */
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Sidebar colors — mesma escala do resto do tema claro. */
+  --sidebar: oklch(0.97 0.004 265);
+  --sidebar-foreground: oklch(0.17 0.01 265);
+  --sidebar-primary: oklch(0.55 0.20 260);
+  --sidebar-primary-foreground: oklch(0.99 0.005 260);
+  --sidebar-accent: oklch(0.95 0.008 265);
+  --sidebar-accent-foreground: oklch(0.24 0.012 265);
+  --sidebar-border: oklch(0.90 0.006 265);
+  --sidebar-ring: oklch(0.55 0.20 260);
 
   /* Typography & Layout */
   --radius: 0.625rem;
@@ -69,27 +85,41 @@
   --sidebar-width-icon: 3rem;
 }
 
+/* Escuro com temperatura, não cinza puro.
+   O que mudou e por quê:
+   - Croma 0 em tudo deixava a tela morta e levemente "suja" nas telas maiores.
+     Uma pitada de azul (croma .01–.02 no matiz 265) esfria o neutro e faz o
+     escuro parecer escolhido, não desligado.
+   - background, card e popover estavam a passos irregulares. Agora sobem numa
+     escala clara (.16 → .21 → .25): elevação virou informação — quanto mais
+     perto do usuário, mais claro.
+   - --primary era quase branco (.922). Botão primário virava um bloco branco
+     berrante e o anel de foco sumia no fundo. Passou a ser o azul da marca, que
+     é o mesmo do tema claro — a identidade não deveria trocar com o tema.
+   - --border subiu de .275 para .30: no escuro a borda precisa de mais
+     contraste que no claro para desenhar a mesma linha.
+   - --muted-foreground subiu para .72, que passa em contraste AA sobre o card. */
 .dark {
   /* Core colors */
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.269 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.371 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.275 0 0);
-  --input: oklch(0.325 0 0);
-  --ring: oklch(0.556 0 0);
+  --background: oklch(0.16 0.012 265);
+  --foreground: oklch(0.97 0.004 265);
+  --card: oklch(0.21 0.014 265);
+  --card-foreground: oklch(0.97 0.004 265);
+  --popover: oklch(0.25 0.016 265);
+  --popover-foreground: oklch(0.97 0.004 265);
+  --primary: oklch(0.62 0.19 260);
+  --primary-foreground: oklch(0.99 0.005 260);
+  --secondary: oklch(0.27 0.015 265);
+  --secondary-foreground: oklch(0.97 0.004 265);
+  --muted: oklch(0.27 0.015 265);
+  --muted-foreground: oklch(0.72 0.02 265);
+  --accent: oklch(0.33 0.02 265);
+  --accent-foreground: oklch(0.98 0.004 265);
+  --destructive: oklch(0.65 0.20 22);
+  --destructive-foreground: oklch(0.98 0.01 22);
+  --border: oklch(0.30 0.016 265);
+  --input: oklch(0.34 0.018 265);
+  --ring: oklch(0.62 0.19 260);
 
   /* Alert colors */
   --alert-success: oklch(0.60 0.18 142);
@@ -105,13 +135,22 @@
   --alert-danger-foreground: oklch(0.90 0.06 27);
   --alert-danger-bg: oklch(0.18 0.008 27);
 
-  /* Sidebar colors */
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.275 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  /* Chart colors no escuro: mesmos matizes, mais claros e menos saturados.
+     Herdar os do claro deixaria o chart-5 quase invisível sobre o fundo escuro. */
+  --chart-1: oklch(0.68 0.17 260);
+  --chart-2: oklch(0.72 0.12 175);
+  --chart-3: oklch(0.78 0.13 70);
+  --chart-4: oklch(0.68 0.17 300);
+  --chart-5: oklch(0.70 0.16 15);
+
+  /* Sidebar colors — mesma escala do resto, para a barra não parecer colada
+     de outro tema. */
+  --sidebar: oklch(0.19 0.013 265);
+  --sidebar-foreground: oklch(0.97 0.004 265);
+  --sidebar-primary: oklch(0.62 0.19 260);
+  --sidebar-primary-foreground: oklch(0.99 0.005 260);
+  --sidebar-accent: oklch(0.27 0.015 265);
+  --sidebar-accent-foreground: oklch(0.98 0.004 265);
+  --sidebar-border: oklch(0.30 0.016 265);
+  --sidebar-ring: oklch(0.62 0.19 260);
 }

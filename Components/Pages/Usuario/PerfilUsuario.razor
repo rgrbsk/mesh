@@ -7,6 +7,7 @@
 @using Erp.Components.Pages.Usuario.Dialogs
 @inject UserManager<Erp.Model.Usuario.Usuario> Users
 @inject EmpresaRepository _empresaRepository
+@inject IJSRuntime JS
 @rendermode InteractiveServer
 
 @* Perfil do PRÓPRIO usuário: ele edita o que é dele (nome, contato, tema) e
@@ -240,6 +241,11 @@
 
             if (resultado.Succeeded)
             {
+                // Aplica na hora, além de salvar. Antes o campo só gravava no
+                // banco e a tela continuava no tema antigo — a preferência
+                // parecia ignorada.
+                await JS.InvokeAsync<bool>("mesh.tema.definir", _tema);
+
                 ToastService.Show("Cadastro alterado com sucesso.", "Perfil", ToastVariant.Success);
                 Nav.NavigateTo("/home");
                 return;

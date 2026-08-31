@@ -23,12 +23,43 @@ namespace Erp.Repository.Cotacao
 
         private readonly IDbContextFactory<AppDbContext> _fabrica;
         private readonly Erp.Repository.Log.LogRepository _logs;
+        private readonly Erp.Repository.Notificacao.NotificacaoRepository _avisos;
+        private readonly Erp.Service.Email.EmailService _emails;
+        private readonly Erp.Repository.Empresa.EmpresaRepository _empresas;
 
         public CotacaoRepository(
-            IDbContextFactory<AppDbContext> fabrica, Erp.Repository.Log.LogRepository logs)
+            IDbContextFactory<AppDbContext> fabrica,
+            Erp.Repository.Log.LogRepository logs,
+            Erp.Repository.Notificacao.NotificacaoRepository avisos,
+            Erp.Service.Email.EmailService emails,
+            Erp.Repository.Empresa.EmpresaRepository empresas)
         {
             _fabrica = fabrica;
             _logs = logs;
+            _avisos = avisos;
+            _emails = emails;
+            _empresas = empresas;
+        }
+
+        /// <summary>
+        /// Identifica quem está comprando, para o e-mail não chegar anônimo.
+        /// A empresa vem do cadastro; o contato é quem criou a rodada.
+        /// </summary>
+        public async Task<Erp.Service.Email.EmailService.Comprador> Comprador(Guid? criadoPorId)
+        {
+            var empresa = (await _empresas.BuscarEmpresas()).FirstOrDefault();
+
+            await using var contexto = await _fabrica.CreateDbContextAsync();
+
+            var usuario = criadoPorId is { } id
+                ? await contexto.Usuarios.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id)
+                : null;
+
+            return new Erp.Service.Email.EmailService.Comprador(
+                empresa?.Nome ?? "",
+                empresa?.CNPJ ?? "",
+                usuario is null ? "" : $"{usuario.Nome} {usuario.Sobrenome}".Trim(),
+                usuario?.Email ?? "");
         }
 
         public async Task<List<Cotacao>> Buscar(Expression<Func<Cotacao, bool>>? filtro = null)
@@ -263,6 +294,104 @@ namespace Erp.Repository.Cotacao
                 entidadeId: cotacaoItemId.ToString());
         }
 
+        /// <summary>
+        /// Avisa os vencedores e reabre o link deles na segunda fase, para
+        /// enviarem a NF-e.
+        ///
+        /// Só quem ganhou algum item entra: quem perdeu continua travado no
+        /// estado Respondido, e o link dele não vira canal de envio de nota.
+        /// </summary>
+        /// <summary>Quantos foram avisados e quantos e-mails saíram de fato. Os
+        /// dois números diferem quando o SMTP não está configurado ou recusa —
+        /// e a tela precisa dizer isso, senão o comprador acha que avisou.</summary>
+        public sealed record ResultadoAnuncio(List<ConviteFornecedor> Anunciados, int EmailsEnviados);
+
+        /// <param name="urlBase">
+        /// Origem da aplicação, para montar o link do fornecedor. Vem da tela
+        /// porque é o navegador que sabe por qual endereço o sistema é acessado
+        /// — o servidor não tem como adivinhar.
+        /// </param>
+        public async Task<ResultadoAnuncio> AnunciarVencedores(
+            int cotacaoId, DateTime prazoParaNota, Guid anunciadoPorId, string urlBase)
+        {
+            await using var contexto = await _fabrica.CreateDbContextAsync();
+
+            var cotacao = await contexto.Cotacoes
+                .Include(c => c.Itens)
+                .Include(c => c.Convites).ThenInclude(f => f.Pessoa)
+                .FirstOrDefaultAsync(c => c.Id == cotacaoId)
+                ?? throw new InvalidOperationException("Cotação não encontrada.");
+
+            var vencedores = cotacao.Itens
+                .Where(i => i.ConviteVencedorId is not null)
+                .Select(i => i.ConviteVencedorId!.Value)
+                .Distinct()
+                .ToHashSet();
+
+            if (vencedores.Count == 0)
+                throw new InvalidOperationException(
+                    "Nenhum vencedor escolhido ainda. Defina os vencedores no mapa comparativo.");
+
+            var anunciados = new List<ConviteFornecedor>();
+
+            foreach (var convite in cotacao.Convites.Where(c => vencedores.Contains(c.Id)))
+            {
+                // Nota já enviada não volta para "aguardando nota": reanunciar
+                // uma rodada não pode desfazer o que o fornecedor já mandou.
+                if (convite.Status == StatusConvite.NotaEnviada)
+                    continue;
+
+                convite.Status = StatusConvite.Vencedor;
+                convite.ExpiraEm = prazoParaNota;
+
+                anunciados.Add(convite);
+            }
+
+            // Encerra a rodada: com vencedor definido, aceitar proposta nova
+            // tornaria a decisão já tomada incomparável.
+            cotacao.Status = StatusCotacao.Encerrada;
+            cotacao.ModificadoEm = DateTime.UtcNow;
+
+            await contexto.SaveChangesAsync();
+
+            await _logs.Registrar(
+                Erp.Model.Log.TipoAcao.Envio, Modulo,
+                $"Cotação #{cotacaoId}: {anunciados.Count} "
+                + (anunciados.Count == 1 ? "fornecedor avisado" : "fornecedores avisados")
+                + $" da vitória. Prazo para a NF-e: {prazoParaNota.ToLocalTime():dd/MM/yyyy}.",
+                anunciadoPorId,
+                entidade: nameof(Cotacao),
+                entidadeId: cotacaoId.ToString());
+
+            // O e-mail sai DEPOIS do SaveChanges: se a gravação falhasse, o
+            // fornecedor teria recebido aviso de uma vitória que não existe.
+            var enviados = 0;
+            var comprador = await Comprador(cotacao.CriadoPorId);
+
+            foreach (var convite in anunciados.Where(c => !string.IsNullOrWhiteSpace(c.Email)))
+            {
+                var link = $"{urlBase.TrimEnd('/')}/cotacao/{convite.Token}";
+
+                if (await _emails.EnviarAvisoDeVitoria(
+                        convite.Email, cotacaoId, cotacao.Titulo, link, prazoParaNota, comprador))
+                    enviados++;
+            }
+
+            // Falha de envio não desfaz o anúncio — o link já está liberado e o
+            // comprador pode mandar o endereço manualmente. Mas fica registrado.
+            if (enviados < anunciados.Count)
+                await _logs.Registrar(
+                    Erp.Model.Log.TipoAcao.Erro, Modulo,
+                    $"Cotação #{cotacaoId}: {anunciados.Count - enviados} de {anunciados.Count} "
+                    + "avisos de vitória NÃO foram enviados por e-mail"
+                    + (_emails.Configurado ? " (o servidor recusou)." : " (SMTP não configurado)."),
+                    anunciadoPorId,
+                    entidade: nameof(Cotacao),
+                    entidadeId: cotacaoId.ToString());
+
+            return new ResultadoAnuncio(anunciados, enviados);
+        }
+
         /// <summary>Desfaz a escolha de um item, para refazer a decisão.</summary>
         public async Task LimparVencedor(int cotacaoItemId)
         {
@@ -410,6 +539,16 @@ namespace Erp.Repository.Cotacao
                 + $"{convite.RazaoSocial} (CNPJ {convite.Cnpj}), respondida por {convite.Responsavel}.",
                 entidade: nameof(ConviteFornecedor),
                 entidadeId: convite.Id.ToString());
+
+            // Avisa quem montou a rodada: é ele que decide quando fechar e
+            // comparar, e a resposta chega sem ele estar na tela.
+            if (convite.Cotacao?.CriadoPorId is { } comprador)
+                await _avisos.Criar(
+                    comprador,
+                    "Proposta recebida",
+                    $"{convite.RazaoSocial} respondeu a cotação #{convite.CotacaoId}.",
+                    "inbox",
+                    "/home/cotacoes");
         }
 
         // ------------------------------------------------------------------

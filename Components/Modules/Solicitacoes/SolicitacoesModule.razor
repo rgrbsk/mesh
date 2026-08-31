@@ -46,6 +46,7 @@
             <SolicitacaoDialog @bind-Aberto="_dialogAberto"
                                Solicitacao="_emEdicao"
                                OnSalvo="Recarregar" />
+            <LinhaDoTempo @bind-Aberto="_linhaDoTempoAberta" SolicitacaoId="_solicitacaoDaLinha" />
         </div>
     </div>
 
@@ -107,12 +108,16 @@
                     <BbBadge Variant="@StatusVisual.Badge(context.Status)">@StatusVisual.Texto(context.Status)</BbBadge>
                 </BbDataGridTemplateColumn>
 
-                <BbDataGridTemplateColumn Title="Ações" Width="110px" NoWrap>
+                <BbDataGridTemplateColumn Title="Ações" Width="150px" NoWrap>
                     <div class="flex items-center justify-end gap-1">
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
                                   OnClick="() => Abrir(context)"
                                   aria-label="@(context.Editavel ? "Editar" : "Ver")">
                             <LucideIcon Name="@(context.Editavel ? "pencil" : "eye")" Size="15" />
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                  OnClick="() => AbrirLinhaDoTempo(context)" aria-label="Linha do tempo">
+                            <LucideIcon Name="history" Size="15" />
                         </BbButton>
                         @* Enviada já é fila de outra pessoa: excluir apagaria o
                            que ela ainda tem para decidir. *@
@@ -173,6 +178,9 @@
 
 @code {
     private bool _dialogAberto;
+
+    private bool _linhaDoTempoAberta;
+    private int _solicitacaoDaLinha;
     private SolicitacaoCompra? _emEdicao;
 
     private List<SolicitacaoCompra> _solicitacoes = new();
@@ -260,6 +268,12 @@
     {
         _emEdicao = null;
         _dialogAberto = true;
+    }
+
+    private void AbrirLinhaDoTempo(SolicitacaoCompra solicitacao)
+    {
+        _solicitacaoDaLinha = solicitacao.Id;
+        _linhaDoTempoAberta = true;
     }
 
     private void Abrir(SolicitacaoCompra solicitacao)

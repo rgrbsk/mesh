@@ -199,6 +199,13 @@
                                                 @if (convite.Respondido)
                                                 {
                                                     <BbBadge Variant="BadgeVariant.Default">Respondida</BbBadge>
+                                                    @* Fornecedor que errou o preço não reabre a própria
+                                                       proposta — quem destrava é o comprador. *@
+                                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                              OnClick="() => Reabrir(convite)"
+                                                              aria-label="Reabrir para correção">
+                                                        <LucideIcon Name="lock-open" Size="14" />
+                                                    </BbButton>
                                                 }
                                             </div>
                                         }
@@ -379,7 +386,11 @@
                 PessoaId = c.PessoaId?.ToString() ?? "",
                 Email = c.Email,
                 Token = c.Token,
-                Respondido = c.Status == StatusConvite.Respondido,
+                // Vencedor e NotaEnviada também já responderam: sem isto o
+                // selo sumiria justamente de quem ganhou.
+                Respondido = c.Status is StatusConvite.Respondido
+                                      or StatusConvite.Vencedor
+                                      or StatusConvite.NotaEnviada,
             }).ToList();
     }
 
@@ -440,6 +451,33 @@
     private bool _emailConfigurado => Emails.Configurado;
 
     /// <summary>
+    /// Destrava a proposta de um fornecedor para ele corrigir. Renova o prazo
+    /// junto: reabrir com a data vencida devolveria um link que recusa o envio.
+    /// </summary>
+    private async Task Reabrir(LinhaConvite convite)
+    {
+        try
+        {
+            var novaExpiracao = _cotacao.PrazoResposta is { } prazo && prazo > DateTime.UtcNow
+                ? prazo
+                : DateTime.UtcNow.AddDays(3);
+
+            await Cotacoes.Reabrir(convite.Id, novaExpiracao);
+
+            convite.Respondido = false;
+
+            Toasts.Success("Convite reaberto",
+                           $"{convite.Email} pode enviar de novo até {novaExpiracao.ToLocalTime():dd/MM/yyyy}.");
+
+            await OnSalvo.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível reabrir", ex.Message);
+        }
+    }
+
+    /// <summary>
     /// Manda o link para o fornecedor. Falha de SMTP não vira exceção na tela:
     /// o link continua ali para envio manual, e é isso que o toast diz.
     /// </summary>
@@ -450,9 +488,11 @@
 
         var enviado = await Emails.EnviarConviteCotacao(
             convite.Email,
+            _cotacao.Id,
             _cotacao.Titulo,
             Link(convite.Token),
-            _cotacao.PrazoResposta ?? DateTime.UtcNow.AddDays(7));
+            _cotacao.PrazoResposta ?? DateTime.UtcNow.AddDays(7),
+            await Cotacoes.Comprador(_cotacao.CriadoPorId));
 
         if (enviado)
             Toasts.Success("Convite enviado", convite.Email);

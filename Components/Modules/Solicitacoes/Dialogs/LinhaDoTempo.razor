@@ -1,0 +1,174 @@
+@using Erp.Model.Log
+@using Erp.Model.Solicitacao
+@using Erp.Components.Modules.Logs
+@using Erp.Repository.Log
+@using Erp.Repository.Solicitacao
+@inject LogRepository Logs
+@inject SolicitacaoRepository Solicitacoes
+
+@* A história de um pedido, do rascunho à decisão. Junta duas fontes:
+   os marcos que estão na própria solicitação (criada, enviada) e os eventos
+   gravados no log (aprovações, recusas, devoluções). O log sozinho não cobre o
+   começo — ninguém registra "rascunho criado" —, e a entidade sozinha não sabe
+   quem decidiu o quê. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[48rem] max-w-none h-[85vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="history" Size="20" />
+                <BbDialogTitle>Linha do tempo — solicitação #@SolicitacaoId</BbDialogTitle>
+            </div>
+
+            @if (_carregando)
+            {
+                <p class="text-sm text-muted-foreground">Carregando…</p>
+            }
+            else if (_eventos.Count == 0)
+            {
+                <BbEmpty Title="Sem histórico"
+                         Description="Os marcos aparecem conforme a solicitação anda."
+                         Class="py-16">
+                    <Icon><LucideIcon Name="history" Size="40" Class="text-muted-foreground" /></Icon>
+                </BbEmpty>
+            }
+            else
+            {
+                <div class="flex-1 min-h-0 overflow-y-auto pr-1">
+                    <ol class="relative">
+                        @foreach (var evento in _eventos)
+                        {
+                            var ultimo = evento == _eventos[^1];
+
+                            <li class="relative pl-9 pb-5 last:pb-0">
+                                @* A linha vertical para no penúltimo item: se
+                                   descesse do último, apontaria para um futuro
+                                   que ainda não existe. *@
+                                @if (!ultimo)
+                                {
+                                    <span class="absolute left-[11px] top-6 bottom-0 w-px bg-border"></span>
+                                }
+
+                                <span class="absolute left-0 top-0 h-6 w-6 rounded-full flex items-center
+                                             justify-center @evento.Classe">
+                                    <LucideIcon Name="@evento.Icone" Size="13" />
+                                </span>
+
+                                <div class="flex items-baseline gap-2 flex-wrap">
+                                    <span class="text-sm font-medium">@evento.Titulo</span>
+                                    <span class="text-xs text-muted-foreground tabular-nums">
+                                        @evento.Quando.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                    </span>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(evento.Descricao))
+                                {
+                                    <p class="text-sm text-muted-foreground mt-0.5">@evento.Descricao</p>
+                                }
+
+                                @if (!string.IsNullOrWhiteSpace(evento.Quem))
+                                {
+                                    <p class="text-xs text-muted-foreground mt-0.5">por @evento.Quem</p>
+                                }
+                            </li>
+                        }
+                    </ol>
+                </div>
+
+                @if (_pendentes > 0)
+                {
+                    @* O que ainda não aconteceu também é informação: sem isso a
+                       linha do tempo parece terminada quando não está. *@
+                    <div class="flex items-center gap-2 text-sm text-muted-foreground border-t border-border pt-3">
+                        <LucideIcon Name="clock" Size="15" />
+                        Aguardando decisão de @_pendentes @(_pendentes == 1 ? "item" : "itens").
+                    </div>
+                }
+            }
+
+            <BbDialogFooter>
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="() => AbertoChanged.InvokeAsync(false)">
+                        <ChildContent>Fechar</ChildContent>
+                        <Icon><LucideIcon Name="x" Size="16" Color="grey" /></Icon>
+                    </BbButton>
+                </ActionArea>
+            </BbDialogFooter>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+
+    /// <summary>Solicitação cuja história se quer ver.</summary>
+    [Parameter] public int SolicitacaoId { get; set; }
+
+    private sealed record Evento(
+        DateTime Quando, string Titulo, string Descricao, string Quem, string Icone, string Classe);
+
+    private List<Evento> _eventos = new();
+    private int _pendentes;
+    private bool _carregando = true;
+    private bool _abertoAnterior;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Aberto && !_abertoAnterior)
+            await Carregar();
+
+        _abertoAnterior = Aberto;
+    }
+
+    private async Task Carregar()
+    {
+        _carregando = true;
+        _eventos = new();
+        _pendentes = 0;
+
+        var solicitacao = await Solicitacoes.ObterPorId(SolicitacaoId);
+
+        if (solicitacao is null)
+        {
+            _carregando = false;
+            return;
+        }
+
+        var quemAbriu = solicitacao.Solicitante is null
+            ? ""
+            : $"{solicitacao.Solicitante.Nome} {solicitacao.Solicitante.Sobrenome}".Trim();
+
+        _eventos.Add(new Evento(
+            solicitacao.CriadoEm,
+            "Solicitação criada",
+            $"{solicitacao.Itens.Count} {(solicitacao.Itens.Count == 1 ? "item" : "itens")}.",
+            quemAbriu,
+            "plus",
+            "bg-sky-500/15 text-sky-700 dark:text-sky-300"));
+
+        var doLog = await Logs.DaEntidade(nameof(SolicitacaoCompra), SolicitacaoId.ToString());
+
+        foreach (var registro in doLog)
+            _eventos.Add(new Evento(
+                registro.Quando,
+                AcaoVisual.Texto(registro.Acao),
+                registro.Descricao,
+                registro.UsuarioNome,
+                AcaoVisual.Icone(registro.Acao),
+                AcaoVisual.Classe(registro.Acao)));
+
+        // Reordena porque as duas fontes vêm separadas — a criação é da
+        // entidade, o resto é do log.
+        _eventos = _eventos.OrderBy(e => e.Quando).ToList();
+
+        _pendentes = solicitacao.Status == StatusSolicitacao.Enviada
+            ? solicitacao.Itens.Count(i => i.Status == StatusItem.Pendente)
+            : 0;
+
+        _carregando = false;
+    }
+}

@@ -5,8 +5,11 @@
    BbOverlayPortalHost) e o BbToastProvider. Sem isso, nenhum overlay do
    BlazorBlueprint renderiza — tooltip, calendar, select, dialog. *@
 @using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 @layout MainLayout
 @inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject Erp.Repository.Usuario.UsuarioRepository Usuarios
 
 <div class="flex flex-col h-screen overflow-hidden bg-background text-foreground">
     <Topbar Modules="_modulos" OnLogout="Logout" />
@@ -17,6 +20,7 @@
 </div>
 
 @code {
+    private bool _temaAplicado;
     private string? _activeKey;
     private string _titulo = "";
     [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
@@ -27,6 +31,38 @@
     {
         var user = (await AuthState).User;
         _modulos = Modulos.BuscarPermissoesDoUsuario(user);
+    }
+
+    /// <summary>
+    /// Aplica o tema salvo na CONTA quando o navegador ainda não tem preferência
+    /// própria. Sem isto, o campo do perfil só valia na máquina onde foi salvo:
+    /// entrar de outro computador ignorava a escolha.
+    ///
+    /// O localStorage continua tendo a última palavra — quem clicou no botão da
+    /// barra nesta máquina decidiu para esta máquina, e não é o login que vai
+    /// desfazer isso.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool primeiroRender)
+    {
+        if (!primeiroRender || _temaAplicado)
+            return;
+
+        _temaAplicado = true;
+
+        var salvoNoNavegador = await JS.InvokeAsync<string>("mesh.tema.salvo");
+
+        if (salvoNoNavegador != "sistema")
+            return;
+
+        var principal = (await AuthState).User;
+
+        if (!Guid.TryParse(principal.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id))
+            return;
+
+        var usuario = await Usuarios.ObterPorId(id);
+
+        if (!string.IsNullOrWhiteSpace(usuario?.TemaPreferencial))
+            await JS.InvokeAsync<bool>("mesh.tema.definir", usuario.TemaPreferencial);
     }
     protected override void OnParametersSet()
     {

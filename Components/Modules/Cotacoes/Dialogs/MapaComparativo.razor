@@ -3,6 +3,7 @@
 @using Erp.Repository.Cotacao
 @using System.Security.Claims
 @inject CotacaoRepository Cotacoes
+@inject NavigationManager Navegacao
 @inject ToastService Toasts
 
 @* Comparação lado a lado: uma coluna por fornecedor que respondeu, uma linha
@@ -168,7 +169,17 @@
 
             <BbDialogFooter>
                 <span class="text-xs text-muted-foreground mr-auto">
-                    Escolher quem não tem o menor preço exige motivo.
+                    @if (_escolhidos == 0)
+                    {
+                        <text>Escolher quem não tem o menor preço exige motivo.</text>
+                    }
+                    else
+                    {
+                        <text>
+                            @_escolhidos de @(_cotacao?.Itens.Count ?? 0) itens decididos.
+                            Anunciar avisa os vencedores e libera o envio da nota fiscal.
+                        </text>
+                    }
                 </span>
                 <ActionArea>
                     <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
@@ -176,8 +187,64 @@
                         <ChildContent>Fechar</ChildContent>
                         <Icon><LucideIcon Name="x" Size="16" Color="grey" /></Icon>
                     </BbButton>
+                    @if (_escolhidos > 0)
+                    {
+                        <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                                  OnClick="() => _dialogAnuncioAberto = true" Disabled="_anunciando">
+                            <ChildContent>Anunciar vencedores</ChildContent>
+                            <Icon><LucideIcon Name="trophy" Size="16" Color="lightgreen" /></Icon>
+                        </BbButton>
+                    }
                 </ActionArea>
             </BbDialogFooter>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@* Anunciar é irreversível na prática: os fornecedores recebem o link liberado
+   e a rodada encerra. A confirmação diz o que vai acontecer. *@
+<BbDialog @bind-Open="_dialogAnuncioAberto">
+    <BbDialogContent Class="max-w-lg p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>Anunciar vencedores</BbDialogTitle>
+
+            <p class="text-sm text-muted-foreground">
+                Os fornecedores com item vencedor passam a ver, no mesmo link que usaram
+                para cotar, o que venceram — e podem enviar o XML da nota fiscal por lá.
+                A cotação é encerrada e não aceita mais propostas.
+            </p>
+
+            @if (_naoDecididos > 0)
+            {
+                @* Anunciar com item indeciso é possível, mas quase sempre é
+                   engano: aquele item fica sem fornecedor e ninguém volta nele. *@
+                <div class="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 flex items-start gap-2">
+                    <LucideIcon Name="triangle-alert" Size="16" Class="text-amber-600 mt-0.5" />
+                    <p class="text-xs">
+                        <strong>@_naoDecididos</strong>
+                        @(_naoDecididos == 1 ? " item ainda não tem vencedor" : " itens ainda não têm vencedor")
+                        e não serão comprados nesta rodada.
+                    </p>
+                </div>
+            }
+
+            <BbField>
+                <BbFieldLabel>Prazo para envio da nota fiscal</BbFieldLabel>
+                <BbInput @bind-Value="_prazoNota" Type="InputType.Date" />
+                <BbFieldDescription>Depois dessa data o link para de aceitar o XML.</BbFieldDescription>
+            </BbField>
+
+            @if (_erroAnuncio is not null)
+            {
+                <p class="text-sm text-destructive">@_erroAnuncio</p>
+            }
+
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogAnuncioAberto = false">
+                    Cancelar
+                </BbButton>
+                <BbButton OnClick="Anunciar" Disabled="_anunciando">Anunciar</BbButton>
+            </div>
         </div>
     </BbDialogContent>
 </BbDialog>
@@ -224,6 +291,17 @@
     private Cotacao? _cotacao;
     private List<ConviteFornecedor> _respondentes = new();
     private Guid _usuarioAtual;
+
+    private int _escolhidos => _cotacao?.Itens.Count(i => i.ConviteVencedorId is not null) ?? 0;
+    private int _naoDecididos => (_cotacao?.Itens.Count ?? 0) - _escolhidos;
+
+    private bool _dialogAnuncioAberto;
+    private bool _anunciando;
+    private string? _erroAnuncio;
+
+    // Uma semana é o padrão de mercado para o fornecedor faturar depois de
+    // ganhar. Editável no diálogo.
+    private string _prazoNota = DateTime.Today.AddDays(7).ToString("yyyy-MM-dd");
 
     private bool _dialogMotivoAberto;
     private CotacaoItem? _itemEscolhido;
@@ -338,6 +416,58 @@
         catch (Exception ex)
         {
             Toasts.Error("Não foi possível escolher", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Libera a segunda fase do link de cada vencedor. É o que fecha o vão
+    /// entre "decidi quem ganhou" e "o fornecedor sabe e pode faturar".
+    /// </summary>
+    private async Task Anunciar()
+    {
+        if (!DateTime.TryParse(_prazoNota, out var prazo))
+        {
+            _erroAnuncio = "Informe o prazo para envio da nota.";
+            return;
+        }
+
+        _anunciando = true;
+        _erroAnuncio = null;
+        try
+        {
+            var resultado = await Cotacoes.AnunciarVencedores(
+                CotacaoId,
+                DateTime.SpecifyKind(prazo, DateTimeKind.Utc),
+                _usuarioAtual,
+                Navegacao.BaseUri);
+
+            _dialogAnuncioAberto = false;
+            await Carregar();
+
+            var quantos = resultado.Anunciados.Count;
+            var enviados = resultado.EmailsEnviados;
+
+            // Distingue "avisado no sistema" de "e-mail entregue": o link é
+            // liberado de qualquer jeito, mas quem não recebeu e-mail precisa
+            // ser avisado à mão, e o comprador tem que saber disso.
+            var mensagem = enviados == quantos
+                ? $"{quantos} {(quantos == 1 ? "fornecedor avisado" : "fornecedores avisados")} por e-mail."
+                : $"{quantos} {(quantos == 1 ? "fornecedor liberado" : "fornecedores liberados")}, "
+                  + $"mas só {enviados} {(enviados == 1 ? "recebeu" : "receberam")} e-mail. "
+                  + "Mande o link manualmente para os demais.";
+
+            if (enviados == quantos)
+                Toasts.Success("Vencedores anunciados", mensagem);
+            else
+                Toasts.Error("Vencedores anunciados, e-mail parcial", mensagem);
+        }
+        catch (Exception ex)
+        {
+            _erroAnuncio = ex.Message;
+        }
+        finally
+        {
+            _anunciando = false;
         }
     }
 

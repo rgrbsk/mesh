@@ -331,3 +331,38 @@
 }
 
 .login-foot a:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+/* ---------------------------------------------------------------------------
+   Correções do tema escuro.
+
+   A tela de login foi desenhada só para o claro: a marca é preenchida com preto
+   puro e o botão de entrar tinha bg-black no HTML. No escuro, os dois somem
+   contra o fundo — a marca fica invisível e o botão vira um retângulo preto.
+   --------------------------------------------------------------------------- */
+
+.dark .form-brand-text {
+    /* NÃO usar o atalho "background": ele zera o background-clip: text da regra
+       original e a marca vira um retângulo preenchido. Pintar o texto
+       diretamente é o que funciona aqui. */
+    -webkit-text-fill-color: var(--foreground);
+    color: var(--foreground);
+}
+
+.dark .login-card,
+.dark .login-form {
+    background: var(--card);
+}
+
+.login-submit {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius, 0.5rem);
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s ease;
+}
+
+.login-submit:hover { opacity: 0.9; }

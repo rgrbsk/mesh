@@ -16,9 +16,11 @@ namespace Erp.Model.Acesso
         public const string FornecedorEditar = "fornecedor.editar";
         public const string CentrosCustoGerir = "centroscusto.gerir";
         public const string CotacoesGerir = "cotacoes.gerir";
+        public const string NotasGerir = "notas.gerir";
         public const string EtapasGerir = "etapas.gerir";
         public const string LogsVer = "logs.ver";
         public const string LogsStackTrace = "logs.stacktrace";
+        public const string LogsSistema = "logs.sistema";
         public const string UsuariosGerir = "usuarios.gerir";
 
         /// <summary>
@@ -36,8 +38,10 @@ namespace Erp.Model.Acesso
             new(FornecedorEditar,  "Editar pessoas",       "Cadastra, altera e exclui pessoas.",                        "Cadastros"),
             new(CentrosCustoGerir, "Gerir centros de custo","Cadastra centros e define quem aprova cada um.",           "Cadastros"),
             new(CotacoesGerir,     "Gerir cotações",       "Monta rodadas de cotação e envia os links aos fornecedores.", "Compras"),
+            new(NotasGerir,        "Receber notas fiscais","Importa o XML da NF-e e confronta com a compra.",           "Compras"),
             new(EtapasGerir,       "Gerir etapas",         "Customiza as colunas do fluxo até a aprovação.",            "Adicionais"),
             new(LogsVer,           "Ver logs",             "Enxerga o histórico de quem fez o quê.",                    "Sistema"),
+            new(LogsSistema,       "Ver logs de sistema",  "Acessos, IPs e exceções. Dado sensível de operação.",        "Sistema"),
             new(LogsStackTrace,    "Ver stacktrace",       "Abre o rastreamento técnico dos erros no log.",             "Sistema"),
             new(UsuariosGerir,     "Gerir usuários",       "Cadastra usuários e concede permissões.",                   "Sistema"),
         ];

@@ -33,6 +33,13 @@
     <Folder Include="Migrations\" />
   </ItemGroup>
 
+  <!-- Lista de municípios do IBGE, lida uma vez pelo seed. Vai embutida no
+       assembly em vez de ficar em wwwroot: é dado de referência do servidor, não
+       arquivo para o navegador baixar. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Data\cidades-ibge.csv" />
+  </ItemGroup>
+
   <!-- Regenerate the Tailwind CSS on build (skipped if npm deps aren't installed). -->
   <Target Name="TailwindBuild" BeforeTargets="Build" Condition="Exists('node_modules')">
     <Exec Command="npm run css" WorkingDirectory="$(MSBuildProjectDirectory)" ContinueOnError="true" />

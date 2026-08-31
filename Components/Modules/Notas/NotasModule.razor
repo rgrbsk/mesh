@@ -1,0 +1,282 @@
+@using Erp.Model.Fiscal
+@using Erp.Components.Modules.Notas.Dialogs
+@using Erp.Repository.Fiscal
+@using BlazorBlueprint.Primitives.Filtering
+@inject NotaFiscalRepository Notas
+@inject ToastService Toasts
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Notas fiscais</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                XML recebido do fornecedor, conferido contra o que foi comprado dele.
+            </p>
+        </div>
+
+        @if (_podeGerir)
+        {
+            <div class="flex items-center gap-2 flex-none">
+                <ActionArea>
+                    <BbButton OnClick="() => _painelFiltros = !_painelFiltros"
+                              Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                        <ChildContent>Filtros@(_condicoes > 0 ? $" ({_condicoes})" : "")</ChildContent>
+                        <Icon><LucideIcon Name="funnel" Size="16" Color="magenta" /></Icon>
+                    </BbButton>
+                    <BbButton OnClick="() => _dialogDeParaAberto = true"
+                              Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                        <ChildContent>De-para</ChildContent>
+                        <Icon><LucideIcon Name="arrow-left-right" Size="16" Color="lightblue" /></Icon>
+                    </BbButton>
+                    <BbButton OnClick="() => _dialogAberto = true"
+                              Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                        <ChildContent>Receber NF-e</ChildContent>
+                        <Icon><LucideIcon Name="file-up" Size="16" Color="lightgreen" /></Icon>
+                    </BbButton>
+                </ActionArea>
+                <ImportarNfeDialog @bind-Aberto="_dialogAberto" OnImportada="Recarregar" />
+                <DeParaDialog @bind-Aberto="_dialogDeParaAberto" />
+                <ConfrontoDialog @bind-Aberto="_dialogConfrontoAberto" NotaId="_notaDoConfronto" />
+            </div>
+        }
+    </div>
+
+    @if (!_podeGerir)
+    {
+        <BbEmpty Title="Sem acesso às notas fiscais"
+                 Description="Receber e conferir NF-e exige a permissão notas.gerir."
+                 Class="py-16">
+            <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
+        </BbEmpty>
+    }
+    else
+    {
+        <div class="grid gap-4 mb-5 px-2 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+            <StatCard Label="Notas recebidas" Value="@_notas.Count.ToString()" />
+            <StatCard Label="Sem fornecedor no cadastro" Value="@_semFornecedor.ToString()" />
+            <StatCard Label="De homologação" Value="@_homologacao.ToString()" />
+        </div>
+
+        @if (_painelFiltros)
+        {
+            <div class="mb-4 mx-2 p-4 rounded-lg border border-border bg-card">
+                <BbFilterBuilder Fields="_campos"
+                                 @bind-Filter="_filtro"
+                                 OnFilterChanged="Recarregar"
+                                 ApplyButtonText="Aplicar filtros"
+                                 ClearButtonText="Limpar" />
+            </div>
+        }
+
+        <div class="flex-1 min-h-0 px-2">
+            <BbDataGrid TData="NotaFiscal"
+                        Items="@_notas"
+                        IsLoading="_carregando"
+                        Striped
+                        StripeClass="bg-muted/40"
+                        StickyHeader
+                        ShowSearch="false"
+                        ShowPagination
+                        InitialPageSize="20"
+                        Resizable>
+                <Columns>
+                    <BbDataGridPropertyColumn Property="@(n => n.Numero)" Title="Nota" Width="100px" Sortable />
+                    <BbDataGridPropertyColumn Property="@(n => n.EmitenteNome)" Title="Emitente" Sortable />
+                    <BbDataGridPropertyColumn Property="@(n => n.Emissao)" Title="Emissão" Format="dd/MM/yyyy" Sortable />
+                    <BbDataGridPropertyColumn Property="@(n => n.Itens.Count)" Title="Itens" Width="80px" />
+
+                    <BbDataGridTemplateColumn Title="Total" Width="130px" NoWrap>
+                        <span class="text-sm tabular-nums">@context.ValorTotal.ToString("C2")</span>
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="Cotação" Width="110px" NoWrap>
+                        @if (context.CotacaoId is { } id)
+                        {
+                            <span class="text-sm tabular-nums">#@id</span>
+                        }
+                        else
+                        {
+                            <span class="text-xs text-muted-foreground">sem vínculo</span>
+                        }
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="Situação" Width="150px" NoWrap>
+                        @if (context.EhHomologacao)
+                        {
+                            @* Sem valor fiscal: precisa gritar na lista, não só
+                               na importação. *@
+                            <span class="inline-flex items-center gap-1 text-xs font-medium text-destructive">
+                                <LucideIcon Name="triangle-alert" Size="13" />
+                                Homologação
+                            </span>
+                        }
+                        else if (context.FornecedorId is null)
+                        {
+                            <span class="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-500">
+                                <LucideIcon Name="user-x" Size="13" />
+                                Sem cadastro
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="text-xs text-muted-foreground">Importada</span>
+                        }
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="Ações" Width="110px" NoWrap>
+                        <div class="flex items-center justify-end gap-1">
+                            @* Confere a nota contra a compra. Vale principalmente
+                               para as que o fornecedor mandou pelo link, que
+                               entram sem ninguém ter olhado. *@
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => AbrirConfronto(context)" aria-label="Conferir">
+                                <LucideIcon Name="scale" Size="15" />
+                            </BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => PedirExclusao(context)" aria-label="Excluir">
+                                <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                            </BbButton>
+                        </div>
+                    </BbDataGridTemplateColumn>
+                </Columns>
+
+                <EmptyTemplate>
+                    <BbEmpty Title="Nenhuma nota recebida"
+                             Description="Quando o fornecedor vencedor mandar o XML, importe aqui para conferir contra a compra."
+                             Class="py-10">
+                        <Icon><LucideIcon Name="file-check-2" Size="40" Class="text-muted-foreground" /></Icon>
+                        <ChildContent>
+                            <BbButton Class="mt-3" Size="ButtonSize.Small" OnClick="() => _dialogAberto = true">
+                                Receber a primeira
+                            </BbButton>
+                        </ChildContent>
+                    </BbEmpty>
+                </EmptyTemplate>
+            </BbDataGrid>
+        </div>
+    }
+</div>
+
+@* Excluir apaga o documento fiscal guardado. O XML original é a prova da
+   compra — a confirmação diz isso. *@
+<BbDialog @bind-Open="_dialogExclusaoAberto">
+    <BbDialogContent Class="max-w-md p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>Excluir nota</BbDialogTitle>
+            <p class="text-sm text-muted-foreground">
+                Excluir a NF-e <strong class="text-foreground">@_aExcluir?.Numero</strong>
+                de @_aExcluir?.EmitenteNome? O XML guardado vai junto, e ele é a prova
+                do que o fornecedor cobrou.
+            </p>
+            @if (_erroExclusao is not null)
+            {
+                <p class="text-sm text-destructive">@_erroExclusao</p>
+            }
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogExclusaoAberto = false">
+                    Cancelar
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Destructive" OnClick="ConfirmarExclusao" Disabled="_excluindo">
+                    Excluir
+                </BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private List<NotaFiscal> _notas = new();
+    private bool _carregando = true;
+    private bool _podeGerir;
+
+    private bool _dialogAberto;
+    private bool _dialogDeParaAberto;
+
+    private bool _dialogConfrontoAberto;
+    private int _notaDoConfronto;
+    private bool _painelFiltros;
+
+    private FilterDefinition _filtro = new();
+    private int _condicoes => _filtro?.TotalConditionCount ?? 0;
+
+    private int _semFornecedor => _notas.Count(n => n.FornecedorId is null);
+    private int _homologacao => _notas.Count(n => n.EhHomologacao);
+
+    private bool _dialogExclusaoAberto;
+    private NotaFiscal? _aExcluir;
+    private bool _excluindo;
+    private string? _erroExclusao;
+
+    private readonly List<FilterField> _campos = new()
+    {
+        new FilterField { Name = nameof(NotaFiscal.Numero),        Label = "Número",   Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(NotaFiscal.EmitenteNome),  Label = "Emitente", Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(NotaFiscal.EmitenteCnpj),  Label = "CNPJ",     Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(NotaFiscal.Chave),         Label = "Chave",    Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(NotaFiscal.Emissao),       Label = "Emissão",  Type = FilterFieldType.Date },
+        new FilterField { Name = nameof(NotaFiscal.ValorTotal),    Label = "Total",    Type = FilterFieldType.Number },
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+            _podeGerir = (await EstadoAutenticacao).User
+                .HasClaim(Erp.Model.Acesso.Permissoes.ClaimType, Erp.Model.Acesso.Permissoes.NotasGerir);
+
+        if (_podeGerir)
+            await Recarregar();
+
+        _carregando = false;
+    }
+
+    private async Task Recarregar()
+    {
+        _carregando = true;
+        _notas = await Notas.Buscar(_filtro.ToExpression<NotaFiscal>(_campos));
+        _carregando = false;
+    }
+
+    private void AbrirConfronto(NotaFiscal nota)
+    {
+        _notaDoConfronto = nota.Id;
+        _dialogConfrontoAberto = true;
+    }
+
+    private void PedirExclusao(NotaFiscal nota)
+    {
+        _aExcluir = nota;
+        _erroExclusao = null;
+        _dialogExclusaoAberto = true;
+    }
+
+    private async Task ConfirmarExclusao()
+    {
+        if (_aExcluir is null)
+            return;
+
+        _excluindo = true;
+        try
+        {
+            var numero = _aExcluir.Numero;
+
+            await Notas.Excluir(_aExcluir.Id);
+            _dialogExclusaoAberto = false;
+            _aExcluir = null;
+            await Recarregar();
+
+            Toasts.Success("Nota excluída", $"NF-e {numero}");
+        }
+        catch (Exception ex)
+        {
+            _erroExclusao = ex.Message;
+            Toasts.Error("Não foi possível excluir", ex.Message);
+        }
+        finally
+        {
+            _excluindo = false;
+        }
+    }
+}

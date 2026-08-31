@@ -1,0 +1,138 @@
+@using System.Security.Claims
+@using Erp.Repository.Notificacao
+@inject NotificacaoRepository Notificacoes
+@inject NavigationManager Navegacao
+
+@* O sino: contagem de não lidas e a lista. Substitui o ícone decorativo que
+   estava na Topbar sem handler nenhum. *@
+
+<BbDropdownMenu>
+    <BbDropdownMenuTrigger AsChild="false"
+                           Class="relative inline-flex items-center justify-center h-8 w-8 rounded-lg
+                                  text-muted-foreground hover:bg-accent hover:text-accent-foreground
+                                  cursor-pointer transition-colors"
+                           aria-label="Notificações">
+        <LucideIcon Name="bell" Size="18" />
+        @if (_naoLidas > 0)
+        {
+            @* Passa de 9 vira "9+": o número exato não muda o que a pessoa faz,
+               e três dígitos não cabem no ponto. *@
+            <span class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full
+                         bg-destructive text-destructive-foreground text-[10px] font-semibold
+                         flex items-center justify-center tabular-nums">
+                @(_naoLidas > 9 ? "9+" : _naoLidas.ToString())
+            </span>
+        }
+    </BbDropdownMenuTrigger>
+
+    <BbDropdownMenuContent Class="p-0 w-96" Align="PopoverAlign.End" Offset="6">
+        <div class="px-3 py-2.5 border-b border-border flex items-center gap-2">
+            <span class="text-sm font-medium">Notificações</span>
+            @if (_naoLidas > 0)
+            {
+                <span class="text-xs text-muted-foreground">@_naoLidas não lidas</span>
+                <button type="button" @onclick="MarcarTodasLidas"
+                        class="ml-auto text-xs text-muted-foreground hover:text-foreground cursor-pointer">
+                    Marcar todas como lidas
+                </button>
+            }
+        </div>
+
+        <div class="max-h-96 overflow-y-auto">
+            @if (_notificacoes.Count == 0)
+            {
+                <p class="text-sm text-muted-foreground text-center py-8 px-3">
+                    Nada por aqui. Avisos de aprovação e de resposta de fornecedor aparecem neste sino.
+                </p>
+            }
+            else
+            {
+                @foreach (var aviso in _notificacoes)
+                {
+                    <button type="button" @onclick="() => Abrir(aviso)"
+                            class="w-full text-left px-3 py-2.5 border-b border-border last:border-b-0
+                                   hover:bg-accent cursor-pointer transition-colors
+                                   @(aviso.Lida ? "" : "bg-primary/5")">
+                        <div class="flex items-start gap-2.5">
+                            <LucideIcon Name="@aviso.Icone" Size="16"
+                                        Class="@(aviso.Lida ? "text-muted-foreground mt-0.5" : "text-primary mt-0.5")" />
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm @(aviso.Lida ? "" : "font-medium")">@aviso.Titulo</span>
+                                    @if (!aviso.Lida)
+                                    {
+                                        <span class="h-1.5 w-1.5 rounded-full bg-primary flex-none"></span>
+                                    }
+                                </div>
+                                <p class="text-xs text-muted-foreground mt-0.5">@aviso.Mensagem</p>
+                                <p class="text-[11px] text-muted-foreground mt-1">@Quando(aviso.CriadaEm)</p>
+                            </div>
+                        </div>
+                    </button>
+                }
+            }
+        </div>
+    </BbDropdownMenuContent>
+</BbDropdownMenu>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private List<Erp.Model.Notificacao.Notificacao> _notificacoes = new();
+    private int _naoLidas;
+    private Guid _usuarioAtual;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+            _usuarioAtual = Guid.TryParse(
+                (await EstadoAutenticacao).User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+
+        await Recarregar();
+    }
+
+    private async Task Recarregar()
+    {
+        if (_usuarioAtual == Guid.Empty)
+            return;
+
+        _notificacoes = await Notificacoes.Buscar(_usuarioAtual);
+        _naoLidas = _notificacoes.Count(n => !n.Lida);
+    }
+
+    /// <summary>Tempo relativo: "há 5 min" diz mais que um horário absoluto para
+    /// um aviso que acabou de chegar.</summary>
+    private static string Quando(DateTime criadaEm)
+    {
+        var decorrido = DateTime.UtcNow - criadaEm;
+
+        return decorrido switch
+        {
+            { TotalMinutes: < 1 } => "agora",
+            { TotalMinutes: < 60 } => $"há {(int)decorrido.TotalMinutes} min",
+            { TotalHours: < 24 } => $"há {(int)decorrido.TotalHours} h",
+            { TotalDays: < 7 } => $"há {(int)decorrido.TotalDays} d",
+            _ => criadaEm.ToLocalTime().ToString("dd/MM/yyyy"),
+        };
+    }
+
+    private async Task Abrir(Erp.Model.Notificacao.Notificacao aviso)
+    {
+        if (!aviso.Lida)
+        {
+            await Notificacoes.MarcarLida(aviso.Id);
+            await Recarregar();
+        }
+
+        if (!string.IsNullOrWhiteSpace(aviso.Link))
+            Navegacao.NavigateTo(aviso.Link);
+    }
+
+    private async Task MarcarTodasLidas()
+    {
+        await Notificacoes.MarcarTodasLidas(_usuarioAtual);
+        await Recarregar();
+    }
+}

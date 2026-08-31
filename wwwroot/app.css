@@ -111,47 +111,8 @@ h1:focus {
     text-align: start;
 }
 
-/* Dark Mode */
-.dark {
-    /* Core colors */
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.269 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.371 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --destructive-foreground: oklch(0.985 0 0);
-    --border: oklch(0.275 0 0);
-    --input: oklch(0.325 0 0);
-    --ring: oklch(0.556 0 0);
-    /* Alert colors */
-    --alert-success: oklch(0.60 0.18 142);
-    --alert-success-foreground: oklch(0.90 0.06 142);
-    --alert-success-bg: oklch(0.18 0.008 142);
-    --alert-info: oklch(0.55 0.18 255);
-    --alert-info-foreground: oklch(0.90 0.05 255);
-    --alert-info-bg: oklch(0.18 0.008 255);
-    --alert-warning: oklch(0.65 0.16 55);
-    --alert-warning-foreground: oklch(0.92 0.06 55);
-    --alert-warning-bg: oklch(0.19 0.008 55);
-    --alert-danger: oklch(0.55 0.20 27);
-    --alert-danger-foreground: oklch(0.90 0.06 27);
-    --alert-danger-bg: oklch(0.18 0.008 27);
-    /* Sidebar colors */
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(0.275 0 0);
-    --sidebar-ring: oklch(0.439 0 0);
+/* A paleta do tema NÃO mora aqui.
+   Havia uma cópia inteira do bloco .dark neste arquivo, e como o app.css é o
+   ÚLTIMO stylesheet carregado no App.razor, era ele que vencia a cascata —
+   qualquer ajuste feito no theme.css não tinha efeito nenhum. Fonte única:
+   wwwroot/css/theme.css. */

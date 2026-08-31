@@ -4,6 +4,7 @@
 @using Erp.Model.Cotacao
 @using Erp.Repository.Cotacao
 @inject CotacaoRepository Cotacoes
+@inject Erp.Repository.Fiscal.NotaFiscalRepository Notas
 
 @* Tela do FORNECEDOR. É a única página do sistema deliberadamente pública: ele
    não tem login, e a credencial dele é o token da URL. Por isso aqui não se
@@ -36,6 +37,114 @@
                         <p class="text-sm text-muted-foreground max-w-md">
                             Se você acredita que isso é um engano, procure o comprador que enviou o link.
                         </p>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+        }
+        else if (_notaEnviada)
+        {
+            <BbCard>
+                <BbCardContent>
+                    <div class="flex flex-col items-center text-center gap-3 py-10">
+                        <LucideIcon Name="circle-check" Size="40" Class="text-emerald-600" />
+                        <h1 class="text-lg font-semibold">Nota fiscal recebida</h1>
+                        <p class="text-sm text-muted-foreground max-w-md">
+                            Obrigado. O comprador foi avisado e vai conferir a nota contra o pedido.
+                            Se algo divergir, ele entra em contato.
+                        </p>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+        }
+        else if (_faseDaNota)
+        {
+            @* SEGUNDA FASE do mesmo link: ele já respondeu, ganhou, e agora
+               manda o XML da nota. Nada aqui mostra proposta de concorrente —
+               só o que ele mesmo ofereceu e venceu. *@
+            <div class="mb-6">
+                <div class="flex items-center gap-2">
+                    <LucideIcon Name="trophy" Size="22" Class="text-emerald-600" />
+                    <h1 class="text-2xl font-semibold tracking-tight">Você venceu esta cotação</h1>
+                </div>
+                <p class="text-sm text-muted-foreground mt-1">
+                    @_convite!.Cotacao!.Titulo — envie o XML da nota fiscal até
+                    <strong>@_convite.ExpiraEm.ToLocalTime().ToString("dd/MM/yyyy")</strong>.
+                </p>
+            </div>
+
+            <BbCard Class="mb-4">
+                <BbCardHeader>
+                    <BbCardTitle>Itens que você fornece</BbCardTitle>
+                    <BbCardDescription>
+                        Nas quantidades e preços da sua proposta. É contra isto que a nota será conferida.
+                    </BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    <div class="border border-border rounded-lg overflow-hidden">
+                        <table class="erp-table w-full">
+                            <thead>
+                                <tr>
+                                    <th>Produto</th>
+                                    <th class="w-[8rem]">Quantidade</th>
+                                    <th class="w-[9rem]">Preço unitário</th>
+                                    <th class="w-[9rem]">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in _vencidos)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="text-sm">@item.Descricao</div>
+                                            <div class="text-xs text-muted-foreground">@item.Codigo</div>
+                                        </td>
+                                        <td class="text-sm tabular-nums">
+                                            @item.Quantidade.ToString("0.####") @item.Unidade
+                                        </td>
+                                        <td class="text-sm tabular-nums">
+                                            @(item.Preco?.ToString("C2") ?? "—")
+                                        </td>
+                                        <td class="text-sm tabular-nums">@item.Total.ToString("C2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-muted/40">
+                                    <td colspan="3" class="text-xs uppercase tracking-wider text-muted-foreground">
+                                        Total
+                                    </td>
+                                    <td class="text-sm font-medium tabular-nums">@_totalVencido.ToString("C2")</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle>Enviar a nota fiscal</BbCardTitle>
+                    <BbCardDescription>
+                        O arquivo XML autorizado pela SEFAZ. O DANFE em PDF não serve — o XML é que
+                        tem os dados conferíveis.
+                    </BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    <div class="flex flex-col items-center gap-4 py-6">
+                        <LucideIcon Name="file-up" Size="40" Class="text-muted-foreground" />
+
+                        <InputFile OnChange="EnviarNota" accept=".xml" disabled="@_enviando"
+                                   class="text-sm file:mr-3 file:rounded-md file:border-0 file:bg-primary
+                                          file:px-3 file:py-1.5 file:text-primary-foreground file:cursor-pointer" />
+
+                        <p class="text-xs text-muted-foreground text-center max-w-md">
+                            A nota precisa ser emitida com o CNPJ desta empresa. Ao enviar, o link trava.
+                        </p>
+
+                        @if (_erro is not null)
+                        {
+                            <p class="text-sm text-destructive max-w-lg text-center">@_erro</p>
+                        }
                     </div>
                 </BbCardContent>
             </BbCard>
@@ -204,22 +313,123 @@
     private string? _bloqueio;
     private string? _erro;
 
+    // ---- Segunda fase: venceu, agora manda a nota ----
+
+    private sealed record ItemVencido(
+        string Descricao, string Codigo, string Unidade, decimal Quantidade, decimal? Preco)
+    {
+        public decimal Total => Quantidade * (Preco ?? 0m);
+    }
+
+    /// <summary>Teto do arquivo, igual ao da importação interna.</summary>
+    private const long TamanhoMaximoXml = 5 * 1024 * 1024;
+
+    private bool _faseDaNota;
+    private bool _notaEnviada;
+    private List<ItemVencido> _vencidos = new();
+
+    private decimal _totalVencido => _vencidos.Sum(i => i.Total);
+
     protected override async Task OnInitializedAsync()
     {
         _convite = await Cotacoes.ObterPorToken(Token);
 
-        _bloqueio = Validar(_convite);
+        if (EhFaseDaNota(_convite))
+        {
+            // Segunda fase: o mesmo link vira canal de envio da nota fiscal.
+            _faseDaNota = true;
+            _bloqueio = ValidarEnvioDaNota(_convite!);
+            MontarItensVencidos(_convite!);
+        }
+        else
+        {
+            _bloqueio = Validar(_convite);
 
-        if (_bloqueio is null && _convite is not null)
-            Preencher(_convite);
+            if (_bloqueio is null && _convite is not null)
+                Preencher(_convite);
+        }
 
         _carregando = false;
+    }
+
+    /// <summary>
+    /// O que ESTE fornecedor venceu, com o preço que ele mesmo ofereceu.
+    ///
+    /// Os itens da rodada inteira vêm carregados, mas o preço só existe nas
+    /// propostas deste convite — as dos concorrentes nunca são consultadas.
+    /// Filtrar pelo ConviteVencedorId garante que ele veja apenas o que é dele.
+    /// </summary>
+    /// <summary>
+    /// Recebe o XML do fornecedor. A validação de verdade — prazo, estado do
+    /// convite e CNPJ do emitente — está no repositório, chaveada pelo token:
+    /// esta tela só lê o arquivo e mostra o que der errado.
+    /// </summary>
+    private async Task EnviarNota(InputFileChangeEventArgs evento)
+    {
+        _erro = null;
+        _enviando = true;
+
+        try
+        {
+            var arquivo = evento.File;
+
+            if (arquivo.Size > TamanhoMaximoXml)
+            {
+                _erro = "Arquivo maior que 5 MB. Não parece uma NF-e.";
+                return;
+            }
+
+            Erp.Model.Fiscal.NotaFiscal nota;
+
+            using (var leitor = new StreamReader(arquivo.OpenReadStream(TamanhoMaximoXml)))
+            {
+                nota = Erp.Service.Fiscal.LeitorNfe.Ler(await leitor.ReadToEndAsync());
+            }
+
+            await Notas.ImportarDoFornecedor(Token, nota);
+
+            _notaEnviada = true;
+        }
+        catch (FormatException ex)
+        {
+            _erro = ex.Message;
+        }
+        catch (InvalidOperationException ex)
+        {
+            _erro = ex.Message;
+        }
+        catch (Exception)
+        {
+            // Mensagem genérica de propósito: detalhe de exceção numa página
+            // pública conta ao mundo como o sistema é feito por dentro.
+            _erro = "Não foi possível enviar a nota. Procure o comprador.";
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+
+    private void MontarItensVencidos(ConviteFornecedor convite)
+    {
+        _vencidos = convite.Cotacao!.Itens
+            .Where(i => i.ConviteVencedorId == convite.Id)
+            .Select(item => new ItemVencido(
+                item.Produto?.Descricao ?? "Item",
+                item.Produto?.Codigo ?? "",
+                item.Produto?.Unidade ?? "",
+                item.Quantidade,
+                convite.Propostas.FirstOrDefault(p => p.CotacaoItemId == item.Id)?.PrecoUnitario))
+            .ToList();
     }
 
     /// <summary>
     /// Motivo de não poder responder, ou nulo. Link inexistente e link vencido
     /// devolvem a MESMA mensagem: distinguir os dois confirmaria a quem está
     /// tentando adivinhar que aquele token existe.
+    ///
+    /// Só vale para a PRIMEIRA fase (envio da proposta). A segunda fase — envio
+    /// da nota, depois de ganhar — tem regras próprias, em ValidarEnvioDaNota.
     /// </summary>
     private static string? Validar(ConviteFornecedor? convite)
     {
@@ -237,6 +447,25 @@
 
         if (convite.ExpiraEm < DateTime.UtcNow)
             return "Link inválido ou expirado";
+
+        return null;
+    }
+
+    /// <summary>
+    /// O convite está na segunda fase? É o que decide entre mostrar o
+    /// formulário de proposta e a tela de "você venceu, mande a nota".
+    /// </summary>
+    private static bool EhFaseDaNota(ConviteFornecedor? convite) =>
+        convite is not null
+        && convite.Status is StatusConvite.Vencedor or StatusConvite.NotaEnviada;
+
+    private static string? ValidarEnvioDaNota(ConviteFornecedor convite)
+    {
+        if (convite.Status == StatusConvite.NotaEnviada)
+            return "Nota já enviada";
+
+        if (convite.ExpiraEm < DateTime.UtcNow)
+            return "O prazo para enviar a nota venceu";
 
         return null;
     }

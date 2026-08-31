@@ -1,26 +1,275 @@
-<div class="h-full overflow-y-auto p-6">
-    <div class="mb-5">
+@using Erp.Model.Solicitacao
+@using Erp.Model.Cotacao
+@using Erp.Components.Modules.Solicitacoes
+@using Erp.Repository.Solicitacao
+@using Erp.Repository.Cotacao
+@using Erp.Repository.Produto
+@using System.Globalization
+@inject SolicitacaoRepository Solicitacoes
+@inject CotacaoRepository Cotacoes
+@inject ProdutoRepository Produtos
+@inject NavigationManager Navegacao
+
+@* Primeira tela de quem entra. Tudo aqui é consulta ao banco — era a última
+   tela do caminho principal com números escritos no HTML.
+
+   O critério do que entra: cada bloco responde a uma pergunta que faz alguém
+   sair daqui e ir agir. Número bonito que não muda decisão ficou de fora. *@
+
+<div class="flex flex-col h-full min-h-0 p-6 overflow-y-auto">
+
+    <div class="mb-5 px-2">
         <h2 class="text-xl font-semibold tracking-tight">Painel</h2>
-        <p class="text-sm text-muted-foreground mt-1">Visão geral da operação de hoje.</p>
+        <p class="text-sm text-muted-foreground mt-1">
+            O estado do processo de compra agora.
+        </p>
     </div>
-    <BbBarChart Data="@salesData" Height="300px">
-        <BbXAxis DataKey="month" />
-        <BbYAxis />
-        <BbChartTooltip />
-        <BbBar DataKey="revenue" Name="Revenue" Color="var(--chart-1)" />
-    </BbBarChart>
+
+    @if (_carregando)
+    {
+        <div class="grid gap-4 px-2 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+            @for (var i = 0; i < 4; i++)
+            {
+                <BbSkeleton Class="h-24 w-full" />
+            }
+        </div>
+    }
+    else
+    {
+        <div class="grid gap-4 mb-5 px-2 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+            <StatCard Label="Aguardando aprovação" Value="@_aguardando.ToString()" />
+            <StatCard Label="Devolvidas para ajuste" Value="@_devolvidas.ToString()" />
+            <StatCard Label="No ponto de pedido" Value="@_aRepor.Count.ToString()" />
+            <StatCard Label="Cotações abertas" Value="@_cotacoesAbertas.ToString()" />
+        </div>
+
+        <div class="grid gap-4 px-2 grid-cols-1 xl:grid-cols-3">
+
+            <BbCard Class="xl:col-span-2">
+                <BbCardHeader>
+                    <BbCardTitle>Solicitações por mês</BbCardTitle>
+                    <BbCardDescription>Criadas nos últimos seis meses, com quantas foram aprovadas.</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    @if (_porMes.Count == 0)
+                    {
+                        <p class="text-sm text-muted-foreground py-10 text-center">Nenhuma solicitação ainda.</p>
+                    }
+                    else
+                    {
+                        <BbBarChart Data="@_porMes" Height="280px">
+                            <BbXAxis DataKey="Mes" />
+                            <BbYAxis />
+                            <BbChartTooltip />
+                            <BbChartLegend />
+                            <BbBar DataKey="Criadas" Name="Criadas" Color="var(--chart-1)" BorderRadius="4" />
+                            <BbBar DataKey="Aprovadas" Name="Aprovadas" Color="var(--chart-2)" BorderRadius="4" />
+                        </BbBarChart>
+                    }
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle>Situação das solicitações</BbCardTitle>
+                    <BbCardDescription>Onde está cada pedido hoje.</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    @if (_porSituacao.Count == 0)
+                    {
+                        <p class="text-sm text-muted-foreground py-10 text-center">Nenhuma solicitação ainda.</p>
+                    }
+                    else
+                    {
+                        <BbPieChart Data="@_porSituacao" Height="280px">
+                            <BbChartTooltip />
+                            <BbChartLegend Position="LegendPosition.Bottom" />
+                            @* Raio é número (percentual do container), não texto: "55%" fazia o Razor tentar avaliar como C#. *@
+                            <BbPie DataKey="Total" NameKey="Situacao" InnerRadius="55" OuterRadius="80" />
+                        </BbPieChart>
+                    }
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard Class="xl:col-span-2">
+                <BbCardHeader>
+                    <BbCardTitle>Itens solicitados por centro de custo</BbCardTitle>
+                    <BbCardDescription>Os cinco que mais pedem. É onde o dinheiro está sendo comprometido.</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    @if (_porCentro.Count == 0)
+                    {
+                        <p class="text-sm text-muted-foreground py-10 text-center">Nada solicitado ainda.</p>
+                    }
+                    else
+                    {
+                        @* Horizontal porque nome de centro de custo é longo:
+                           na vertical o rótulo vira texto girado e ilegível. *@
+                        <BbBarChart Data="@_porCentro" Height="260px" Horizontal="true">
+                            <BbXAxis />
+                            <BbYAxis DataKey="Centro" />
+                            <BbChartTooltip />
+                            <BbBar DataKey="Itens" Name="Itens" Color="var(--chart-4)" BorderRadius="4" />
+                        </BbBarChart>
+                    }
+                </BbCardContent>
+            </BbCard>
+
+            @* Lista, não gráfico: aqui a ação é olhar o produto e comprar, e
+               para isso o nome importa mais que a proporção. *@
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle>Repor agora</BbCardTitle>
+                    <BbCardDescription>Saldo no ponto de pedido ou abaixo.</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    @if (_aRepor.Count == 0)
+                    {
+                        <div class="flex flex-col items-center gap-2 py-8 text-center">
+                            <LucideIcon Name="circle-check" Size="28" Class="text-emerald-600" />
+                            <p class="text-sm text-muted-foreground">Nenhum produto no ponto de pedido.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="flex flex-col divide-y divide-border">
+                            @foreach (var produto in _aRepor.Take(6))
+                            {
+                                var critico = produto.SaldoAtual <= produto.EstoqueMinimo;
+
+                                <div class="flex items-center gap-3 py-2 first:pt-0">
+                                    <LucideIcon Name="@(critico ? "triangle-alert" : "shopping-cart")" Size="15"
+                                                Class="@(critico ? "text-destructive flex-none" : "text-amber-600 dark:text-amber-500 flex-none")" />
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm truncate">@produto.Descricao</p>
+                                        <p class="text-xs text-muted-foreground">@produto.Codigo</p>
+                                    </div>
+                                    <div class="text-right flex-none">
+                                        <p class="text-sm tabular-nums">@produto.SaldoAtual.ToString("0.##")</p>
+                                        <p class="text-xs text-muted-foreground tabular-nums">
+                                            de @produto.PontoPedido.ToString("0.##")
+                                        </p>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        @if (_aRepor.Count > 6)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Class="mt-2"
+                                      OnClick='() => Navegacao.NavigateTo("/home/produtos")'>
+                                Ver os outros @(_aRepor.Count - 6)
+                            </BbButton>
+                        }
+                    }
+                </BbCardContent>
+            </BbCard>
+        </div>
+    }
 </div>
 
-@code{
-    private record SalesData(string Month, int Revenue);
-
-    private List<SalesData> salesData = new()
+@code {
+    // Classes, não tuplas: os DataKey dos gráficos apontam para NOMES de
+    // propriedade. O nome do tipo difere do da propriedade porque C# não deixa
+    // um membro ter o mesmo nome do tipo que o contém.
+    private sealed class BarraMes
     {
-        new("Jan", 4000),
-        new("Feb", 3000),
-        new("Mar", 5000)
-    };
+        public string Mes { get; set; } = "";
+        public int Criadas { get; set; }
+        public int Aprovadas { get; set; }
+    }
 
+    private sealed class Fatia
+    {
+        public string Situacao { get; set; } = "";
+        public int Total { get; set; }
+    }
 
+    private sealed class BarraCentro
+    {
+        public string Centro { get; set; } = "";
+        public decimal Itens { get; set; }
+    }
 
+    private List<BarraMes> _porMes = new();
+    private List<Fatia> _porSituacao = new();
+    private List<BarraCentro> _porCentro = new();
+    private List<Erp.Model.Produto.Produto> _aRepor = new();
+
+    private int _aguardando;
+    private int _devolvidas;
+    private int _cotacoesAbertas;
+    private bool _carregando = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var solicitacoes = await Solicitacoes.Buscar();
+        var cotacoes = await Cotacoes.Buscar();
+
+        _aRepor = await Produtos.BuscarParaRepor();
+
+        _aguardando = solicitacoes.Count(s => s.Status == StatusSolicitacao.Enviada);
+        _devolvidas = solicitacoes.Count(s => s.Status == StatusSolicitacao.Devolvida);
+        _cotacoesAbertas = cotacoes.Count(c => c.Status == StatusCotacao.Aberta);
+
+        MontarPorMes(solicitacoes);
+        MontarPorSituacao(solicitacoes);
+        MontarPorCentro(solicitacoes);
+
+        _carregando = false;
+    }
+
+    /// <summary>
+    /// Seis meses fixos, incluindo os vazios. Agrupar só o que existe faria o
+    /// eixo pular meses sem movimento e sugerir uma continuidade falsa.
+    /// </summary>
+    private void MontarPorMes(List<SolicitacaoCompra> solicitacoes)
+    {
+        var cultura = new CultureInfo("pt-BR");
+        var primeiroMes = DateTime.Today.AddMonths(-5);
+
+        _porMes = Enumerable.Range(0, 6)
+            .Select(i =>
+            {
+                var mes = new DateTime(primeiroMes.Year, primeiroMes.Month, 1).AddMonths(i);
+
+                var doMes = solicitacoes
+                    .Where(s => s.CriadoEm.Year == mes.Year && s.CriadoEm.Month == mes.Month)
+                    .ToList();
+
+                return new BarraMes
+                {
+                    Mes = cultura.DateTimeFormat.GetAbbreviatedMonthName(mes.Month).TrimEnd('.'),
+                    Criadas = doMes.Count,
+                    Aprovadas = doMes.Count(s => s.Status is StatusSolicitacao.Aprovada
+                                                       or StatusSolicitacao.AprovadaParcialmente),
+                };
+            })
+            .ToList();
+
+        // Seis meses de zeros não é gráfico, é ruído.
+        if (_porMes.All(m => m.Criadas == 0))
+            _porMes = new();
+    }
+
+    private void MontarPorSituacao(List<SolicitacaoCompra> solicitacoes) =>
+        _porSituacao = solicitacoes
+            .GroupBy(s => s.Status)
+            .Select(g => new Fatia { Situacao = StatusVisual.Texto(g.Key), Total = g.Count() })
+            .OrderByDescending(f => f.Total)
+            .ToList();
+
+    /// <summary>
+    /// Soma QUANTIDADE, não linhas: dez parafusos e dez notebooks não pesam
+    /// igual, mas contar linhas trataria os dois como um pedido cada.
+    /// </summary>
+    private void MontarPorCentro(List<SolicitacaoCompra> solicitacoes) =>
+        _porCentro = solicitacoes
+            .SelectMany(s => s.Itens)
+            .Where(i => i.CentroCusto is not null)
+            .GroupBy(i => i.CentroCusto!.Nome)
+            .Select(g => new BarraCentro { Centro = g.Key, Itens = g.Sum(i => i.Quantidade) })
+            .OrderByDescending(c => c.Itens)
+            .Take(5)
+            .ToList();
 }

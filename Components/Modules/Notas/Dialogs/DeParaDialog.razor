@@ -1,0 +1,225 @@
+@using ProdutoFornecedor = Erp.Model.Produto.ProdutoFornecedor
+@using Erp.Model.Pessoa
+@using Erp.Repository.Produto
+@using Erp.Repository.Pessoa
+@inject ProdutoFornecedorRepository DeParas
+@inject ProdutoRepository Produtos
+@inject PessoaRepository Pessoas
+@inject ToastService Toasts
+
+@* De-para entre o código do fornecedor e o nosso produto. Normalmente ele se
+   preenche sozinho, ao amarrar itens durante o recebimento; esta tela é para
+   corrigir uma amarração errada ou cadastrar antes da primeira nota. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[64rem] max-w-none h-[88vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="arrow-left-right" Size="20" />
+                <BbDialogTitle>De-para de produtos por fornecedor</BbDialogTitle>
+            </div>
+
+            <p class="text-sm text-muted-foreground">
+                O código que vem na NF-e é o do fornecedor, não o seu. Aqui fica a tradução —
+                é o que faz a nota dele já chegar casada com o seu catálogo.
+            </p>
+
+            <div class="flex flex-wrap items-end gap-3">
+                <BbField Class="w-[20rem]">
+                    <BbFieldLabel>Fornecedor</BbFieldLabel>
+                    <BbCombobox TValue="string"
+                                Class="w-[20rem]"
+                                Options="@_fornecedores"
+                                Value="@_fornecedorSelecionado"
+                                ValueChanged="TrocarFornecedor"
+                                Placeholder="Todos"
+                                SearchPlaceholder="Buscar fornecedor..."
+                                EmptyMessage="Nenhum fornecedor cadastrado." />
+                </BbField>
+
+                @if (!string.IsNullOrWhiteSpace(_fornecedorSelecionado))
+                {
+                    <BbField Class="w-[12rem]">
+                        <BbFieldLabel>Código dele</BbFieldLabel>
+                        <BbInput @bind-Value="_novoCodigo" Placeholder="B17025056" />
+                    </BbField>
+
+                    <BbField Class="w-[22rem]">
+                        <BbFieldLabel>É o nosso produto</BbFieldLabel>
+                        <BbCombobox TValue="string"
+                                    Class="w-[22rem]"
+                                    Options="@_produtos"
+                                    @bind-Value="_novoProduto"
+                                    Placeholder="Selecione"
+                                    SearchPlaceholder="Buscar produto..."
+                                    EmptyMessage="Nenhum produto." />
+                    </BbField>
+
+                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
+                              OnClick="Adicionar" IconPosition="IconPosition.Start" Class="mb-1">
+                        <ChildContent>Adicionar</ChildContent>
+                        <Icon><LucideIcon Name="plus" Size="14" /></Icon>
+                    </BbButton>
+                }
+            </div>
+
+            @if (_erro is not null)
+            {
+                <p class="text-sm text-destructive">@_erro</p>
+            }
+
+            <div class="flex-1 min-h-0 overflow-y-auto">
+                @if (_linhas.Count == 0)
+                {
+                    <BbEmpty Title="Nenhuma tradução cadastrada"
+                             Description="As amarrações feitas ao receber uma nota aparecem aqui."
+                             Class="py-12">
+                        <Icon><LucideIcon Name="arrow-left-right" Size="36" Class="text-muted-foreground" /></Icon>
+                    </BbEmpty>
+                }
+                else
+                {
+                    <div class="border border-border rounded-lg overflow-hidden">
+                        <table class="erp-table w-full">
+                            <thead>
+                                <tr>
+                                    <th class="w-[18rem]">Fornecedor</th>
+                                    <th class="w-[12rem]">Código dele</th>
+                                    <th>Nosso produto</th>
+                                    <th class="w-[5rem]"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var linha in _linhas)
+                                {
+                                    <tr>
+                                        <td class="text-sm">@linha.Fornecedor?.RazaoSocial</td>
+                                        <td>
+                                            <code class="text-xs">@linha.CodigoFornecedor</code>
+                                            @if (!string.IsNullOrWhiteSpace(linha.DescricaoFornecedor))
+                                            {
+                                                <div class="text-xs text-muted-foreground truncate max-w-[11rem]">
+                                                    @linha.DescricaoFornecedor
+                                                </div>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="text-sm">@linha.Produto?.Descricao</div>
+                                            <div class="text-xs text-muted-foreground">@linha.Produto?.Codigo</div>
+                                        </td>
+                                        <td>
+                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                      OnClick="() => Excluir(linha)" aria-label="Remover">
+                                                <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                                            </BbButton>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
+            <BbDialogFooter>
+                <span class="text-xs text-muted-foreground mr-auto">
+                    Um código por fornecedor: cadastrar o mesmo de novo aponta para o produto novo.
+                </span>
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="() => AbertoChanged.InvokeAsync(false)">
+                        <ChildContent>Fechar</ChildContent>
+                        <Icon><LucideIcon Name="x" Size="16" Color="grey" /></Icon>
+                    </BbButton>
+                </ActionArea>
+            </BbDialogFooter>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+
+    private List<ProdutoFornecedor> _linhas = new();
+    private List<SelectOption<string>> _fornecedores = new();
+    private List<SelectOption<string>> _produtos = new();
+
+    private string _fornecedorSelecionado = "";
+    private string _novoCodigo = "";
+    private string _novoProduto = "";
+    private string? _erro;
+    private bool _abertoAnterior;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Aberto && !_abertoAnterior)
+            await Carregar();
+
+        _abertoAnterior = Aberto;
+    }
+
+    private async Task Carregar()
+    {
+        _erro = null;
+
+        _fornecedores = (await Pessoas.Buscar(TipoPessoa.Fornecedor))
+            .Select(p => new SelectOption<string>(p.Id.ToString(), p.RazaoSocial))
+            .ToList();
+
+        _produtos = (await Produtos.Buscar(p => p.Ativo))
+            .Select(p => new SelectOption<string>(p.Id.ToString(), $"{p.Codigo} — {p.Descricao}"))
+            .ToList();
+
+        await Listar();
+    }
+
+    private async Task Listar() =>
+        _linhas = await DeParas.Buscar(
+            int.TryParse(_fornecedorSelecionado, out var id) ? id : null);
+
+    private async Task TrocarFornecedor(string id)
+    {
+        _fornecedorSelecionado = id;
+        await Listar();
+    }
+
+    private async Task Adicionar()
+    {
+        _erro = null;
+
+        if (!int.TryParse(_fornecedorSelecionado, out var fornecedorId)
+            || !int.TryParse(_novoProduto, out var produtoId)
+            || string.IsNullOrWhiteSpace(_novoCodigo))
+        {
+            _erro = "Escolha o fornecedor, digite o código dele e selecione o produto.";
+            return;
+        }
+
+        try
+        {
+            await DeParas.Salvar(fornecedorId, _novoCodigo, produtoId);
+
+            _novoCodigo = "";
+            _novoProduto = "";
+
+            await Listar();
+
+            Toasts.Success("Tradução gravada", "A próxima nota deste fornecedor já vem casada.");
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+        }
+    }
+
+    private async Task Excluir(ProdutoFornecedor linha)
+    {
+        await DeParas.Excluir(linha.Id);
+        await Listar();
+
+        Toasts.Success("Tradução removida", linha.CodigoFornecedor);
+    }
+}

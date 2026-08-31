@@ -1,0 +1,490 @@
+@using Erp.Model.Fiscal
+@using Erp.Repository.Fiscal
+@using Erp.Repository.Produto
+@using Erp.Service.Fiscal
+@using System.Security.Claims
+@inject NotaFiscalRepository Notas
+@inject ProdutoFornecedorRepository DeParas
+@inject ProdutoRepository Produtos
+@inject ToastService Toasts
+
+@* Recebe o XML da NF-e, lê e confronta com o que foi comprado daquele
+   fornecedor. A importação só acontece depois de a pessoa ver o confronto:
+   importar direto esconderia justamente o que ela precisa decidir. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[76rem] max-w-none h-[92vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="file-check-2" Size="20" />
+                <BbDialogTitle>Receber NF-e do fornecedor</BbDialogTitle>
+            </div>
+
+            @if (_nota is null)
+            {
+                <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-4">
+                    <LucideIcon Name="file-up" Size="44" Class="text-muted-foreground" />
+                    <div class="text-center">
+                        <p class="text-sm font-medium">Selecione o arquivo XML da nota</p>
+                        <p class="text-xs text-muted-foreground mt-1">
+                            O XML autorizado pela SEFAZ, como o fornecedor envia. Não usamos o DANFE em PDF.
+                        </p>
+                    </div>
+
+                    <InputFile OnChange="Carregar" accept=".xml"
+                               class="text-sm file:mr-3 file:rounded-md file:border-0 file:bg-primary
+                                      file:px-3 file:py-1.5 file:text-primary-foreground file:cursor-pointer" />
+
+                    @if (_erro is not null)
+                    {
+                        <p class="text-sm text-destructive max-w-lg text-center">@_erro</p>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
+
+                    @if (_nota.EhHomologacao)
+                    {
+                        @* Nota de homologação não vale nada fiscalmente. Deixar
+                           entrar sem aviso colocaria uma compra inexistente no
+                           sistema. *@
+                        <div class="rounded-lg border border-destructive/50 bg-destructive/10 p-3
+                                    flex items-start gap-2">
+                            <LucideIcon Name="triangle-alert" Size="18" Class="text-destructive mt-0.5" />
+                            <div>
+                                <p class="text-sm font-medium text-destructive">
+                                    Nota emitida em ambiente de homologação
+                                </p>
+                                <p class="text-xs text-muted-foreground">
+                                    Não tem valor fiscal. Serve para teste — não use para pagar nem dar entrada.
+                                </p>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="grid gap-3 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+                        <div>
+                            <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Emitente</p>
+                            <p class="text-sm">@_nota.EmitenteNome</p>
+                            <p class="text-xs text-muted-foreground tabular-nums">@_nota.EmitenteCnpj</p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Nota</p>
+                            <p class="text-sm tabular-nums">nº @_nota.Numero · série @_nota.Serie</p>
+                            <p class="text-xs text-muted-foreground tabular-nums">
+                                @_nota.Emissao.ToLocalTime().ToString("dd/MM/yyyy")
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Total</p>
+                            <p class="text-sm tabular-nums">@_nota.ValorTotal.ToString("C2")</p>
+                            <p class="text-xs text-muted-foreground">
+                                produtos @_nota.ValorProdutos.ToString("C2")
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Fornecedor no cadastro</p>
+                            @if (_fornecedor is null)
+                            {
+                                <p class="text-sm text-destructive">Não encontrado</p>
+                                <p class="text-xs text-muted-foreground">Sem cadastro com este CNPJ.</p>
+                            }
+                            else
+                            {
+                                <p class="text-sm">@_fornecedor.RazaoSocial</p>
+                                <p class="text-xs text-muted-foreground">Casado pelo CNPJ.</p>
+                            }
+                        </div>
+                    </div>
+
+                    <BbSeparator />
+
+                    @if (_fornecedor is null)
+                    {
+                        <BbEmpty Title="Sem fornecedor correspondente"
+                                 Description="Cadastre uma Pessoa do tipo Fornecedor com este CNPJ para confrontar a nota com a compra."
+                                 Class="py-8">
+                            <Icon><LucideIcon Name="user-x" Size="36" Class="text-muted-foreground" /></Icon>
+                        </BbEmpty>
+                    }
+                    else if (_cotacoes.Count == 0)
+                    {
+                        <BbEmpty Title="Nenhuma compra deste fornecedor"
+                                 Description="Não há cotação com item vencedor dele. A nota pode ser importada, mas não há o que confrontar."
+                                 Class="py-8">
+                            <Icon><LucideIcon Name="search-x" Size="36" Class="text-muted-foreground" /></Icon>
+                        </BbEmpty>
+                    }
+                    else
+                    {
+                        <BbField Class="w-[26rem]">
+                            <BbFieldLabel>Confrontar com a cotação</BbFieldLabel>
+                            <BbCombobox TValue="string"
+                                        Class="w-[26rem]"
+                                        Options="@_opcoesCotacao"
+                                        Value="@_cotacaoSelecionada"
+                                        ValueChanged="TrocarCotacao"
+                                        Placeholder="Selecione a rodada"
+                                        SearchPlaceholder="Buscar cotação..."
+                                        EmptyMessage="Nenhuma." />
+                        </BbField>
+                    }
+
+                    @if (_confronto is not null)
+                    {
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Confronto
+                            </span>
+                            @if (_confronto.Fecha)
+                            {
+                                <span class="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+                                    <LucideIcon Name="circle-check" Size="15" />
+                                    Bate com a compra
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="inline-flex items-center gap-1.5 text-sm text-destructive font-medium">
+                                    <LucideIcon Name="triangle-alert" Size="15" />
+                                    @_confronto.Divergencias @(_confronto.Divergencias == 1 ? "divergência" : "divergências")
+                                </span>
+                            }
+                        </div>
+
+                        <div class="border border-border rounded-lg overflow-hidden">
+                            <table class="erp-table w-full">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th class="w-[9rem]">Qtde. nota</th>
+                                        <th class="w-[9rem]">Qtde. comprada</th>
+                                        <th class="w-[9rem]">Preço nota</th>
+                                        <th class="w-[9rem]">Preço cotado</th>
+                                        <th class="w-[9rem]">Diferença</th>
+                                        <th class="w-[11rem]">Situação</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var linha in _confronto.Linhas)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <div class="text-sm">@linha.Descricao</div>
+                                                <div class="text-xs text-muted-foreground">@linha.CodigoFornecedor</div>
+                                            </td>
+                                            <td class="text-sm tabular-nums">@linha.QuantidadeNota.ToString("0.####")</td>
+                                            <td class="text-sm tabular-nums">
+                                                @(linha.QuantidadeComprada?.ToString("0.####") ?? "—")
+                                            </td>
+                                            <td class="text-sm tabular-nums">@linha.ValorUnitarioNota.ToString("C2")</td>
+                                            <td class="text-sm tabular-nums">
+                                                @(linha.ValorUnitarioComprado?.ToString("C2") ?? "—")
+                                            </td>
+                                            <td class="text-sm tabular-nums @(linha.Diferenca > 0 ? "text-destructive font-medium" : "")">
+                                                @(linha.Diferenca?.ToString("C2") ?? "—")
+                                            </td>
+                                            <td>
+                                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs @ConfrontoVisual.Classe(linha.Situacao)">
+                                                    <LucideIcon Name="@ConfrontoVisual.Icone(linha.Situacao)" Size="12" />
+                                                    @ConfrontoVisual.Texto(linha.Situacao)
+                                                </span>
+
+                                                @* "Fora da compra" quase nunca é item a mais:
+                                                   é o código do fornecedor que a gente ainda não
+                                                   sabe traduzir. Amarrar aqui resolve esta nota e
+                                                   todas as próximas dele. *@
+                                                @if (linha.Situacao == SituacaoConfronto.ForaDaCompra
+                                                     && _fornecedor is not null)
+                                                {
+                                                    <div class="mt-1.5">
+                                                        <BbCombobox TValue="string"
+                                                                    Class="w-full"
+                                                                    Options="@_produtos"
+                                                                    Value="@Amarrado(linha.CodigoFornecedor)"
+                                                                    ValueChanged="@(id => Amarrar(linha.CodigoFornecedor, linha.Descricao, id))"
+                                                                    Placeholder="É qual produto nosso?"
+                                                                    SearchPlaceholder="Buscar produto..."
+                                                                    EmptyMessage="Nenhum produto." />
+                                                    </div>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr class="bg-muted/40">
+                                        <td colspan="5" class="text-xs uppercase tracking-wider text-muted-foreground">
+                                            Total da nota @_confronto.TotalNota.ToString("C2")
+                                            · comprado @_confronto.TotalComprado.ToString("C2")
+                                        </td>
+                                        <td class="text-sm font-medium tabular-nums @(_confronto.Diferenca > 0 ? "text-destructive" : "")">
+                                            @_confronto.Diferenca.ToString("C2")
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    }
+                </div>
+            }
+
+            <BbDialogFooter>
+                @if (_erro is not null && _nota is not null)
+                {
+                    <span class="text-sm text-destructive mr-auto">@_erro</span>
+                }
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="Fechar">
+                        <ChildContent>Fechar</ChildContent>
+                        <Icon><LucideIcon Name="x" Size="16" Color="grey" /></Icon>
+                    </BbButton>
+                    @if (_nota is not null)
+                    {
+                        <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                                  OnClick="Importar" Disabled="_importando">
+                            <ChildContent>Importar nota</ChildContent>
+                            <Icon><LucideIcon Name="circle-check" Size="16" Color="lightgreen" /></Icon>
+                        </BbButton>
+                    }
+                </ActionArea>
+            </BbDialogFooter>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+    [Parameter] public EventCallback OnImportada { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    /// <summary>Teto do arquivo. NF-e passa longe disso; o limite existe para
+    /// um upload errado não virar alocação de memória sem fim.</summary>
+    private const long TamanhoMaximo = 5 * 1024 * 1024;
+
+    private NotaFiscal? _nota;
+    private Erp.Model.Pessoa.Pessoa? _fornecedor;
+    private List<Erp.Model.Cotacao.Cotacao> _cotacoes = new();
+    private List<SelectOption<string>> _opcoesCotacao = new();
+    private string _cotacaoSelecionada = "";
+    private ResultadoConfronto? _confronto;
+
+    /// <summary>De-para em vigor: o que já estava gravado mais o que a pessoa
+    /// amarrou agora. É o dicionário que o confronto consulta.</summary>
+    private Dictionary<string, int> _dePara = new();
+
+    /// <summary>Só as amarrações feitas NESTA sessão — as que serão gravadas se
+    /// a nota for importada.</summary>
+    private Dictionary<string, (string Codigo, int ProdutoId, string Descricao)> _novasAmarracoes = new();
+
+    private List<SelectOption<string>> _produtos = new();
+
+    private bool _importando;
+    private string? _erro;
+    private bool _abertoAnterior;
+
+    protected override void OnParametersSet()
+    {
+        // Limpa ao reabrir: o diálogo vive montado, e sem isto a nota anterior
+        // reapareceria na próxima importação.
+        if (Aberto && !_abertoAnterior)
+            Limpar();
+
+        _abertoAnterior = Aberto;
+    }
+
+    private void Limpar()
+    {
+        _nota = null;
+        _fornecedor = null;
+        _cotacoes = new();
+        _opcoesCotacao = new();
+        _cotacaoSelecionada = "";
+        _confronto = null;
+        _dePara = new();
+        _novasAmarracoes = new();
+        _erro = null;
+    }
+
+    private async Task Carregar(InputFileChangeEventArgs evento)
+    {
+        _erro = null;
+
+        var arquivo = evento.File;
+
+        if (arquivo.Size > TamanhoMaximo)
+        {
+            _erro = "Arquivo maior que 5 MB. Não parece uma NF-e.";
+            return;
+        }
+
+        try
+        {
+            using var leitor = new StreamReader(arquivo.OpenReadStream(TamanhoMaximo));
+            var xml = await leitor.ReadToEndAsync();
+
+            _nota = LeitorNfe.Ler(xml);
+        }
+        catch (FormatException ex)
+        {
+            _erro = ex.Message;
+            return;
+        }
+        catch (Exception ex)
+        {
+            _erro = $"Não foi possível ler o arquivo: {ex.Message}";
+            return;
+        }
+
+        var jaImportada = await Notas.PorChave(_nota.Chave);
+
+        if (jaImportada is not null)
+        {
+            _erro = $"Esta nota já foi importada em "
+                  + $"{jaImportada.ImportadaEm.ToLocalTime():dd/MM/yyyy HH:mm}.";
+            _nota = null;
+            return;
+        }
+
+        _fornecedor = await Notas.FornecedorPorCnpj(_nota.EmitenteCnpj);
+
+        if (_fornecedor is null)
+            return;
+
+        _nota.FornecedorId = _fornecedor.Id;
+
+        // O de-para deste fornecedor entra antes do confronto: é o que faz a
+        // segunda nota dele já vir casada sem ninguém mexer.
+        _dePara = await DeParas.Mapa(_fornecedor.Id);
+        _produtos = (await Produtos.Buscar(p => p.Ativo))
+            .Select(p => new SelectOption<string>(p.Id.ToString(), $"{p.Codigo} — {p.Descricao}"))
+            .ToList();
+
+        _cotacoes = await Notas.CotacoesComVitoriaDo(_fornecedor.Id);
+
+        _opcoesCotacao = _cotacoes
+            .Select(c => new SelectOption<string>(c.Id.ToString(), $"#{c.Id} — {c.Titulo}"))
+            .ToList();
+
+        // Uma só candidata: seleciona sozinho. Fazer a pessoa escolher entre
+        // uma opção é trabalho sem decisão.
+        if (_cotacoes.Count == 1)
+            await TrocarCotacao(_cotacoes[0].Id.ToString());
+    }
+
+    /// <summary>Produto já amarrado a este código, na sessão ou no de-para
+    /// gravado. Vazio quando ninguém amarrou ainda.</summary>
+    private string Amarrado(string codigoFornecedor)
+    {
+        var chave = codigoFornecedor.Trim().ToUpperInvariant();
+
+        return _dePara.TryGetValue(chave, out var produtoId) ? produtoId.ToString() : "";
+    }
+
+    /// <summary>
+    /// Amarra um código do fornecedor a um produto nosso e refaz o confronto na
+    /// hora — a linha sai de "fora da compra" e passa a ser comparada. A
+    /// gravação definitiva acontece na importação: amarrar e desistir da nota
+    /// não deveria deixar rastro.
+    /// </summary>
+    private async Task Amarrar(string codigoFornecedor, string descricao, string produtoId)
+    {
+        if (!int.TryParse(produtoId, out var id))
+            return;
+
+        var chave = codigoFornecedor.Trim().ToUpperInvariant();
+
+        _dePara[chave] = id;
+        _novasAmarracoes[chave] = (codigoFornecedor.Trim(), id, descricao);
+
+        await Reconfrontar();
+    }
+
+    private async Task TrocarCotacao(string id)
+    {
+        _cotacaoSelecionada = id;
+        _confronto = null;
+
+        if (_nota is null || _fornecedor is null || !int.TryParse(id, out var cotacaoId))
+            return;
+
+        _nota.CotacaoId = cotacaoId;
+
+        await Reconfrontar();
+    }
+
+    private async Task Reconfrontar()
+    {
+        if (_nota is null || _fornecedor is null
+            || !int.TryParse(_cotacaoSelecionada, out var cotacaoId))
+            return;
+
+        var comprados = await Notas.ItensGanhosPeloFornecedor(cotacaoId, _fornecedor.Id);
+
+        _confronto = ConfrontoNfe.Comparar(_nota, comprados, _dePara);
+
+        // Aproveita a amarração que o confronto fez para gravar o produto em
+        // cada item da nota: é o que liga o documento fiscal ao nosso catálogo.
+        foreach (var item in _nota.Itens)
+        {
+            var linha = _confronto.Linhas.FirstOrDefault(l =>
+                string.Equals(l.CodigoFornecedor, item.CodigoFornecedor, StringComparison.OrdinalIgnoreCase));
+
+            item.ProdutoId = linha?.ProdutoId;
+        }
+    }
+
+    private async Task Importar()
+    {
+        if (_nota is null)
+            return;
+
+        _importando = true;
+        try
+        {
+            if (EstadoAutenticacao is not null
+                && Guid.TryParse((await EstadoAutenticacao).User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                                 out var id))
+                _nota.ImportadaPorId = id;
+
+            await Notas.Importar(_nota);
+
+            // Só agora as amarrações viram cadastro. Gravar antes deixaria
+            // de-para de uma nota que a pessoa acabou não importando.
+            if (_fornecedor is not null && _novasAmarracoes.Count > 0)
+                await DeParas.SalvarVarias(_fornecedor.Id, _novasAmarracoes.Values);
+
+            Toasts.Success("Nota importada",
+                           $"NF-e {_nota.Numero} de {_nota.EmitenteNome}."
+                           + (_confronto?.Fecha == false
+                               ? $" {_confronto.Divergencias} divergência(s) registradas."
+                               : ""));
+
+            await OnImportada.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+            Toasts.Error("Não foi possível importar", ex.Message);
+        }
+        finally
+        {
+            _importando = false;
+        }
+    }
+
+    private Task Fechar() => AbertoChanged.InvokeAsync(false);
+
+    // Cor, ícone e rótulo saíram daqui para ConfrontoVisual: duas telas mostram
+    // o mesmo mapa agora, e divergência com cor diferente em cada uma ensinaria
+    // o usuário a desconfiar.
+}

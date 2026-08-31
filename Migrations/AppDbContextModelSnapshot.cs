@@ -382,6 +382,198 @@ namespace Erp.Migrations
                     b.ToTable("Etapas");
                 });
 
+            modelBuilder.Entity("Erp.Model.Fiscal.NotaFiscal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Ambiente")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Chave")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("CotacaoId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DestinatarioCnpj")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("Emissao")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EmitenteCnpj")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EmitenteNome")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("FornecedorId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ImportadaEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ImportadaPorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Numero")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Protocolo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Serie")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("ValorFrete")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("ValorProdutos")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("ValorTotal")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Xml")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Chave")
+                        .IsUnique();
+
+                    b.HasIndex("CotacaoId");
+
+                    b.HasIndex("FornecedorId");
+
+                    b.ToTable("NotasFiscais");
+                });
+
+            modelBuilder.Entity("Erp.Model.Fiscal.NotaFiscalItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Cfop")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CodigoFornecedor")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Descricao")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Ncm")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("NotaFiscalId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Numero")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ProdutoId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Quantidade")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Unidade")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("ValorTotal")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("ValorUnitario")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NotaFiscalId");
+
+                    b.HasIndex("ProdutoId");
+
+                    b.ToTable("NotaFiscalItens");
+                });
+
+            modelBuilder.Entity("Erp.Model.Log.LogSistema", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Detalhes")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Dispositivo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Evento")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Identificacao")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Ip")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Mensagem")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Provedor")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("Quando")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("StackTrace")
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserAgent")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UsuarioNome")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Quando");
+
+                    b.ToTable("LogsSistema");
+                });
+
             modelBuilder.Entity("Erp.Model.Log.RegistroLog", b =>
                 {
                     b.Property<int>("Id")
@@ -427,6 +619,49 @@ namespace Erp.Migrations
                     b.HasIndex("Quando");
 
                     b.ToTable("Logs");
+                });
+
+            modelBuilder.Entity("Erp.Model.Notificacao.Notificacao", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CriadaEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DestinatarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Icone")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Lida")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LidaEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Link")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Mensagem")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinatarioId", "Lida");
+
+                    b.ToTable("Notificacoes");
                 });
 
             modelBuilder.Entity("Erp.Model.Pessoa.Pessoa", b =>
@@ -557,6 +792,44 @@ namespace Erp.Migrations
                     b.HasIndex("FornecedorPadraoId");
 
                     b.ToTable("Produtos");
+                });
+
+            modelBuilder.Entity("Erp.Model.Produto.ProdutoFornecedor", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CodigoFornecedor")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DescricaoFornecedor")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("FornecedorId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ModificadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ProdutoId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProdutoId");
+
+                    b.HasIndex("FornecedorId", "CodigoFornecedor")
+                        .IsUnique();
+
+                    b.ToTable("ProdutosFornecedor");
                 });
 
             modelBuilder.Entity("Erp.Model.Solicitacao.ItemSolicitacao", b =>
@@ -960,6 +1233,52 @@ namespace Erp.Migrations
                     b.Navigation("CotacaoItem");
                 });
 
+            modelBuilder.Entity("Erp.Model.Fiscal.NotaFiscal", b =>
+                {
+                    b.HasOne("Erp.Model.Cotacao.Cotacao", "Cotacao")
+                        .WithMany()
+                        .HasForeignKey("CotacaoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Erp.Model.Pessoa.Pessoa", "Fornecedor")
+                        .WithMany()
+                        .HasForeignKey("FornecedorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Cotacao");
+
+                    b.Navigation("Fornecedor");
+                });
+
+            modelBuilder.Entity("Erp.Model.Fiscal.NotaFiscalItem", b =>
+                {
+                    b.HasOne("Erp.Model.Fiscal.NotaFiscal", "NotaFiscal")
+                        .WithMany("Itens")
+                        .HasForeignKey("NotaFiscalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Model.Produto.Produto", "Produto")
+                        .WithMany()
+                        .HasForeignKey("ProdutoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("NotaFiscal");
+
+                    b.Navigation("Produto");
+                });
+
+            modelBuilder.Entity("Erp.Model.Notificacao.Notificacao", b =>
+                {
+                    b.HasOne("Erp.Model.Usuario.Usuario", "Destinatario")
+                        .WithMany()
+                        .HasForeignKey("DestinatarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Destinatario");
+                });
+
             modelBuilder.Entity("Erp.Model.Pessoa.Pessoa", b =>
                 {
                     b.HasOne("Erp.Model.Cidades.Cidade", "Cidade")
@@ -983,6 +1302,25 @@ namespace Erp.Migrations
                     b.Navigation("CentroCustoPadrao");
 
                     b.Navigation("FornecedorPadrao");
+                });
+
+            modelBuilder.Entity("Erp.Model.Produto.ProdutoFornecedor", b =>
+                {
+                    b.HasOne("Erp.Model.Pessoa.Pessoa", "Fornecedor")
+                        .WithMany()
+                        .HasForeignKey("FornecedorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Model.Produto.Produto", "Produto")
+                        .WithMany()
+                        .HasForeignKey("ProdutoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Fornecedor");
+
+                    b.Navigation("Produto");
                 });
 
             modelBuilder.Entity("Erp.Model.Solicitacao.ItemSolicitacao", b =>
@@ -1108,6 +1446,11 @@ namespace Erp.Migrations
             modelBuilder.Entity("Erp.Model.Cotacao.CotacaoItem", b =>
                 {
                     b.Navigation("Propostas");
+                });
+
+            modelBuilder.Entity("Erp.Model.Fiscal.NotaFiscal", b =>
+                {
+                    b.Navigation("Itens");
                 });
 
             modelBuilder.Entity("Erp.Model.Solicitacao.SolicitacaoCompra", b =>

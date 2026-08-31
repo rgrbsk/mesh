@@ -80,6 +80,17 @@ builder.Services.Scan(s => s
     .AddClasses(c => c.Where(t => t.Name.EndsWith("Repository")))
         .AsSelfWithInterfaces()
         .WithScopedLifetime());
+// Espelha os erros do ILogger na tabela de log de sistema. Registrado com o
+// IServiceProvider raiz porque o provider vive fora de qualquer escopo — ele
+// abre o seu próprio a cada gravação.
+builder.Services.AddHttpClient();
+builder.Services.Configure<Erp.Service.Log.ProvedorIpOptions>(
+    builder.Configuration.GetSection(Erp.Service.Log.ProvedorIpOptions.Secao));
+builder.Services.AddScoped<Erp.Service.Log.ProvedorIpService>();
+
+builder.Services.AddSingleton<ILoggerProvider>(sp =>
+    new Erp.Service.Log.LogSistemaLoggerProvider(sp));
+
 var app = builder.Build();
 
 // Seed de desenvolvimento: aplica migrations e cria o usuário demo.
@@ -93,6 +104,21 @@ if (app.Environment.IsDevelopment())
     {
         app.Logger.LogWarning(ex, "Seed/migrations não aplicados (Postgres acessível?).");
     }
+}
+
+// Municípios do IBGE: dado de REFERÊNCIA, não de exemplo — roda em qualquer
+// ambiente, não só em desenvolvimento. É incremental: a segunda execução não
+// insere nada.
+try
+{
+    using var escopo = app.Services.CreateScope();
+    var contexto = escopo.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    await CidadeSeeder.SeedAsync(contexto);
+}
+catch (Exception ex)
+{
+    app.Logger.LogWarning(ex, "Lista de municípios não carregada.");
 }
 
 // Configure the HTTP request pipeline.
@@ -118,27 +144,107 @@ app.UseAntiforgery();
 // Login: valida credenciais e emite o cookie na RESPOSTA HTTP (não dá pra fazer
 // isso dentro do circuito interativo — por isso a tela de login é estática e posta aqui).
 app.MapPost("/auth/login", async (
+    HttpContext http,
     [FromForm] string email,
     [FromForm] string senha,
     [FromForm] bool? lembrar,
     UserManager<Usuario> users,
-    SignInManager<Usuario> signIn) =>
+    SignInManager<Usuario> signIn,
+    Erp.Repository.Log.LogSistemaRepository logs,
+    Erp.Service.Log.ProvedorIpService provedores) =>
 {
+    // Origem da tentativa. Registrada mesmo quando o login falha — é
+    // exatamente aí que interessa saber de onde veio.
+    var origem = new
+    {
+        Ip = http.Connection.RemoteIpAddress?.ToString() ?? "",
+        Agente = http.Request.Headers.UserAgent.ToString(),
+    };
+
+    // Vem vazio enquanto a consulta externa estiver desligada, que é o padrão.
+    var provedor = await provedores.Consultar(origem.Ip);
+
     var user = await users.FindByEmailAsync(email);
+
     if (user is null)
+    {
+        // Usuário inexistente e senha errada dão a MESMA resposta ao
+        // navegador: distinguir os dois conta a quem tenta se aquele e-mail
+        // existe. A diferença fica só no log.
+        await logs.Registrar(new Erp.Model.Log.LogSistema
+        {
+            Evento = Erp.Model.Log.TipoEventoSistema.LoginFalho,
+            Mensagem = "Tentativa de login com e-mail não cadastrado.",
+            Identificacao = email,
+            Ip = origem.Ip,
+            UserAgent = origem.Agente,
+            Provedor = provedor,
+        });
+
         return Results.Redirect("/login?erro=1");
+    }
 
     var result = await signIn.PasswordSignInAsync(
         user, senha, isPersistent: lembrar ?? false, lockoutOnFailure: true);
 
-    return result.Succeeded
-        ? Results.Redirect("/home")
-        : Results.Redirect("/login?erro=1");
+    if (result.Succeeded)
+    {
+        await logs.Registrar(new Erp.Model.Log.LogSistema
+        {
+            Evento = Erp.Model.Log.TipoEventoSistema.Login,
+            Mensagem = "Login efetuado.",
+            UsuarioId = user.Id,
+            UsuarioNome = $"{user.Nome} {user.Sobrenome}".Trim(),
+            Identificacao = email,
+            Ip = origem.Ip,
+            UserAgent = origem.Agente,
+            Provedor = provedor,
+        });
+
+        return Results.Redirect("/home");
+    }
+
+    await logs.Registrar(new Erp.Model.Log.LogSistema
+    {
+        Evento = Erp.Model.Log.TipoEventoSistema.LoginFalho,
+        Mensagem = result.IsLockedOut
+            ? "Conta bloqueada por tentativas seguidas."
+            : "Senha incorreta.",
+        UsuarioId = user.Id,
+        UsuarioNome = $"{user.Nome} {user.Sobrenome}".Trim(),
+        Identificacao = email,
+        Ip = origem.Ip,
+        UserAgent = origem.Agente,
+        Provedor = provedor,
+    });
+
+    return Results.Redirect("/login?erro=1");
 });
 
-app.MapPost("/auth/logout", async (SignInManager<Usuario> signIn) =>
+app.MapPost("/auth/logout", async (
+    HttpContext http,
+    SignInManager<Usuario> signIn,
+    UserManager<Usuario> users,
+    Erp.Repository.Log.LogSistemaRepository logs) =>
 {
+    // Lê quem é ANTES de encerrar a sessão: depois do SignOutAsync o principal
+    // já não identifica ninguém.
+    var user = await users.GetUserAsync(http.User);
+
+    if (user is not null)
+        await logs.Registrar(new Erp.Model.Log.LogSistema
+        {
+            Evento = Erp.Model.Log.TipoEventoSistema.Logout,
+            Mensagem = "Sessão encerrada.",
+            UsuarioId = user.Id,
+            UsuarioNome = $"{user.Nome} {user.Sobrenome}".Trim(),
+            Identificacao = user.Email ?? "",
+            Ip = http.Connection.RemoteIpAddress?.ToString() ?? "",
+            UserAgent = http.Request.Headers.UserAgent.ToString(),
+        });
+
     await signIn.SignOutAsync();
+
     return Results.Redirect("/login");
 });
 app.MapStaticAssets();

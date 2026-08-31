@@ -60,18 +60,93 @@ namespace Erp.Service.Email
         /// em spam — e o que importa é o link.
         /// </summary>
         public Task<bool> EnviarConviteCotacao(
-            string destinatario, string tituloCotacao, string link, DateTime prazo)
+            string destinatario,
+            int numeroCotacao,
+            string tituloCotacao,
+            string link,
+            DateTime prazo,
+            Comprador comprador)
         {
-            var assunto = $"Cotação: {tituloCotacao}";
+            // O número no assunto é o que o fornecedor cita ao responder por
+            // telefone ou e-mail — e o que ele procura na caixa depois.
+            var assunto = $"Cotação #{numeroCotacao} — {tituloCotacao}";
 
             var corpo =
                 $"""
                  <p>Olá,</p>
-                 <p>Você foi convidado a enviar uma proposta para <strong>{WebUtility.HtmlEncode(tituloCotacao)}</strong>.</p>
-                 <p><a href="{link}">Abrir o formulário da cotação</a></p>
+                 <p>{Apresentacao(comprador)} está cotando <strong>{WebUtility.HtmlEncode(tituloCotacao)}</strong>
+                 e convidou sua empresa a enviar uma proposta.</p>
+                 <p><a href="{link}">Abrir o formulário da cotação #{numeroCotacao}</a></p>
                  <p>O link é pessoal e vale até <strong>{prazo:dd/MM/yyyy}</strong>.
                  Não é preciso criar conta nem senha.</p>
-                 <p>—<br/>{WebUtility.HtmlEncode(_opcoes.NomeRemetente)}</p>
+                 {Assinatura(comprador, numeroCotacao)}
+                 """;
+
+            return Enviar(destinatario, assunto, corpo);
+        }
+
+        /// <summary>
+        /// Quem está comprando. Vai em todo e-mail: fornecedor recebe cotação de
+        /// muita gente, e mensagem sem remetente identificado ou é ignorada ou
+        /// vira suspeita de golpe — ainda mais uma que pede para clicar num link.
+        /// </summary>
+        public sealed record Comprador(string Empresa, string Cnpj, string Contato, string EmailContato);
+
+        private static string Apresentacao(Comprador comprador) =>
+            string.IsNullOrWhiteSpace(comprador.Empresa)
+                ? "Uma empresa"
+                : $"<strong>{WebUtility.HtmlEncode(comprador.Empresa)}</strong>";
+
+        /// <summary>Rodapé com quem procurar e a referência da rodada. É o que
+        /// o fornecedor usa para responder fora do sistema.</summary>
+        private static string Assinatura(Comprador comprador, int numeroCotacao)
+        {
+            var linhas = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(comprador.Empresa))
+                linhas.Add($"<strong>{WebUtility.HtmlEncode(comprador.Empresa)}</strong>");
+
+            if (!string.IsNullOrWhiteSpace(comprador.Cnpj))
+                linhas.Add($"CNPJ {WebUtility.HtmlEncode(comprador.Cnpj)}");
+
+            if (!string.IsNullOrWhiteSpace(comprador.Contato))
+                linhas.Add($"Responsável: {WebUtility.HtmlEncode(comprador.Contato)}"
+                         + (string.IsNullOrWhiteSpace(comprador.EmailContato)
+                             ? ""
+                             : $" — {WebUtility.HtmlEncode(comprador.EmailContato)}"));
+
+            linhas.Add($"Referência: cotação #{numeroCotacao}");
+
+            return $"<p>—<br/>{string.Join("<br/>", linhas)}</p>";
+        }
+
+        /// <summary>
+        /// Avisa o fornecedor de que ele venceu e que o link dele reabriu para o
+        /// envio da nota. É o mesmo endereço da cotação: o token não muda, muda
+        /// a fase.
+        /// </summary>
+        public Task<bool> EnviarAvisoDeVitoria(
+            string destinatario,
+            int numeroCotacao,
+            string tituloCotacao,
+            string link,
+            DateTime prazo,
+            Comprador comprador)
+        {
+            var assunto = $"Você venceu a cotação #{numeroCotacao} — {tituloCotacao}";
+
+            var corpo =
+                $"""
+                 <p>Olá,</p>
+                 <p>Sua proposta para <strong>{WebUtility.HtmlEncode(tituloCotacao)}</strong>
+                 (cotação #{numeroCotacao}) foi a escolhida por {Apresentacao(comprador)}.</p>
+                 <p><a href="{link}">Ver o que você fornece e enviar a nota fiscal</a></p>
+                 <p>É o mesmo link que você usou para cotar. Lá estão os itens, quantidades e preços
+                 da sua proposta, e o campo para anexar o XML da NF-e.</p>
+                 <p>A nota precisa ser emitida contra o CNPJ acima, e com o CNPJ da sua empresa como
+                 emitente — é assim que o sistema confere.</p>
+                 <p>Prazo para o envio da nota: <strong>{prazo:dd/MM/yyyy}</strong>.</p>
+                 {Assinatura(comprador, numeroCotacao)}
                  """;
 
             return Enviar(destinatario, assunto, corpo);

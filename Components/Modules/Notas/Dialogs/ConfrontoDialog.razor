@@ -1,0 +1,185 @@
+@using Erp.Model.Fiscal
+@using Erp.Repository.Fiscal
+@using Erp.Service.Fiscal
+@inject NotaFiscalRepository Notas
+
+@* Confronto de uma nota JÁ recebida — inclusive as que o fornecedor mandou
+   sozinho pelo link, que antes entravam sem ninguém comparar com a compra. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[72rem] max-w-none h-[88vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="scale" Size="20" />
+                <BbDialogTitle>
+                    Conferência@(_nota is null ? "" : $" — NF-e {_nota.Numero}")
+                </BbDialogTitle>
+                @if (_confronto is not null)
+                {
+                    @if (_confronto.Fecha)
+                    {
+                        <span class="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 ml-2">
+                            <LucideIcon Name="circle-check" Size="15" />
+                            Bate com a compra
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="inline-flex items-center gap-1.5 text-sm text-destructive font-medium ml-2">
+                            <LucideIcon Name="triangle-alert" Size="15" />
+                            @_confronto.Divergencias @(_confronto.Divergencias == 1 ? "divergência" : "divergências")
+                        </span>
+                    }
+                }
+            </div>
+
+            @if (_carregando)
+            {
+                <p class="text-sm text-muted-foreground">Carregando…</p>
+            }
+            else if (_nota is null)
+            {
+                <p class="text-sm text-muted-foreground">Nota não encontrada.</p>
+            }
+            else if (_confronto is null)
+            {
+                @* Sem cotação ou sem fornecedor não há contra o que comparar —
+                   é o caso da nota importada solta. *@
+                <BbEmpty Title="Não há com o que confrontar"
+                         Description="Esta nota não está vinculada a uma cotação com itens vencidos por este fornecedor."
+                         Class="py-16">
+                    <Icon><LucideIcon Name="unlink" Size="40" Class="text-muted-foreground" /></Icon>
+                </BbEmpty>
+            }
+            else
+            {
+                <div class="grid gap-3 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Emitente</p>
+                        <p class="text-sm">@_nota.EmitenteNome</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Cotação</p>
+                        <p class="text-sm tabular-nums">#@_nota.CotacaoId</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Recebida em</p>
+                        <p class="text-sm tabular-nums">
+                            @_nota.ImportadaEm.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Origem</p>
+                        <p class="text-sm">
+                            @(_nota.ImportadaPorId is null ? "Enviada pelo fornecedor" : "Importada internamente")
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex-1 min-h-0 overflow-auto border border-border rounded-lg">
+                    <table class="erp-table w-full">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th class="w-[8rem]">Qtde. nota</th>
+                                <th class="w-[8rem]">Qtde. comprada</th>
+                                <th class="w-[9rem]">Preço nota</th>
+                                <th class="w-[9rem]">Preço cotado</th>
+                                <th class="w-[9rem]">Diferença</th>
+                                <th class="w-[11rem]">Situação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var linha in _confronto.Linhas)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="text-sm">@linha.Descricao</div>
+                                        <div class="text-xs text-muted-foreground">@linha.CodigoFornecedor</div>
+                                    </td>
+                                    <td class="text-sm tabular-nums">@linha.QuantidadeNota.ToString("0.####")</td>
+                                    <td class="text-sm tabular-nums">
+                                        @(linha.QuantidadeComprada?.ToString("0.####") ?? "—")
+                                    </td>
+                                    <td class="text-sm tabular-nums">@linha.ValorUnitarioNota.ToString("C2")</td>
+                                    <td class="text-sm tabular-nums">
+                                        @(linha.ValorUnitarioComprado?.ToString("C2") ?? "—")
+                                    </td>
+                                    <td class="text-sm tabular-nums @(linha.Diferenca > 0 ? "text-destructive font-medium" : "")">
+                                        @(linha.Diferenca?.ToString("C2") ?? "—")
+                                    </td>
+                                    <td>
+                                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs @ConfrontoVisual.Classe(linha.Situacao)">
+                                            <LucideIcon Name="@ConfrontoVisual.Icone(linha.Situacao)" Size="12" />
+                                            @ConfrontoVisual.Texto(linha.Situacao)
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-muted/40">
+                                <td colspan="5" class="text-xs uppercase tracking-wider text-muted-foreground">
+                                    Nota @_confronto.TotalNota.ToString("C2")
+                                    · comprado @_confronto.TotalComprado.ToString("C2")
+                                </td>
+                                <td class="text-sm font-medium tabular-nums @(_confronto.Diferenca > 0 ? "text-destructive" : "")">
+                                    @_confronto.Diferenca.ToString("C2")
+                                </td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <p class="text-xs text-muted-foreground">
+                    Recalculado agora, contra a compra e o de-para atuais — amarrar um código
+                    novo em De-para muda este resultado na próxima abertura.
+                </p>
+            }
+
+            <BbDialogFooter>
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                              OnClick="() => AbertoChanged.InvokeAsync(false)">
+                        <ChildContent>Fechar</ChildContent>
+                        <Icon><LucideIcon Name="x" Size="16" Color="grey" /></Icon>
+                    </BbButton>
+                </ActionArea>
+            </BbDialogFooter>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+
+    /// <summary>Nota a conferir.</summary>
+    [Parameter] public int NotaId { get; set; }
+
+    private NotaFiscal? _nota;
+    private ResultadoConfronto? _confronto;
+    private bool _carregando = true;
+    private bool _abertoAnterior;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Aberto && !_abertoAnterior)
+            await Carregar();
+
+        _abertoAnterior = Aberto;
+    }
+
+    private async Task Carregar()
+    {
+        _carregando = true;
+
+        _nota = await Notas.ObterPorId(NotaId);
+        _confronto = await Notas.Confrontar(NotaId);
+
+        _carregando = false;
+    }
+}

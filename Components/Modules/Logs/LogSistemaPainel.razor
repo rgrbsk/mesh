@@ -1,0 +1,225 @@
+@using Erp.Model.Log
+@using Erp.Repository.Log
+@using BlazorBlueprint.Primitives.Filtering
+@inject LogSistemaRepository LogsSistema
+
+@* Log técnico: acessos, IPs e exceções. Separado do log de negócio porque o
+   dado aqui é sensível de operação, com permissão própria. *@
+
+@if (!PodeVer)
+{
+    <BbEmpty Title="Sem acesso aos logs de sistema"
+             Description="Acessos, IPs e exceções exigem a permissão logs.sistema."
+             Class="py-16">
+        <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
+    </BbEmpty>
+}
+else
+{
+    <div class="grid gap-4 mb-5 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+        <StatCard Label="Eventos carregados" Value="@_registros.Count.ToString()" />
+        <StatCard Label="Logins falhos" Value="@_falhos.ToString()" />
+        <StatCard Label="Exceções" Value="@_excecoes.ToString()" />
+        <StatCard Label="IPs distintos" Value="@_ips.ToString()" />
+    </div>
+
+    @if (_painelFiltros)
+    {
+        <div class="mb-4 p-4 rounded-lg border border-border bg-card">
+            <BbFilterBuilder Fields="_campos"
+                             @bind-Filter="_filtro"
+                             OnFilterChanged="Recarregar"
+                             ApplyButtonText="Aplicar filtros"
+                             ClearButtonText="Limpar" />
+        </div>
+    }
+
+    <div class="mb-3 flex items-center gap-2">
+        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
+                  OnClick="() => _painelFiltros = !_painelFiltros" IconPosition="IconPosition.Start">
+            <ChildContent>Filtros@(_condicoes > 0 ? $" ({_condicoes})" : "")</ChildContent>
+            <Icon><LucideIcon Name="funnel" Size="14" /></Icon>
+        </BbButton>
+        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
+                  OnClick="Recarregar" IconPosition="IconPosition.Start">
+            <ChildContent>Atualizar</ChildContent>
+            <Icon><LucideIcon Name="refresh-cw" Size="14" /></Icon>
+        </BbButton>
+    </div>
+
+    <div class="flex-1 min-h-0">
+        <BbDataGrid TData="LogSistema"
+                    Items="@_registros"
+                    IsLoading="_carregando"
+                    Striped
+                    StripeClass="bg-muted/40"
+                    StickyHeader
+                    ShowSearch="false"
+                    ShowPagination
+                    InitialPageSize="50"
+                    Resizable>
+            <Columns>
+                <BbDataGridTemplateColumn Title="Data" Width="150px" NoWrap>
+                    <div class="text-sm tabular-nums">@context.Quando.ToLocalTime().ToString("dd/MM/yyyy")</div>
+                    <div class="text-xs text-muted-foreground tabular-nums">
+                        @context.Quando.ToLocalTime().ToString("HH:mm:ss")
+                    </div>
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn Title="Evento" Width="150px" NoWrap>
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs @EventoVisual.Classe(context.Evento)">
+                        <LucideIcon Name="@EventoVisual.Icone(context.Evento)" Size="12" />
+                        @EventoVisual.Texto(context.Evento)
+                    </span>
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn Title="Usuário" Width="190px" NoWrap>
+                    @if (!string.IsNullOrWhiteSpace(context.UsuarioNome))
+                    {
+                        <div class="text-sm">@context.UsuarioNome</div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(context.Identificacao))
+                    {
+                        @* Em login falho de e-mail inexistente é a única
+                           identificação que existe — e não corresponde a conta
+                           nenhuma. *@
+                        <div class="text-xs text-muted-foreground truncate">@context.Identificacao</div>
+                    }
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridPropertyColumn Property="@(l => l.Mensagem)" Title="Mensagem" />
+
+                <BbDataGridTemplateColumn Title="Origem" Width="220px" NoWrap>
+                    <div class="text-sm tabular-nums">@(string.IsNullOrWhiteSpace(context.Ip) ? "—" : context.Ip)</div>
+                    <div class="text-xs text-muted-foreground truncate">
+                        @(string.IsNullOrWhiteSpace(context.Provedor)
+                            ? context.Dispositivo
+                            : $"{context.Provedor} · {context.Dispositivo}")
+                    </div>
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn Title="" Width="80px" NoWrap>
+                    @if (context.TemStackTrace)
+                    {
+                        @if (PodeVerStackTrace)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => Abrir(context)">
+                                <LucideIcon Name="bug" Size="15" />
+                            </BbButton>
+                        }
+                        else
+                        {
+                            <BbTooltip>
+                                <BbTooltipTrigger AsChild="false" Class="inline-flex text-muted-foreground/50">
+                                    <LucideIcon Name="bug-off" Size="15" />
+                                </BbTooltipTrigger>
+                                <BbTooltipContent>Exige a permissão logs.stacktrace</BbTooltipContent>
+                            </BbTooltip>
+                        }
+                    }
+                </BbDataGridTemplateColumn>
+            </Columns>
+
+            <EmptyTemplate>
+                <BbEmpty Title="Nenhum evento"
+                         Description="Logins, falhas de acesso e exceções aparecem aqui."
+                         Class="py-10">
+                    <Icon><LucideIcon Name="shield" Size="40" Class="text-muted-foreground" /></Icon>
+                </BbEmpty>
+            </EmptyTemplate>
+        </BbDataGrid>
+    </div>
+}
+
+<BbDialog @bind-Open="_dialogAberto">
+    <BbDialogContent Class="w-[64rem] max-w-none h-[80vh] p-6">
+        <div class="flex flex-col h-full gap-4 min-h-0">
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="bug" Size="20" />
+                <BbDialogTitle>Rastreamento da exceção</BbDialogTitle>
+            </div>
+
+            <div>
+                <p class="text-sm">@_aberto?.Mensagem</p>
+                <p class="text-xs text-muted-foreground mt-1">
+                    @_aberto?.Quando.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
+                    @if (!string.IsNullOrWhiteSpace(_aberto?.Ip))
+                    {
+                        <span> · @_aberto.Ip</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_aberto?.Detalhes))
+                    {
+                        <span> · @_aberto.Detalhes</span>
+                    }
+                </p>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-auto rounded-lg border border-border bg-muted/40 p-3">
+                <pre class="text-xs whitespace-pre-wrap break-words">@_aberto?.StackTrace</pre>
+            </div>
+
+            <div class="flex items-center justify-end">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogAberto = false">Fechar</BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool PodeVer { get; set; }
+    [Parameter] public bool PodeVerStackTrace { get; set; }
+
+    private List<LogSistema> _registros = new();
+    private bool _carregando = true;
+    private bool _painelFiltros;
+
+    private FilterDefinition _filtro = new();
+    private int _condicoes => _filtro?.TotalConditionCount ?? 0;
+
+    private int _falhos => _registros.Count(l => l.Evento == TipoEventoSistema.LoginFalho);
+    private int _excecoes => _registros.Count(l => l.Evento == TipoEventoSistema.Excecao);
+    private int _ips => _registros.Where(l => !string.IsNullOrWhiteSpace(l.Ip))
+                                  .Select(l => l.Ip).Distinct().Count();
+
+    private bool _dialogAberto;
+    private LogSistema? _aberto;
+
+    private readonly List<FilterField> _campos = new()
+    {
+        new FilterField { Name = nameof(LogSistema.Quando),        Label = "Data",     Type = FilterFieldType.Date },
+        new FilterField { Name = nameof(LogSistema.UsuarioNome),   Label = "Usuário",  Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(LogSistema.Identificacao), Label = "E-mail",   Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(LogSistema.Ip),            Label = "IP",       Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(LogSistema.Mensagem),      Label = "Mensagem", Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(LogSistema.Evento),        Label = "Evento",   Type = FilterFieldType.Enum,
+                          Options = Enum.GetValues<TipoEventoSistema>()
+                                        .Select(e => new SelectOption<string>(e.ToString(), EventoVisual.Texto(e)))
+                                        .ToList() },
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (PodeVer)
+            await Recarregar();
+
+        _carregando = false;
+    }
+
+    private async Task Recarregar()
+    {
+        _carregando = true;
+        _registros = await LogsSistema.Buscar(_filtro.ToExpression<LogSistema>(_campos));
+        _carregando = false;
+    }
+
+    private void Abrir(LogSistema registro)
+    {
+        if (!PodeVerStackTrace)
+            return;
+
+        _aberto = registro;
+        _dialogAberto = true;
+    }
+}

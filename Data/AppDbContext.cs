@@ -42,7 +42,17 @@ namespace Erp.Data
 
         public DbSet<Erp.Model.Cotacao.PropostaItem> Propostas => Set<Erp.Model.Cotacao.PropostaItem>();
 
+        public DbSet<Erp.Model.Produto.ProdutoFornecedor> ProdutosFornecedor => Set<Erp.Model.Produto.ProdutoFornecedor>();
+
+        public DbSet<Erp.Model.Fiscal.NotaFiscal> NotasFiscais => Set<Erp.Model.Fiscal.NotaFiscal>();
+
+        public DbSet<Erp.Model.Fiscal.NotaFiscalItem> NotaFiscalItens => Set<Erp.Model.Fiscal.NotaFiscalItem>();
+
         public DbSet<Erp.Model.Log.RegistroLog> Logs => Set<Erp.Model.Log.RegistroLog>();
+
+        public DbSet<Erp.Model.Log.LogSistema> LogsSistema => Set<Erp.Model.Log.LogSistema>();
+
+        public DbSet<Erp.Model.Notificacao.Notificacao> Notificacoes => Set<Erp.Model.Notificacao.Notificacao>();
 
 
         protected override void OnModelCreating(ModelBuilder mb)
@@ -197,7 +207,77 @@ namespace Erp.Data
             mb.Entity<Erp.Model.Cotacao.Cotacao>().Ignore(c => c.Respostas);
             mb.Entity<Erp.Model.Cotacao.PropostaItem>().Ignore(p => p.Total);
             mb.Entity<Erp.Model.Cotacao.ConviteFornecedor>().Ignore(c => c.Identificacao);
+            // Um código por fornecedor: o mesmo cProd não pode apontar para dois
+            // produtos nossos, senão o confronto não saberia qual usar.
+            mb.Entity<Erp.Model.Produto.ProdutoFornecedor>()
+              .HasIndex(d => new { d.FornecedorId, d.CodigoFornecedor })
+              .IsUnique();
+
+            mb.Entity<Erp.Model.Produto.ProdutoFornecedor>()
+              .HasOne(d => d.Fornecedor)
+              .WithMany()
+              .HasForeignKey(d => d.FornecedorId)
+              .OnDelete(DeleteBehavior.Cascade);
+
+            // Produto é referência: apagar um produto não pode ser bloqueado
+            // por um de-para, mas também não pode apagar o histórico — aqui
+            // Cascade é o certo porque a linha SÓ existe para ligar os dois.
+            mb.Entity<Erp.Model.Produto.ProdutoFornecedor>()
+              .HasOne(d => d.Produto)
+              .WithMany()
+              .HasForeignKey(d => d.ProdutoId)
+              .OnDelete(DeleteBehavior.Cascade);
+
+            // Chave de acesso é a identidade nacional da nota: única, para o
+            // mesmo arquivo não entrar duas vezes e dobrar uma compra.
+            mb.Entity<Erp.Model.Fiscal.NotaFiscal>()
+              .HasIndex(n => n.Chave)
+              .IsUnique();
+
+            mb.Entity<Erp.Model.Fiscal.NotaFiscalItem>()
+              .HasOne(i => i.NotaFiscal)
+              .WithMany(n => n.Itens)
+              .HasForeignKey(i => i.NotaFiscalId)
+              .OnDelete(DeleteBehavior.Cascade);
+
+            // Fornecedor, cotação e produto são referência: apagar qualquer um
+            // deles não pode levar junto o documento fiscal.
+            mb.Entity<Erp.Model.Fiscal.NotaFiscal>()
+              .HasOne(n => n.Fornecedor)
+              .WithMany()
+              .HasForeignKey(n => n.FornecedorId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Erp.Model.Fiscal.NotaFiscal>()
+              .HasOne(n => n.Cotacao)
+              .WithMany()
+              .HasForeignKey(n => n.CotacaoId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Erp.Model.Fiscal.NotaFiscalItem>()
+              .HasOne(i => i.Produto)
+              .WithMany()
+              .HasForeignKey(i => i.ProdutoId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+            mb.Entity<Erp.Model.Fiscal.NotaFiscal>().Ignore(n => n.EhHomologacao);
             mb.Entity<Erp.Model.Log.RegistroLog>().Ignore(l => l.TemStackTrace);
+            mb.Entity<Erp.Model.Log.LogSistema>().Ignore(l => l.TemStackTrace);
+
+            mb.Entity<Erp.Model.Log.LogSistema>().HasIndex(l => l.Quando);
+
+            // O sino consulta "não lidas deste usuário" a cada carga de página:
+            // sem este índice é varredura de tabela em algo que roda o tempo todo.
+            mb.Entity<Erp.Model.Notificacao.Notificacao>()
+              .HasIndex(n => new { n.DestinatarioId, n.Lida });
+
+            // Notificação é dirigida: sem o dono, ela não tem sentido — mas
+            // apagar o usuário não pode falhar por causa de avisos antigos.
+            mb.Entity<Erp.Model.Notificacao.Notificacao>()
+              .HasOne(n => n.Destinatario)
+              .WithMany()
+              .HasForeignKey(n => n.DestinatarioId)
+              .OnDelete(DeleteBehavior.Cascade);
 
             // Toda consulta da tela de logs ordena e filtra por data.
             mb.Entity<Erp.Model.Log.RegistroLog>().HasIndex(l => l.Quando);

@@ -4,9 +4,8 @@
     {
       "name": "mesh",
       "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "Erp.csproj", "--launch-profile", "https"],
-      "port": 7010,
-      "url": "https://localhost:7010"
+      "runtimeArgs": ["run", "--project", "Erp.csproj", "--launch-profile", "http"],
+      "port": 5071
     }
   ]
 }

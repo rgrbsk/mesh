@@ -9,12 +9,12 @@ using Erp.Components.Modules.Produtos;
 using Erp.Components.Modules.Usuarios;
 using Erp.Components.Modules.Financeiro;
 using Erp.Components.Modules.Relatorios;
-using Erp.Components.Modules.Configuracoes;
 using Erp.Components.Modules.Kanban;
 using Erp.Components.Modules.Adicionais;
 using Erp.Components.Modules.Cotacoes;
 using Erp.Components.Modules.Aprovacoes;
 using Erp.Components.Modules.Logs;
+using Erp.Components.Modules.Notas;
 
 namespace Erp.Components.Shell;
 
@@ -43,6 +43,7 @@ public static class Modulos
         new("kanban",      "Kanban",             "kanban",                 "Comercial", Permissoes.ComprasVer,     typeof(KanbanModule), "#00CED1", ForaDasAbas: true),
         new("cotacoes",    "Cotações",           "mail",                   "Comercial", Permissoes.CotacoesGerir,  typeof(CotacoesModule), "#FF7F50", ForaDasAbas: true),
         new("aprovacoes",  "Aprovações",         "circle-check",           "Comercial", Permissoes.ComprasAprovar, typeof(AprovacoesModule), "#7CFC00"),
+        new("notas",       "Notas Fiscais",      "file-check-2",           "Comercial", Permissoes.NotasGerir,     typeof(NotasModule), "#FFB347"),
         new("pessoas","Pessoas",       "users",                  "Comercial", Permissoes.FornecedorVer,  typeof(PessoasModule), "#ADFF2F"),
         new("centrosdecusto",  "Centros de Custo",         "currency",                 "Gestão",    Permissoes.CentrosCustoGerir, typeof(FinanceiroModule), "#4F7942"),
         new("produtos",    "Produtos",           "package",                "Operações", Permissoes.ProdutosVer,    typeof(ProdutosModule), "#E4A0F7"),
