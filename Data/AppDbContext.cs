@@ -54,6 +54,27 @@ namespace Erp.Data
 
         public DbSet<Erp.Model.Notificacao.Notificacao> Notificacoes => Set<Erp.Model.Notificacao.Notificacao>();
 
+        public DbSet<Erp.Model.Compra.OrdemCompra> OrdensCompra => Set<Erp.Model.Compra.OrdemCompra>();
+
+        public DbSet<Erp.Model.Compra.ItemOrdemCompra> ItensOrdemCompra => Set<Erp.Model.Compra.ItemOrdemCompra>();
+
+        public DbSet<Erp.Model.Recebimento.Recebimento> Recebimentos => Set<Erp.Model.Recebimento.Recebimento>();
+
+        public DbSet<Erp.Model.Recebimento.ItemRecebimento> ItensRecebimento => Set<Erp.Model.Recebimento.ItemRecebimento>();
+
+        public DbSet<Erp.Model.Orcamento.Orcamento> Orcamentos => Set<Erp.Model.Orcamento.Orcamento>();
+
+        public DbSet<Erp.Model.Aprovacao.AlcadaAprovacao> Alcadas => Set<Erp.Model.Aprovacao.AlcadaAprovacao>();
+
+        public DbSet<Erp.Model.Aprovacao.DelegacaoAprovacao> Delegacoes => Set<Erp.Model.Aprovacao.DelegacaoAprovacao>();
+
+        public DbSet<Erp.Model.Aprovacao.AprovacaoItem> AprovacoesItem => Set<Erp.Model.Aprovacao.AprovacaoItem>();
+
+        public DbSet<Erp.Model.Financeiro.TituloPagar> TitulosPagar => Set<Erp.Model.Financeiro.TituloPagar>();
+
+        public DbSet<Erp.Model.Financeiro.BaixaTitulo> BaixasTitulo => Set<Erp.Model.Financeiro.BaixaTitulo>();
+
+
 
         protected override void OnModelCreating(ModelBuilder mb)
         {
@@ -281,6 +302,11 @@ namespace Erp.Data
 
             // Toda consulta da tela de logs ordena e filtra por data.
             mb.Entity<Erp.Model.Log.RegistroLog>().HasIndex(l => l.Quando);
+
+            // Mapeamento dos módulos de ordem de compra, recebimento, orçamento,
+            // alçada e contas a pagar. Fica ANTES do conversor de UTC abaixo para
+            // que as entidades novas também passem por ele.
+            MapeamentoNovosModulos.Configurar(mb);
 
             // Automatically treats Unspecified DateTimes as UTC when saving or reading
             foreach (var entityType in mb.Model.GetEntityTypes())

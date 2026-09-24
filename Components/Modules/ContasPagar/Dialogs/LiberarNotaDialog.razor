@@ -1,0 +1,284 @@
+@using Erp.Model.Fiscal
+@using Erp.Service.Compra
+@using Erp.Repository.Compra
+@using Erp.Repository.Fiscal
+@using Erp.Repository.Financeiro
+@using Erp.Repository.Recebimento
+@using Erp.Repository.Produto
+@inject NotaFiscalRepository Notas
+@inject OrdemCompraRepository Ordens
+@inject RecebimentoRepository Recebimentos
+@inject ProdutoFornecedorRepository DePara
+@inject TituloPagarRepository Titulos
+@inject ToastService Toasts
+
+@* A porta entre a compra e o financeiro.
+   O confronto de TRÊS vias roda aqui: pedido, recebimento e nota lado a lado.
+   Liberar com divergência é possível — há divergência que o comprador aceita —
+   mas exige justificativa. É a diferença entre decidir e ignorar. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[64rem] max-w-none h-[88vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="file-check-2" Size="20" />
+                <BbDialogTitle>Conferir e liberar · Nota @(_nota?.Numero ?? "")</BbDialogTitle>
+            </div>
+
+            @if (_carregando)
+            {
+                <div class="flex-1 flex items-center justify-center"><BbSpinner /></div>
+            }
+            else if (_nota is null)
+            {
+                <BbEmpty Title="Nota não encontrada" Class="py-10">
+                    <Icon><LucideIcon Name="file-x" Size="40" Class="text-muted-foreground" /></Icon>
+                </BbEmpty>
+            }
+            else if (_resultado is null)
+            {
+                <BbAlert Variant="AlertVariant.Destructive">
+                    <BbAlertTitle>Sem pedido para conferir</BbAlertTitle>
+                    <BbAlertDescription>
+                        Esta nota não está amarrada a uma ordem de compra, então não há três vias
+                        para confrontar. Amarre o pedido na tela de notas fiscais antes de liberar.
+                    </BbAlertDescription>
+                </BbAlert>
+            }
+            else
+            {
+                <div class="grid gap-3 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
+                    <StatCard Label="Total do pedido" Value="@_resultado.TotalPedido.ToString("C2")" />
+                    <StatCard Label="Total recebido" Value="@_resultado.TotalRecebido.ToString("C2")" />
+                    <StatCard Label="Total da nota" Value="@_resultado.TotalNota.ToString("C2")" />
+                    <StatCard Label="Divergências" Value="@_resultado.Divergencias.ToString()" />
+                </div>
+
+                <div class="flex-1 min-h-0 overflow-y-auto rounded-lg border border-border">
+                    <table class="w-full text-sm">
+                        <thead class="bg-muted/60 sticky top-0">
+                            <tr class="text-left">
+                                <th class="px-3 py-2 font-medium">Item</th>
+                                <th class="px-3 py-2 font-medium w-20 text-right">Pedido</th>
+                                <th class="px-3 py-2 font-medium w-20 text-right">Recebido</th>
+                                <th class="px-3 py-2 font-medium w-20 text-right">Nota</th>
+                                <th class="px-3 py-2 font-medium w-24 text-right">Unit. nota</th>
+                                <th class="px-3 py-2 font-medium w-24 text-right">Diferença</th>
+                                <th class="px-3 py-2 font-medium w-56">Situação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var linha in _resultado.Linhas)
+                            {
+                                <tr class="border-t border-border @(linha.Bloqueante ? "bg-destructive/5" : "")">
+                                    <td class="px-3 py-2">
+                                        <div class="font-medium">@linha.Descricao</div>
+                                        @if (!string.IsNullOrWhiteSpace(linha.CodigoFornecedor))
+                                        {
+                                            <div class="text-xs text-muted-foreground">
+                                                cód. fornecedor @linha.CodigoFornecedor
+                                            </div>
+                                        }
+                                    </td>
+                                    <td class="px-3 py-2 text-right tabular-nums">@(linha.QuantidadePedida?.ToString("N2") ?? "—")</td>
+                                    <td class="px-3 py-2 text-right tabular-nums">@(linha.QuantidadeRecebida?.ToString("N2") ?? "—")</td>
+                                    <td class="px-3 py-2 text-right tabular-nums">@linha.QuantidadeNota.ToString("N2")</td>
+                                    <td class="px-3 py-2 text-right tabular-nums">@linha.ValorUnitarioNota.ToString("C2")</td>
+                                    <td class="px-3 py-2 text-right tabular-nums @(linha.Diferenca > 0 ? "text-destructive" : "")">
+                                        @(linha.Diferenca?.ToString("C2") ?? "—")
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <div class="flex items-center gap-1.5">
+                                            <LucideIcon Name="@Icone(linha.Situacao)" Size="14"
+                                                        Class="@(linha.Bloqueante ? "text-destructive" : linha.Divergente ? "text-amber-600" : "text-emerald-600")" />
+                                            <span class="text-xs @(linha.Bloqueante ? "text-destructive font-medium" : "text-muted-foreground")">
+                                                @Texto(linha.Situacao)
+                                            </span>
+                                            @if (linha.ComAvaria)
+                                            {
+                                                <BbBadge Variant="BadgeVariant.Destructive">avaria</BbBadge>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (!_resultado.LiberaSemRessalva)
+                {
+                    <BbAlert Variant="AlertVariant.Destructive">
+                        <BbAlertTitle>@_resultado.Bloqueios divergência(s) que impedem o pagamento</BbAlertTitle>
+                        <BbAlertDescription>
+                            Liberar assim mesmo exige justificativa, que fica registrada no histórico.
+                        </BbAlertDescription>
+                    </BbAlert>
+
+                    <BbField>
+                        <BbFieldLabel>Justificativa da liberação</BbFieldLabel>
+                        <BbInput @bind-Value="_motivo"
+                                 Placeholder="Acordo com o fornecedor: saldo será entregue na próxima remessa" />
+                    </BbField>
+                }
+
+                <BbSeparator />
+
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-sm text-muted-foreground">
+                        @if (_resultado.Fecha)
+                        {
+                            <span class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-500 font-medium">
+                                <LucideIcon Name="circle-check" Size="15" />
+                                Confronto fechado.
+                            </span>
+                        }
+                        else
+                        {
+                            <span>Diferença total: <strong class="text-foreground tabular-nums">@_resultado.Diferenca.ToString("C2")</strong></span>
+                        }
+                    </span>
+
+                    <ActionArea>
+                        <BbButton Variant="ButtonVariant.Outline" OnClick="Fechar">Fechar</BbButton>
+                        <BbButton OnClick="Liberar" Disabled="_salvando" IconPosition="IconPosition.Start">
+                            <ChildContent>Liberar e gerar título</ChildContent>
+                            <Icon><LucideIcon Name="circle-check" Size="16" /></Icon>
+                        </BbButton>
+                    </ActionArea>
+                </div>
+            }
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+    [Parameter] public int NotaId { get; set; }
+    [Parameter] public EventCallback OnLiberado { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private NotaFiscal? _nota;
+    private ResultadoTresVias? _resultado;
+    private bool _carregando;
+    private bool _salvando;
+    private string _motivo = "";
+    private int _ultimo;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Aberto)
+        {
+            _ultimo = 0;
+            return;
+        }
+
+        if (NotaId == 0 || NotaId == _ultimo)
+            return;
+
+        _ultimo = NotaId;
+        _carregando = true;
+        _motivo = "";
+        _resultado = null;
+
+        _nota = await Notas.ObterPorId(NotaId);
+
+        if (_nota?.OrdemCompraId is not null)
+        {
+            var ordem = await Ordens.ObterPorId(_nota.OrdemCompraId.Value);
+
+            if (ordem is not null)
+            {
+                var dePara = await DePara.Mapa(_nota.FornecedorId ?? 0);
+                var avariados = await Recebimentos.ItensComAvaria(ordem.Id);
+
+                _resultado = ConfrontoTresVias.Comparar(_nota, ordem.Itens, dePara, avariados);
+            }
+        }
+
+        _carregando = false;
+    }
+
+    private async Task Fechar()
+    {
+        _ultimo = 0;
+        await AbertoChanged.InvokeAsync(false);
+    }
+
+    private async Task Liberar()
+    {
+        if (_nota is null || _resultado is null)
+            return;
+
+        _salvando = true;
+
+        try
+        {
+            var id = await IdDoUsuario();
+
+            await Titulos.LiberarNota(
+                _nota.Id, _resultado.LiberaSemRessalva,
+                _resultado.LiberaSemRessalva ? null : _motivo,
+                id);
+
+            // Parcela única no vencimento padrão: a tela de títulos permite
+            // ajustar depois, e pedir o parcelamento aqui misturaria duas
+            // decisões — conferir a nota e negociar o prazo.
+            await Titulos.GerarDeNota(_nota.Id, new[] { DateTime.UtcNow.AddDays(30) }, id);
+
+            Toasts.Success("Nota liberada", "Título gerado em contas a pagar.");
+            await OnLiberado.InvokeAsync();
+            await Fechar();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível liberar", ex.Message);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private static string Texto(SituacaoTresVias s) => s switch
+    {
+        SituacaoTresVias.Conferido => "Conferido",
+        SituacaoTresVias.QuantidadeAcimaDoPedido => "Cobrado acima do pedido",
+        SituacaoTresVias.QuantidadeAbaixoDoPedido => "Cobrado abaixo do pedido",
+        SituacaoTresVias.CobradoAcimaDoRecebido => "Cobrado acima do recebido",
+        SituacaoTresVias.RecebidoNaoCobrado => "Recebido, não cobrado",
+        SituacaoTresVias.SemRecebimento => "Sem recebimento registrado",
+        SituacaoTresVias.PrecoAcima => "Preço acima do acordado",
+        SituacaoTresVias.PrecoAbaixo => "Preço abaixo do acordado",
+        SituacaoTresVias.ForaDoPedido => "Fora do pedido",
+        SituacaoTresVias.NaoEntregue => "Não entregue",
+        _ => s.ToString(),
+    };
+
+    private static string Icone(SituacaoTresVias s) => s switch
+    {
+        SituacaoTresVias.Conferido => "check",
+        SituacaoTresVias.RecebidoNaoCobrado => "clock",
+        SituacaoTresVias.NaoEntregue => "clock",
+        SituacaoTresVias.PrecoAbaixo => "trending-down",
+        SituacaoTresVias.QuantidadeAbaixoDoPedido => "trending-down",
+        _ => "triangle-alert",
+    };
+
+    private async Task<Guid> IdDoUsuario()
+    {
+        if (EstadoAutenticacao is null)
+            return Guid.Empty;
+
+        var user = (await EstadoAutenticacao).User;
+
+        return Guid.TryParse(
+            user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+    }
+}

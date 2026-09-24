@@ -1,0 +1,213 @@
+@using Erp.Repository.Orcamento
+@using Erp.Repository.CentroCusto
+@inject OrcamentoRepository Orcamentos
+@inject CentroCustoRepository Centros
+@inject ToastService Toasts
+
+@* A verba é cadastrada por ANO, nos doze meses de uma vez. Salvar mês a mês
+   permitiria um ano pela metade, que a tela de consumo mostraria como verba
+   zero — indistinguível de "ainda não definida". *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[50rem] max-w-none h-[86vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="wallet" Size="20" />
+                <BbDialogTitle>Verba de @Ano</BbDialogTitle>
+            </div>
+
+            <div class="flex flex-wrap items-end gap-4">
+                <BbField Class="grow min-w-72">
+                    <BbFieldLabel>Centro de custo</BbFieldLabel>
+                    <BbCombobox TValue="string"
+                                Class="w-full"
+                                Options="@_centros"
+                                @bind-Value="_centroId"
+                                @bind-Value:after="Carregar"
+                                Placeholder="Selecione o centro"
+                                SearchPlaceholder="Buscar centro..."
+                                EmptyMessage="Nenhum centro ativo." />
+                </BbField>
+
+                <BbField Class="w-[14rem]">
+                    <BbFieldLabel>Valor anual</BbFieldLabel>
+                    <BbInput @bind-Value="_anual" Placeholder="0,00" />
+                    <BbFieldDescription>Divide igualmente nos doze meses.</BbFieldDescription>
+                </BbField>
+
+                <BbButton Variant="ButtonVariant.Outline" OnClick="Ratear" Class="mb-1">
+                    Ratear
+                </BbButton>
+            </div>
+
+            <BbSeparator />
+
+            <div class="flex-1 min-h-0 overflow-y-auto">
+                <div class="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+                    @for (var i = 0; i < 12; i++)
+                    {
+                        var indice = i;
+                        <BbField>
+                            <BbFieldLabel>@_nomesMeses[indice]</BbFieldLabel>
+                            <BbInput @bind-Value="_valores[indice]"
+                                     Placeholder="0,00"
+                                     Class="text-right tabular-nums" />
+                        </BbField>
+                    }
+                </div>
+            </div>
+
+            @if (_erro is not null)
+            {
+                <BbAlert Variant="AlertVariant.Destructive">
+                    <BbAlertDescription>@_erro</BbAlertDescription>
+                </BbAlert>
+            }
+
+            <BbSeparator />
+
+            <div class="flex items-center justify-between gap-2">
+                <span class="text-sm text-muted-foreground">
+                    Total do ano: <strong class="text-foreground tabular-nums">@_total.ToString("C2")</strong>
+                </span>
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Outline" OnClick="() => AbertoChanged.InvokeAsync(false)">
+                        Cancelar
+                    </BbButton>
+                    <BbButton OnClick="Salvar" Disabled="@(_salvando || string.IsNullOrEmpty(_centroId))">
+                        Salvar verba
+                    </BbButton>
+                </ActionArea>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+    [Parameter] public int Ano { get; set; } = DateTime.Now.Year;
+    [Parameter] public EventCallback OnSalvo { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private readonly string[] _nomesMeses =
+    {
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+    };
+
+    private List<SelectOption<string>> _centros = new();
+    private string _centroId = "";
+    private string _anual = "";
+    private string[] _valores = new string[12];
+    private bool _salvando;
+    private string? _erro;
+    private bool _carregou;
+
+    private decimal _total => _valores.Sum(Numero);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Aberto)
+        {
+            _carregou = false;
+            return;
+        }
+
+        if (_carregou)
+            return;
+
+        _carregou = true;
+        _erro = null;
+        _centroId = "";
+        _anual = "";
+        _valores = Enumerable.Repeat("", 12).ToArray();
+
+        _centros = (await Centros.BuscarAtivos())
+            .Select(c => new SelectOption<string>(c.Id.ToString(), $"{c.Codigo} — {c.Nome}"))
+            .ToList();
+    }
+
+    private async Task Carregar()
+    {
+        if (!int.TryParse(_centroId, out var id))
+            return;
+
+        var atuais = await Orcamentos.Buscar(Ano, id);
+
+        _valores = Enumerable.Range(1, 12)
+            .Select(m => atuais.FirstOrDefault(o => o.Mes == m)?.Valor is { } v && v > 0
+                ? v.ToString("0.00")
+                : "")
+            .ToArray();
+    }
+
+    private void Ratear()
+    {
+        var anual = Numero(_anual);
+
+        if (anual <= 0)
+            return;
+
+        var mensal = Math.Round(anual / 12m, 2, MidpointRounding.AwayFromZero);
+        var sobra = anual - (mensal * 12);
+
+        for (var i = 0; i < 12; i++)
+            _valores[i] = (mensal + (i == 0 ? sobra : 0m)).ToString("0.00");
+    }
+
+    private async Task Salvar()
+    {
+        if (!int.TryParse(_centroId, out var id))
+            return;
+
+        _salvando = true;
+        _erro = null;
+
+        try
+        {
+            await Orcamentos.SalvarAno(id, Ano, _valores.Select(Numero).ToArray(), await IdDoUsuario());
+
+            Toasts.Success("Verba definida", $"{_total:C2} distribuídos em {Ano}.");
+            await OnSalvo.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private static decimal Numero(string texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto))
+            return 0m;
+
+        return decimal.TryParse(texto.Replace(',', '.'),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var valor) && valor > 0
+                ? valor
+                : 0m;
+    }
+
+    private async Task<Guid> IdDoUsuario()
+    {
+        if (EstadoAutenticacao is null)
+            return Guid.Empty;
+
+        var user = (await EstadoAutenticacao).User;
+
+        return Guid.TryParse(
+            user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+    }
+}

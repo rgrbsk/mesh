@@ -1,0 +1,251 @@
+@using Erp.Model.Aprovacao
+@using Erp.Components.Modules.Alcadas.Dialogs
+@using Erp.Repository.Aprovacao
+@using Erp.Repository.CentroCusto
+@inject AlcadaRepository Alcadas
+@inject CentroCustoRepository Centros
+@inject ToastService Toasts
+
+@* Quem decide o quê, e até quanto.
+   Duas abas porque são regras de naturezas diferentes: a CADEIA é permanente e
+   pertence ao centro de custo; a DELEGAÇÃO é temporária e pertence à pessoa. *@
+
+<BbTabs Class="flex flex-col h-full" DefaultValue="cadeias">
+    <div class="px-6 pt-6 pb-0 flex items-center justify-between gap-4">
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Alçadas de Aprovação</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                Até que valor cada pessoa aprova sozinha, e quem responde por ela nas ausências.
+            </p>
+        </div>
+
+        <ActionArea>
+            @if (_podeGerir)
+            {
+                <BbButton OnClick="() => _dialogCadeia = true"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Definir cadeia</ChildContent>
+                    <Icon><LucideIcon Name="git-branch" Size="16" Color="lightgreen" /></Icon>
+                </BbButton>
+                <BbButton OnClick="() => _dialogDelegacao = true"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Nova delegação</ChildContent>
+                    <Icon><LucideIcon Name="user-round-cog" Size="16" Color="lightblue" /></Icon>
+                </BbButton>
+            }
+        </ActionArea>
+
+        <CadeiaDialog @bind-Aberto="_dialogCadeia" OnSalvo="Recarregar" />
+        <DelegacaoDialog @bind-Aberto="_dialogDelegacao" OnSalvo="Recarregar" />
+    </div>
+
+    <div class="px-6 pt-4">
+        <BbTabsList Class="grid w-full grid-cols-2">
+            <BbTabsTrigger Value="cadeias">Cadeias por centro de custo</BbTabsTrigger>
+            <BbTabsTrigger Value="delegacoes">
+                Delegações@(_vigentes > 0 ? $" ({_vigentes} vigente(s))" : "")
+            </BbTabsTrigger>
+        </BbTabsList>
+    </div>
+
+    <BbTabsContent Value="cadeias" Class="flex flex-col flex-1 min-h-0 p-6 pt-4">
+        @if (_carregando)
+        {
+            <div class="flex-1 flex items-center justify-center"><BbSpinner /></div>
+        }
+        else if (_porCentro.Count == 0)
+        {
+            @* Ausência de cadeia não é erro: o sistema cai no responsável do
+               centro, que é como funcionava antes de existir alçada. A tela
+               precisa dizer isso, senão parece que nada está configurado. *@
+            <BbEmpty Title="Nenhuma cadeia definida"
+                     Description="Sem cadeia, cada centro de custo é decidido pelo seu responsável, sem limite de valor. Defina uma cadeia quando precisar que valores altos subam de nível."
+                     Class="py-16">
+                <Icon><LucideIcon Name="git-branch" Size="40" Class="text-muted-foreground" /></Icon>
+                <ChildContent>
+                    @if (_podeGerir)
+                    {
+                        <BbButton Class="mt-3" Size="ButtonSize.Small" OnClick="() => _dialogCadeia = true">
+                            Definir a primeira
+                        </BbButton>
+                    }
+                </ChildContent>
+            </BbEmpty>
+        }
+        else
+        {
+            <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+                @foreach (var grupo in _porCentro)
+                {
+                    <BbCard>
+                        <BbCardContent Class="p-4">
+                            <div class="flex items-center justify-between gap-4 mb-3">
+                                <span class="font-semibold">@grupo.Key</span>
+                                @if (_podeGerir)
+                                {
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                              OnClick="() => EditarCadeia(grupo.Value.First().CentroCustoId)">
+                                        <LucideIcon Name="pencil" Size="15" />
+                                    </BbButton>
+                                }
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2">
+                                @foreach (var degrau in grupo.Value.OrderBy(d => d.Ordem))
+                                {
+                                    @if (degrau.Ordem > 1)
+                                    {
+                                        <LucideIcon Name="arrow-right" Size="14" Class="text-muted-foreground" />
+                                    }
+                                    <div class="px-3 py-2 rounded-md border border-border flex flex-col">
+                                        <span class="text-sm font-medium">
+                                            @($"{degrau.Aprovador?.Nome} {degrau.Aprovador?.Sobrenome}".Trim())
+                                        </span>
+                                        <span class="text-xs text-muted-foreground tabular-nums">
+                                            @(degrau.Ilimitado ? "sem limite" : $"até {degrau.LimiteValor:C2}")
+                                        </span>
+                                    </div>
+                                }
+                            </div>
+                        </BbCardContent>
+                    </BbCard>
+                }
+            </div>
+        }
+    </BbTabsContent>
+
+    <BbTabsContent Value="delegacoes" Class="flex flex-col flex-1 min-h-0 p-6 pt-4">
+        @if (_delegacoes.Count == 0)
+        {
+            <BbEmpty Title="Nenhuma delegação registrada"
+                     Description="Use a delegação para que as aprovações de alguém sigam para um substituto durante férias ou afastamento."
+                     Class="py-16">
+                <Icon><LucideIcon Name="user-round-cog" Size="40" Class="text-muted-foreground" /></Icon>
+            </BbEmpty>
+        }
+        else
+        {
+            <div class="flex-1 min-h-0">
+                <BbDataGrid TData="DelegacaoAprovacao"
+                            Items="@_delegacoes"
+                            Striped
+                            StripeClass="bg-muted/40"
+                            StickyHeader
+                            ShowSearch="false"
+                            ShowPagination
+                            InitialPageSize="20">
+                    <Columns>
+                        <BbDataGridTemplateColumn Title="Titular">
+                            <span class="text-sm">@($"{context.Titular?.Nome} {context.Titular?.Sobrenome}".Trim())</span>
+                        </BbDataGridTemplateColumn>
+
+                        <BbDataGridTemplateColumn Title="Substituto">
+                            <span class="text-sm">@($"{context.Substituto?.Nome} {context.Substituto?.Sobrenome}".Trim())</span>
+                        </BbDataGridTemplateColumn>
+
+                        <BbDataGridPropertyColumn Property="@(d => d.Inicio)" Title="De" Format="dd/MM/yyyy" Width="120px" Sortable />
+                        <BbDataGridPropertyColumn Property="@(d => d.Fim)" Title="Até" Format="dd/MM/yyyy" Width="120px" Sortable />
+                        <BbDataGridPropertyColumn Property="@(d => d.Motivo)" Title="Motivo" />
+
+                        <BbDataGridTemplateColumn Title="Situação" Width="140px" NoWrap>
+                            @if (context.VigenteEm(DateTime.UtcNow))
+                            {
+                                <BbBadge Variant="BadgeVariant.Default">Vigente</BbBadge>
+                            }
+                            else if (!context.Ativo)
+                            {
+                                <BbBadge Variant="BadgeVariant.Destructive">Encerrada</BbBadge>
+                            }
+                            else if (context.Inicio > DateTime.UtcNow)
+                            {
+                                <BbBadge Variant="BadgeVariant.Outline">Futura</BbBadge>
+                            }
+                            else
+                            {
+                                <BbBadge Variant="BadgeVariant.Secondary">Expirada</BbBadge>
+                            }
+                        </BbDataGridTemplateColumn>
+
+                        <BbDataGridTemplateColumn Title="Ações" Width="90px" NoWrap>
+                            @if (_podeGerir && context.Ativo && context.Fim >= DateTime.UtcNow)
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                          OnClick="() => Encerrar(context)" aria-label="Encerrar">
+                                    <LucideIcon Name="square-x" Size="15" Class="text-destructive" />
+                                </BbButton>
+                            }
+                        </BbDataGridTemplateColumn>
+                    </Columns>
+                </BbDataGrid>
+            </div>
+        }
+    </BbTabsContent>
+</BbTabs>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private bool _podeGerir;
+    private bool _carregando = true;
+
+    private Dictionary<string, List<AlcadaAprovacao>> _porCentro = new();
+    private List<DelegacaoAprovacao> _delegacoes = new();
+
+    private bool _dialogCadeia;
+    private bool _dialogDelegacao;
+
+    private int _vigentes => _delegacoes.Count(d => d.VigenteEm(DateTime.UtcNow));
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+            _podeGerir = (await EstadoAutenticacao).User
+                .HasClaim(Permissoes.ClaimType, Permissoes.AlcadasGerir);
+
+        await Recarregar();
+    }
+
+    private async Task Recarregar()
+    {
+        _carregando = true;
+
+        var todas = await Alcadas.Buscar();
+
+        _porCentro = todas
+            .GroupBy(a => $"{a.CentroCusto?.Codigo} — {a.CentroCusto?.Nome}")
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        _delegacoes = await Alcadas.BuscarDelegacoes();
+
+        _carregando = false;
+    }
+
+    private void EditarCadeia(int centroCustoId) => _dialogCadeia = true;
+
+    private async Task Encerrar(DelegacaoAprovacao delegacao)
+    {
+        try
+        {
+            await Alcadas.EncerrarDelegacao(delegacao.Id, await IdDoUsuario());
+            Toasts.Success("Delegação encerrada", "As aprovações voltam ao titular.");
+            await Recarregar();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível encerrar", ex.Message);
+        }
+    }
+
+    private async Task<Guid> IdDoUsuario()
+    {
+        if (EstadoAutenticacao is null)
+            return Guid.Empty;
+
+        var user = (await EstadoAutenticacao).User;
+
+        return Guid.TryParse(
+            user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+    }
+}

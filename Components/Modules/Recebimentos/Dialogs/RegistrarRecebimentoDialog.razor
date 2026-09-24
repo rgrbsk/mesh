@@ -1,0 +1,256 @@
+@using Erp.Model.Compra
+@using Erp.Model.Recebimento
+@using Erp.Repository.Compra
+@using Erp.Repository.Recebimento
+@inject OrdemCompraRepository Ordens
+@inject RecebimentoRepository Recebimentos
+@inject ToastService Toasts
+
+@* Conferência da mercadoria. O padrão é receber tudo o que está pendente —
+   é o caso comum — e o conferente corrige apenas as linhas divergentes. Pedir
+   que ele digite cada quantidade transformaria a entrada rotineira em
+   trabalho. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[56rem] max-w-none h-[86vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="package-open" Size="20" />
+                <BbDialogTitle>Dar entrada · @(_ordem?.Numero ?? "")</BbDialogTitle>
+            </div>
+
+            @if (_carregando)
+            {
+                <div class="flex-1 flex items-center justify-center"><BbSpinner /></div>
+            }
+            else if (_ordem is null)
+            {
+                <BbEmpty Title="Pedido não encontrado" Class="py-10">
+                    <Icon><LucideIcon Name="file-x" Size="40" Class="text-muted-foreground" /></Icon>
+                </BbEmpty>
+            }
+            else
+            {
+                <div class="flex items-center justify-between gap-4">
+                    <div class="text-sm text-muted-foreground">
+                        @_ordem.Fornecedor?.RazaoSocial
+                    </div>
+                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="ReceberTudo">
+                        Receber tudo o que falta
+                    </BbButton>
+                </div>
+
+                <div class="flex-1 min-h-0 overflow-y-auto rounded-lg border border-border">
+                    <table class="w-full text-sm">
+                        <thead class="bg-muted/60 sticky top-0">
+                            <tr class="text-left">
+                                <th class="px-3 py-2 font-medium">Produto</th>
+                                <th class="px-3 py-2 font-medium w-24 text-right">Pedido</th>
+                                <th class="px-3 py-2 font-medium w-24 text-right">Já entrou</th>
+                                <th class="px-3 py-2 font-medium w-24 text-right">Falta</th>
+                                <th class="px-3 py-2 font-medium w-32">Recebendo</th>
+                                <th class="px-3 py-2 font-medium w-24 text-center">Avaria</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var linha in _linhas)
+                            {
+                                <tr class="border-t border-border @(linha.Item.Atendido ? "opacity-50" : "")">
+                                    <td class="px-3 py-2">
+                                        <div class="font-medium">@linha.Item.Produto?.Descricao</div>
+                                        <div class="text-xs text-muted-foreground">@linha.Item.Produto?.Codigo</div>
+                                    </td>
+                                    <td class="px-3 py-2 text-right tabular-nums">@linha.Item.Quantidade.ToString("N2")</td>
+                                    <td class="px-3 py-2 text-right tabular-nums">@linha.Item.QuantidadeRecebida.ToString("N2")</td>
+                                    <td class="px-3 py-2 text-right tabular-nums font-medium">@linha.Item.Pendente.ToString("N2")</td>
+                                    <td class="px-3 py-2">
+                                        <BbInput @bind-Value="linha.Quantidade"
+                                                 Placeholder="0"
+                                                 Disabled="linha.Item.Atendido"
+                                                 Class="text-right tabular-nums" />
+                                    </td>
+                                    <td class="px-3 py-2 text-center">
+                                        <BbSwitch @bind-Checked="linha.ComAvaria" Disabled="linha.Item.Atendido" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <BbField>
+                    <BbFieldLabel>Observação da conferência</BbFieldLabel>
+                    <BbInput @bind-Value="_observacao"
+                             Placeholder="Volume amassado, faltou uma caixa, transportadora X…" />
+                    <BbFieldDescription>
+                        É este registro que sustenta uma reclamação ao fornecedor depois.
+                    </BbFieldDescription>
+                </BbField>
+
+                @if (_erro is not null)
+                {
+                    <BbAlert Variant="AlertVariant.Destructive">
+                        <BbAlertDescription>@_erro</BbAlertDescription>
+                    </BbAlert>
+                }
+
+                <BbSeparator />
+
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-sm text-muted-foreground">
+                        Entrando com @_totalRecebendo.ToString("N2") unidade(s).
+                    </span>
+                    <ActionArea>
+                        <BbButton Variant="ButtonVariant.Outline" OnClick="Fechar">Cancelar</BbButton>
+                        <BbButton OnClick="Confirmar" Disabled="@(_salvando || _totalRecebendo <= 0)">
+                            Confirmar entrada
+                        </BbButton>
+                    </ActionArea>
+                </div>
+            }
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+    [Parameter] public int OrdemId { get; set; }
+    [Parameter] public EventCallback OnRegistrado { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    /// <summary>Linha da tela. A quantidade é string porque o campo é de texto
+    /// e precisa aceitar vazio — zero e "não informado" são coisas
+    /// diferentes na conferência.</summary>
+    private sealed class Linha
+    {
+        public ItemOrdemCompra Item { get; init; } = default!;
+        public string Quantidade { get; set; } = "";
+        public bool ComAvaria { get; set; }
+    }
+
+    private OrdemCompra? _ordem;
+    private List<Linha> _linhas = new();
+    private string _observacao = "";
+    private bool _carregando;
+    private bool _salvando;
+    private string? _erro;
+    private int _ultimoCarregado;
+
+    private decimal _totalRecebendo => _linhas.Sum(l => Numero(l.Quantidade));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Aberto)
+        {
+            _ultimoCarregado = 0;
+            return;
+        }
+
+        if (OrdemId == 0 || OrdemId == _ultimoCarregado)
+            return;
+
+        _ultimoCarregado = OrdemId;
+        _carregando = true;
+        _erro = null;
+        _observacao = "";
+
+        _ordem = await Ordens.ObterPorId(OrdemId);
+
+        _linhas = _ordem is null
+            ? new()
+            : _ordem.Itens.Select(i => new Linha { Item = i }).ToList();
+
+        _carregando = false;
+    }
+
+    private void ReceberTudo()
+    {
+        foreach (var linha in _linhas.Where(l => !l.Item.Atendido))
+            linha.Quantidade = linha.Item.Pendente.ToString("0.##");
+    }
+
+    private async Task Fechar()
+    {
+        _ultimoCarregado = 0;
+        await AbertoChanged.InvokeAsync(false);
+    }
+
+    private async Task Confirmar()
+    {
+        if (_ordem is null)
+            return;
+
+        _salvando = true;
+        _erro = null;
+
+        try
+        {
+            var (id, nome) = await Autor();
+
+            var recebimento = new Recebimento
+            {
+                OrdemCompraId = _ordem.Id,
+                Observacao = _observacao,
+                Itens = _linhas
+                    .Where(l => Numero(l.Quantidade) > 0)
+                    .Select(l => new ItemRecebimento
+                    {
+                        ItemOrdemCompraId = l.Item.Id,
+                        Quantidade = Numero(l.Quantidade),
+                        ComAvaria = l.ComAvaria,
+                    })
+                    .ToList(),
+            };
+
+            var gravado = await Recebimentos.Registrar(recebimento, id, nome);
+
+            Toasts.Success("Entrada registrada", gravado.Numero);
+            await OnRegistrado.InvokeAsync();
+            await Fechar();
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    /// <summary>Aceita vírgula e ponto: o conferente digita como está
+    /// acostumado, não como a cultura da máquina espera.</summary>
+    private static decimal Numero(string texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto))
+            return 0m;
+
+        var normalizado = texto.Replace(',', '.');
+
+        return decimal.TryParse(normalizado,
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var valor) && valor > 0
+                ? valor
+                : 0m;
+    }
+
+    private async Task<(Guid Id, string Nome)> Autor()
+    {
+        if (EstadoAutenticacao is null)
+            return (Guid.Empty, "");
+
+        var user = (await EstadoAutenticacao).User;
+
+        var id = Guid.TryParse(
+            user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var g)
+                ? g
+                : Guid.Empty;
+
+        return (id, user.Identity?.Name ?? "");
+    }
+}

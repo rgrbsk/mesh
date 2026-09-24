@@ -1,0 +1,195 @@
+@using Erp.Model.Orcamento
+@using Erp.Components.Modules.Orcamentos.Dialogs
+@using Erp.Repository.Orcamento
+@inject OrcamentoRepository Orcamentos
+@inject ToastService Toasts
+
+@* Verba por centro de custo e competência. A leitura é comparativa — quanto
+   sobrou, quem está perto do teto — então a barra vem antes do número. *@
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Orçamentos</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                Verba mensal dos centros de custo e o quanto dela já está comprometida.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-none">
+            <ActionArea>
+                <BbSelect TValue="string" @bind-Value="_mes" Options="_meses"
+                          @bind-Value:after="Recarregar" Class="w-36" />
+                <BbSelect TValue="string" @bind-Value="_ano" Options="_anos"
+                          @bind-Value:after="Recarregar" Class="w-28" />
+                @if (_podeGerir)
+                {
+                    <BbButton OnClick="() => _dialogAberto = true"
+                              Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                        <ChildContent>Definir verba</ChildContent>
+                        <Icon><LucideIcon Name="wallet" Size="16" Color="lightgreen" /></Icon>
+                    </BbButton>
+                }
+            </ActionArea>
+
+            <OrcamentoAnualDialog @bind-Aberto="_dialogAberto"
+                                  Ano="@AnoNumero"
+                                  OnSalvo="Recarregar" />
+        </div>
+    </div>
+
+    <div class="grid gap-4 mb-5 px-2 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+        <StatCard Label="Verba do mês" Value="@_totalOrcado.ToString("C2")" />
+        <StatCard Label="Comprometido" Value="@_totalConsumido.ToString("C2")" />
+        <StatCard Label="Disponível" Value="@_totalSaldo.ToString("C2")" />
+        <StatCard Label="Centros estourados" Value="@_estourados.ToString()" />
+    </div>
+
+    @if (_carregando)
+    {
+        <div class="flex-1 flex items-center justify-center"><BbSpinner /></div>
+    }
+    else if (_linhas.Count == 0)
+    {
+        <BbEmpty Title="Nenhum centro de custo ativo"
+                 Description="Cadastre centros de custo para definir verba e acompanhar o consumo."
+                 Class="py-16">
+            <Icon><LucideIcon Name="wallet" Size="40" Class="text-muted-foreground" /></Icon>
+        </BbEmpty>
+    }
+    else
+    {
+        <div class="flex-1 min-h-0 px-2">
+            <BbDataGrid TData="ConsumoOrcamento"
+                        Items="@_linhas"
+                        Striped
+                        StripeClass="bg-muted/40"
+                        StickyHeader
+                        ShowSearch="true"
+                        SearchPlaceholder="Buscar centro de custo…"
+                        ShowPagination
+                        InitialPageSize="20"
+                        Resizable>
+                <Columns>
+                    <BbDataGridPropertyColumn Property="@(c => c.CentroCustoNome)" Title="Centro de custo" Sortable />
+
+                    <BbDataGridTemplateColumn Title="Verba" Width="130px" NoWrap>
+                        @if (context.SemOrcamento)
+                        {
+                            <span class="text-xs text-muted-foreground">não definida</span>
+                        }
+                        else
+                        {
+                            <span class="text-sm tabular-nums">@context.Orcado.ToString("C2")</span>
+                        }
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="Previsto" Width="130px" NoWrap>
+                        <span class="text-sm tabular-nums text-muted-foreground">@context.Previsto.ToString("C2")</span>
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="Comprometido" Width="130px" NoWrap>
+                        <span class="text-sm tabular-nums">@context.Comprometido.ToString("C2")</span>
+                    </BbDataGridTemplateColumn>
+
+                    @* A barra responde "dá para gastar?" antes de qualquer
+                       número — que é a pergunta que traz o usuário a esta tela. *@
+                    <BbDataGridTemplateColumn Title="Consumo" Width="200px" NoWrap>
+                        @if (context.SemOrcamento)
+                        {
+                            <span class="text-xs text-muted-foreground">—</span>
+                        }
+                        else
+                        {
+                            <div class="flex items-center gap-2">
+                                <BbProgress Value="@context.Percentual" Max="100" Class="w-24"
+                                            IndicatorClass="@Cor(context)" />
+                                <span class="text-xs tabular-nums @(context.Estourado ? "text-destructive font-medium" : "text-muted-foreground")">
+                                    @context.PercentualReal%
+                                </span>
+                            </div>
+                        }
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="Saldo" Width="140px" NoWrap>
+                        @if (context.SemOrcamento)
+                        {
+                            <span class="text-xs text-muted-foreground">—</span>
+                        }
+                        else if (context.Estourado)
+                        {
+                            <span class="inline-flex items-center gap-1 text-sm font-medium text-destructive tabular-nums">
+                                <LucideIcon Name="triangle-alert" Size="14" />
+                                @context.Saldo.ToString("C2")
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="text-sm tabular-nums text-emerald-600 dark:text-emerald-500">
+                                @context.Saldo.ToString("C2")
+                            </span>
+                        }
+                    </BbDataGridTemplateColumn>
+                </Columns>
+            </BbDataGrid>
+        </div>
+    }
+</div>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private bool _podeGerir;
+    private bool _carregando = true;
+
+    private List<ConsumoOrcamento> _linhas = new();
+    private bool _dialogAberto;
+
+    private string _ano = DateTime.Now.Year.ToString();
+    private string _mes = DateTime.Now.Month.ToString();
+
+    private int AnoNumero => int.TryParse(_ano, out var a) ? a : DateTime.Now.Year;
+    private int MesNumero => int.TryParse(_mes, out var m) ? m : DateTime.Now.Month;
+
+    private decimal _totalOrcado => _linhas.Sum(l => l.Orcado);
+    private decimal _totalConsumido => _linhas.Sum(l => l.Consumido);
+    private decimal _totalSaldo => _totalOrcado - _totalConsumido;
+    private int _estourados => _linhas.Count(l => l.Estourado);
+
+    private readonly List<SelectOption<string>> _meses = new()
+    {
+        new("1", "Janeiro"),   new("2", "Fevereiro"), new("3", "Março"),
+        new("4", "Abril"),     new("5", "Maio"),      new("6", "Junho"),
+        new("7", "Julho"),     new("8", "Agosto"),    new("9", "Setembro"),
+        new("10", "Outubro"),  new("11", "Novembro"), new("12", "Dezembro"),
+    };
+
+    private List<SelectOption<string>> _anos = Enumerable
+        .Range(DateTime.Now.Year - 2, 5)
+        .Select(a => new SelectOption<string>(a.ToString(), a.ToString()))
+        .ToList();
+
+    /// <summary>Verde até 80%, âmbar até o teto, vermelho no estouro. O âmbar
+    /// é o que dá tempo de reagir — sem ele só se descobre o problema depois
+    /// de cometido.</summary>
+    private static string Cor(ConsumoOrcamento c) => c.Estourado
+        ? "bg-destructive"
+        : c.Percentual >= 80 ? "bg-amber-500" : "bg-emerald-500";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+            _podeGerir = (await EstadoAutenticacao).User
+                .HasClaim(Permissoes.ClaimType, Permissoes.OrcamentoGerir);
+
+        await Recarregar();
+    }
+
+    private async Task Recarregar()
+    {
+        _carregando = true;
+        _linhas = await Orcamentos.ConsumoDeTodos(AnoNumero, MesNumero);
+        _carregando = false;
+    }
+}

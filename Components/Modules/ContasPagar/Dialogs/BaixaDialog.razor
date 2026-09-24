@@ -1,0 +1,165 @@
+@using Erp.Model.Financeiro
+@using Erp.Repository.Financeiro
+@inject TituloPagarRepository Titulos
+@inject ToastService Toasts
+
+@* Registrar pagamento. O valor vem preenchido com o saldo — pagar integral é
+   o caso comum — e aceita menos, que é acordo parcial com o fornecedor. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[34rem] max-w-none p-6">
+        <div class="flex flex-col gap-4 rounded-[inherit]">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="banknote" Size="20" />
+                <BbDialogTitle>Registrar pagamento</BbDialogTitle>
+            </div>
+
+            @if (Titulo is not null)
+            {
+                <div class="rounded-lg border border-border p-3 flex flex-col gap-1">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium">@Titulo.Identificacao</span>
+                        <span class="text-sm tabular-nums">@Titulo.Valor.ToString("C2")</span>
+                    </div>
+                    <div class="text-xs text-muted-foreground">
+                        @Titulo.Fornecedor?.RazaoSocial · vence em @Titulo.Vencimento.ToString("dd/MM/yyyy")
+                    </div>
+                    @if (Titulo.ValorPago > 0)
+                    {
+                        <div class="text-xs text-muted-foreground">
+                            Já pago: @Titulo.ValorPago.ToString("C2") · saldo @Titulo.Saldo.ToString("C2")
+                        </div>
+                    }
+                </div>
+
+                <div class="flex flex-wrap items-end gap-4">
+                    <BbField Class="w-[12rem]">
+                        <BbFieldLabel>Valor</BbFieldLabel>
+                        <BbInput @bind-Value="_valor" Class="text-right tabular-nums" />
+                    </BbField>
+
+                    <BbField Class="w-[12rem]">
+                        <BbFieldLabel>Data</BbFieldLabel>
+                        <BbDatePicker @bind-Value="_data" />
+                    </BbField>
+
+                    <BbField Class="grow min-w-48">
+                        <BbFieldLabel>Forma de pagamento</BbFieldLabel>
+                        <BbInput @bind-Value="_forma" Placeholder="PIX, boleto, transferência…" />
+                    </BbField>
+
+                    <BbField Class="w-full">
+                        <BbFieldLabel>Observação</BbFieldLabel>
+                        <BbInput @bind-Value="_observacao" Placeholder="Número do comprovante, banco…" />
+                    </BbField>
+                </div>
+
+                @if (_erro is not null)
+                {
+                    <BbAlert Variant="AlertVariant.Destructive">
+                        <BbAlertDescription>@_erro</BbAlertDescription>
+                    </BbAlert>
+                }
+
+                <div class="flex items-center justify-end gap-2">
+                    <BbButton Variant="ButtonVariant.Outline" OnClick="() => AbertoChanged.InvokeAsync(false)">
+                        Cancelar
+                    </BbButton>
+                    <BbButton OnClick="Confirmar" Disabled="_salvando">Registrar</BbButton>
+                </div>
+            }
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+    [Parameter] public TituloPagar? Titulo { get; set; }
+    [Parameter] public EventCallback OnBaixado { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private string _valor = "";
+    private DateTime? _data = DateTime.Today;
+    private string _forma = "";
+    private string _observacao = "";
+    private bool _salvando;
+    private string? _erro;
+    private int _ultimo;
+
+    protected override void OnParametersSet()
+    {
+        if (!Aberto || Titulo is null || Titulo.Id == _ultimo)
+        {
+            if (!Aberto)
+                _ultimo = 0;
+
+            return;
+        }
+
+        _ultimo = Titulo.Id;
+        _valor = Titulo.Saldo.ToString("0.00");
+        _data = DateTime.Today;
+        _forma = "";
+        _observacao = "";
+        _erro = null;
+    }
+
+    private async Task Confirmar()
+    {
+        if (Titulo is null)
+            return;
+
+        _salvando = true;
+        _erro = null;
+
+        try
+        {
+            var (id, nome) = await Autor();
+
+            await Titulos.RegistrarBaixa(Titulo.Id, new BaixaTitulo
+            {
+                Data = (_data ?? DateTime.Today).ToUniversalTime(),
+                Valor = Numero(_valor),
+                FormaPagamento = _forma,
+                Observacao = _observacao,
+            }, id, nome);
+
+            Toasts.Success("Pagamento registrado", Titulo.Identificacao);
+            await OnBaixado.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private static decimal Numero(string texto) =>
+        decimal.TryParse((texto ?? "").Replace(',', '.'),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var valor) ? valor : 0m;
+
+    private async Task<(Guid, string)> Autor()
+    {
+        if (EstadoAutenticacao is null)
+            return (Guid.Empty, "");
+
+        var user = (await EstadoAutenticacao).User;
+
+        var id = Guid.TryParse(
+            user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var g)
+                ? g
+                : Guid.Empty;
+
+        return (id, user.Identity?.Name ?? "");
+    }
+}

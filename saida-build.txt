@@ -1,0 +1,8 @@
+===== ENCERRANDO A APLICACAO (se estiver rodando) ===== 
+ERRO: o processo "Erp.exe" não foi encontrado.
+ 
+===== DOTNET BUILD ===== 
+MSBUILD : error MSB1011: Especifique o arquivo de solução ou de projeto a usar porque esta pasta contém mais de um arquivo de solução ou de projeto.
+EXITCODE=1 
+ 
+===== FIM ===== 

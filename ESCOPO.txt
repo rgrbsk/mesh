@@ -1,0 +1,139 @@
+===============================================================================
+MESH - ESCOPO E SITUACAO
+Atualizado em 26/08/2026
+===============================================================================
+
+DECISOES JA TOMADAS
+-------------------
+- Fornecedor nao e cadastro proprio: e Pessoa com Tipo = Fornecedor.
+- Aprovacao da solicitacao de compra: UM APROVADOR POR CENTRO DE CUSTO
+  (sem alcada por valor). Logo, centro de custo e obrigatorio no item da SC.
+- Fornecedor responde cotacao por LINK PUBLICO COM TOKEN, sem login.
+- Escopo desta fase vai ATE A ESCOLHA DO VENCEDOR. Pedido de compra e
+  recebimento ficam para depois.
+- Filtros das telas: BbFilterBuilder do BlazorBlueprint, virando Expression
+  aplicada no Where do EF (filtro roda no banco, nao em memoria).
+
+
+FLUXO ALVO
+----------
+Cadastros: Produtos - Pessoas(Fornecedor) - Centros de Custo - Usuarios/Permissoes
+   |
+   v
+1. Saldo cruza o PONTO DE PEDIDO  ->  cria Necessidade de Compra (aberta)
+   |
+   v
+2. Alerta p/ quem tem compras.criar no centro de custo
+   (1 alerta por produto enquanto houver necessidade aberta)
+   |
+   v
+3. Solicitacao de Compra: N itens, centro de custo, prazo, justificativa
+   Estados: Rascunho -> Enviada
+   |
+   v
+4. Aprovador DO CENTRO DE CUSTO: Aprovar / Recusar(motivo) / Devolver p/ ajuste
+   |
+   v
+5. Cotacao agrupa itens de 1..N SCs aprovadas + escolhe fornecedores + prazo
+   |
+   v
+6. Link com token por fornecedor (expira, escopo restrito, trava ao enviar)
+   |
+   v
+7. Mapa comparativo -> escolha por ITEM (motivo obrigatorio se nao for o menor preco)
+   |
+   v
+   [FIM DO ESCOPO ATUAL]
+
+Ponto de pedido = estoque minimo + (consumo medio diario x prazo de entrega).
+O minimo e o piso que nao deveria ser cruzado; quem dispara a compra e o
+ponto de pedido.
+
+
+PRONTO
+------
+[x] Pessoas - CRUD completo (criar, editar, excluir com confirmacao)
+[x] Pessoas - grid BbDataGrid, linhas alternadas, ordenacao, paginacao
+[x] Pessoas - filtros com BbFilterBuilder (8 campos, filtro no banco)
+[x] Pessoas - busca expansivel (botao vira campo)
+[x] Pessoas - toasts de criacao / edicao / exclusao
+[x] Pessoas - estado vazio com icone (BbEmpty)
+[x] Centros de Custo - CRUD completo, mesmo padrao de Pessoas
+[x] Centros de Custo - HIERARQUICO (PaiId, arvore na grid, sem ciclos)
+[x] Centros de Custo - campo Responsavel (define quem aprova)
+[x] Produto - entidade + repositorio (inclui BuscarParaRepor)
+[x] Infra - IDbContextFactory (corrige "second operation on this context")
+[x] Infra - tema claro/escuro com toggle na Topbar, sem flash
+[x] Infra - ActionBar / ActionArea neutros (segmented control)
+[x] Infra - reconnect modal redesenhado
+[x] Migrations aplicadas no banco meshcloud
+
+
+FALTA FAZER (ordem sugerida - segue as dependencias)
+----------------------------------------------------
+[ ] 1. Tela de Produtos
+       CRUD no padrao de Pessoas. Campos de estoque minimo, ponto de pedido,
+       prazo de entrega e consumo medio. Mostrar o ponto de pedido sugerido
+       pela formula em vez de o usuario adivinhar.
+
+[ ] 2. Cadastro de usuarios + permissoes por usuario
+       Tela de usuarios e atribuicao de permissoes/papeis.
+
+[ ] 3. Necessidade de Compra + alerta
+       Entidade com estado (aberta/atendida/silenciada). Gerada quando o saldo
+       cruza o ponto de pedido. Alerta para quem tem compras.criar no centro
+       de custo, sem repetir enquanto houver necessidade aberta.
+
+[ ] 4. Solicitacao de Compra
+       Cabecalho + itens (produto, quantidade, centro de custo, prazo,
+       justificativa). Estados Rascunho / Enviada. Tela de listagem e edicao.
+
+[ ] 5. Aprovacao
+       Roteamento para o responsavel do centro de custo do item.
+       Acoes: Aprovar, Recusar (com motivo), Devolver para ajuste.
+
+[ ] 6. Cotacao
+       Agrupa itens de varias SCs aprovadas, escolhe fornecedores,
+       define prazo de resposta.
+
+[ ] 7. Link do fornecedor
+       Token unico por fornecedor, com validade e escopo restrito a cotacao.
+       Tela publica (sem login) para preencher preco, prazo, condicao de
+       pagamento e frete. Trava ao enviar; reabrir exige acao do comprador.
+       Fornecedor nunca ve proposta de concorrente.
+
+[ ] 8. Mapa comparativo e escolha
+       Comparacao lado a lado, item a item. Escolha por item.
+       Motivo obrigatorio quando nao for o menor preco.
+
+
+FORA DO ESCOPO ATUAL (fase seguinte)
+------------------------------------
+[ ] Pedido de compra a partir das propostas vencedoras
+[ ] Recebimento (da entrada no estoque e encerra a necessidade)
+[ ] Movimentacao de estoque de verdade
+
+
+DEBITOS CONHECIDOS
+------------------
+- Tabela Cidades esta VAZIA. O combobox de cidade nao tem o que mostrar.
+  Falta importar a lista do IBGE.
+- Produto.SaldoAtual nao tem quem atualize (nao existe movimentacao de
+  estoque ainda). Hoje so seria alterado a mao.
+- Datas de Cadastro/Modificacao no dialogo de Pessoa sao exibicao: quem
+  escreve e o repositorio. Vale marcar como desabilitadas.
+- Editar e excluir nao checam fornecedor.editar. Hoje quem ve a tela apaga.
+- Botoes Exportar e Importar Planilha estao inertes.
+- Usuario.TemaPreferencial existe no banco mas nao esta ligado ao toggle de
+  tema (a preferencia hoje vive so no localStorage do navegador).
+- Nenhuma tela foi validada visualmente por mim: estao atras do login e eu
+  nao preencho senha em formulario. Verificacao visual e sua.
+
+
+OBSERVACAO SOBRE MIGRATIONS
+---------------------------
+O dotnet ef le o modelo do ASSEMBLY COMPILADO, nao dos arquivos .cs. Com o
+app rodando, o bin fica travado, o build falha na copia e o --no-build passa
+a operar sobre uma versao velha - o que ja gerou uma migration vazia e outra
+repetindo alteracoes ja aplicadas. Sempre FECHE o app antes de gerar ou
+aplicar migration.

@@ -1,0 +1,162 @@
+@using Erp.Model.Aprovacao
+@using Erp.Repository.Aprovacao
+@using Erp.Repository.Usuario
+@inject AlcadaRepository Alcadas
+@inject UsuarioRepository Usuarios
+@inject ToastService Toasts
+
+@* A delegação não reescreve a cadeia: ela é resolvida no roteamento. Quando o
+   período acaba, tudo volta ao titular sem que nada precise ser desfeito. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[40rem] max-w-none p-6">
+        <div class="flex flex-col gap-4 rounded-[inherit]">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="user-round-cog" Size="20" />
+                <BbDialogTitle>Nova delegação</BbDialogTitle>
+            </div>
+
+            <div class="flex flex-wrap items-end gap-4">
+                <BbField Class="grow min-w-56">
+                    <BbFieldLabel>Titular</BbFieldLabel>
+                    <BbCombobox TValue="string"
+                                Class="w-full"
+                                Options="@_usuarios"
+                                @bind-Value="_titularId"
+                                Placeholder="Quem vai se ausentar"
+                                SearchPlaceholder="Buscar usuário..."
+                                EmptyMessage="Nenhum usuário." />
+                </BbField>
+
+                <BbField Class="grow min-w-56">
+                    <BbFieldLabel>Substituto</BbFieldLabel>
+                    <BbCombobox TValue="string"
+                                Class="w-full"
+                                Options="@_usuarios"
+                                @bind-Value="_substitutoId"
+                                Placeholder="Quem decide no lugar"
+                                SearchPlaceholder="Buscar usuário..."
+                                EmptyMessage="Nenhum usuário." />
+                </BbField>
+
+                <BbField Class="w-[12rem]">
+                    <BbFieldLabel>Início</BbFieldLabel>
+                    <BbDatePicker @bind-Value="_inicio" />
+                </BbField>
+
+                <BbField Class="w-[12rem]">
+                    <BbFieldLabel>Fim</BbFieldLabel>
+                    <BbDatePicker @bind-Value="_fim" />
+                </BbField>
+
+                <BbField Class="w-full">
+                    <BbFieldLabel>Motivo</BbFieldLabel>
+                    <BbInput @bind-Value="_motivo" Placeholder="Férias, afastamento, viagem…" />
+                </BbField>
+            </div>
+
+            @if (_erro is not null)
+            {
+                <BbAlert Variant="AlertVariant.Destructive">
+                    <BbAlertDescription>@_erro</BbAlertDescription>
+                </BbAlert>
+            }
+
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => AbertoChanged.InvokeAsync(false)">
+                    Cancelar
+                </BbButton>
+                <BbButton OnClick="Salvar" Disabled="_salvando">Registrar delegação</BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+    [Parameter] public EventCallback OnSalvo { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private List<SelectOption<string>> _usuarios = new();
+    private string _titularId = "";
+    private string _substitutoId = "";
+    private DateTime? _inicio = DateTime.Today;
+    private DateTime? _fim = DateTime.Today.AddDays(15);
+    private string _motivo = "";
+    private bool _salvando;
+    private string? _erro;
+    private bool _carregou;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Aberto)
+        {
+            _carregou = false;
+            return;
+        }
+
+        if (_carregou)
+            return;
+
+        _carregou = true;
+        _erro = null;
+        _titularId = "";
+        _substitutoId = "";
+        _motivo = "";
+        _inicio = DateTime.Today;
+        _fim = DateTime.Today.AddDays(15);
+
+        _usuarios = (await Usuarios.Buscar(null))
+            .Select(u => new SelectOption<string>(
+                u.Id.ToString(), $"{u.Nome} {u.Sobrenome}".Trim()))
+            .ToList();
+    }
+
+    private async Task Salvar()
+    {
+        _salvando = true;
+        _erro = null;
+
+        try
+        {
+            await Alcadas.SalvarDelegacao(new DelegacaoAprovacao
+            {
+                TitularId = Guid.TryParse(_titularId, out var t) ? t : Guid.Empty,
+                SubstitutoId = Guid.TryParse(_substitutoId, out var s) ? s : Guid.Empty,
+                Inicio = (_inicio ?? DateTime.Today).ToUniversalTime(),
+                Fim = (_fim ?? DateTime.Today).ToUniversalTime(),
+                Motivo = _motivo,
+                Ativo = true,
+            }, await IdDoUsuario());
+
+            Toasts.Success("Delegação registrada", "As aprovações seguem para o substituto no período.");
+            await OnSalvo.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private async Task<Guid> IdDoUsuario()
+    {
+        if (EstadoAutenticacao is null)
+            return Guid.Empty;
+
+        var user = (await EstadoAutenticacao).User;
+
+        return Guid.TryParse(
+            user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+    }
+}

@@ -1,0 +1,163 @@
+@using Erp.Model.Compra
+@using Erp.Components.Modules.Ordens
+@using Erp.Components.Modules.Recebimentos.Dialogs
+@using Erp.Repository.Compra
+@inject OrdemCompraRepository Ordens
+@inject ToastService Toasts
+
+@* A segunda ponta do three-way match. Separar a conferência física da nota
+   fiscal é o que permite ao sistema saber que se está cobrando mercadoria que
+   não chegou. *@
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Recebimentos</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                Pedidos aguardando entrega. Registre o que chegou — parcial inclusive.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-none">
+            <ActionArea>
+                <BbButton OnClick="Recarregar"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Atualizar</ChildContent>
+                    <Icon><LucideIcon Name="refresh-cw" Size="16" Color="lightblue" /></Icon>
+                </BbButton>
+            </ActionArea>
+
+            <RegistrarRecebimentoDialog @bind-Aberto="_dialogAberto"
+                                        OrdemId="_selecionadaId"
+                                        OnRegistrado="Recarregar" />
+        </div>
+    </div>
+
+    <div class="grid gap-4 mb-5 px-2 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+        <StatCard Label="Pedidos aguardando" Value="@_pendentes.Count.ToString()" />
+        <StatCard Label="Em atraso" Value="@_atrasados.ToString()" />
+        <StatCard Label="Valor a receber" Value="@_valorAReceber.ToString("C2")" />
+    </div>
+
+    @if (!_podeRegistrar)
+    {
+        <BbEmpty Title="Sem acesso ao recebimento"
+                 Description="Dar entrada em mercadoria exige a permissão recebimento.registrar."
+                 Class="py-16">
+            <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
+        </BbEmpty>
+    }
+    else if (_carregando)
+    {
+        <div class="flex-1 flex items-center justify-center"><BbSpinner /></div>
+    }
+    else if (_pendentes.Count == 0)
+    {
+        <BbEmpty Title="Nada aguardando entrega"
+                 Description="Quando um pedido for enviado ao fornecedor, ele aparece aqui para conferência."
+                 Class="py-16">
+            <Icon><LucideIcon Name="package-check" Size="40" Class="text-muted-foreground" /></Icon>
+        </BbEmpty>
+    }
+    else
+    {
+        <div class="flex-1 min-h-0 overflow-y-auto px-2 flex flex-col gap-3">
+            @foreach (var ordem in _pendentes)
+            {
+                var atrasado = ordem.PrazoEntrega is not null && ordem.PrazoEntrega < DateTime.UtcNow;
+
+                <BbCard>
+                    <BbCardContent Class="p-4">
+                        <div class="flex items-start justify-between gap-4">
+
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-semibold">@ordem.Numero</span>
+                                    <BbBadge Variant="@StatusOrdemVisual.Badge(ordem.Status)">
+                                        @StatusOrdemVisual.Texto(ordem.Status)
+                                    </BbBadge>
+                                    @if (atrasado)
+                                    {
+                                        <span class="inline-flex items-center gap-1 text-xs font-medium text-destructive">
+                                            <LucideIcon Name="triangle-alert" Size="14" />
+                                            Prazo vencido em @ordem.PrazoEntrega!.Value.ToString("dd/MM/yyyy")
+                                        </span>
+                                    }
+                                </div>
+
+                                <div class="text-sm text-muted-foreground mt-1">
+                                    @ordem.Fornecedor?.RazaoSocial
+                                    · @ordem.Itens.Count(i => !i.Atendido) item(ns) com saldo
+                                    · @((ordem.ValorTotal - ordem.ValorRecebido).ToString("C2")) a receber
+                                </div>
+
+                                <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                                    @foreach (var item in ordem.Itens.Where(i => !i.Atendido).Take(4))
+                                    {
+                                        <span class="text-xs text-muted-foreground">
+                                            @item.Produto?.Descricao
+                                            <span class="tabular-nums font-medium text-foreground">
+                                                @item.Pendente.ToString("N2")
+                                            </span>
+                                        </span>
+                                    }
+                                    @if (ordem.Itens.Count(i => !i.Atendido) > 4)
+                                    {
+                                        <span class="text-xs text-muted-foreground">
+                                            +@(ordem.Itens.Count(i => !i.Atendido) - 4) …
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+
+                            <BbButton OnClick="() => Registrar(ordem)" IconPosition="IconPosition.Start">
+                                <ChildContent>Dar entrada</ChildContent>
+                                <Icon><LucideIcon Name="package-open" Size="16" /></Icon>
+                            </BbButton>
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private bool _podeRegistrar;
+    private bool _carregando = true;
+
+    private List<OrdemCompra> _pendentes = new();
+
+    private bool _dialogAberto;
+    private int _selecionadaId;
+
+    private int _atrasados => _pendentes.Count(o =>
+        o.PrazoEntrega is not null && o.PrazoEntrega < DateTime.UtcNow);
+
+    private decimal _valorAReceber => _pendentes.Sum(o => o.ValorTotal - o.ValorRecebido);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+            _podeRegistrar = (await EstadoAutenticacao).User
+                .HasClaim(Permissoes.ClaimType, Permissoes.RecebimentoRegistrar);
+
+        await Recarregar();
+    }
+
+    private async Task Recarregar()
+    {
+        _carregando = true;
+        _pendentes = await Ordens.PendentesDeRecebimento();
+        _carregando = false;
+    }
+
+    private void Registrar(OrdemCompra ordem)
+    {
+        _selecionadaId = ordem.Id;
+        _dialogAberto = true;
+    }
+}

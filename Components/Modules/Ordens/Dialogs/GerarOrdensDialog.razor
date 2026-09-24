@@ -1,0 +1,136 @@
+@using Erp.Model.Cotacao
+@using Erp.Repository.Compra
+@using Erp.Repository.Cotacao
+@inject OrdemCompraRepository Ordens
+@inject CotacaoRepository Cotacoes
+@inject ToastService Toasts
+
+@* Converte os vencedores de uma cotação em pedidos — um por fornecedor.
+   A divisão não é escolha do usuário: um documento que misturasse dois
+   fornecedores não poderia ser enviado a nenhum dos dois. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[44rem] max-w-none p-6">
+        <div class="flex flex-col gap-4 rounded-[inherit]">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="file-plus-2" Size="20" />
+                <BbDialogTitle>Gerar ordens de compra</BbDialogTitle>
+            </div>
+
+            <p class="text-sm text-muted-foreground">
+                Escolha a cotação. Cada fornecedor vencedor recebe um pedido próprio,
+                em rascunho — nada é enviado antes de você conferir.
+            </p>
+
+            <BbField>
+                <BbFieldLabel>Cotação</BbFieldLabel>
+                <BbCombobox TValue="string"
+                            Class="w-full"
+                            Options="@_opcoes"
+                            @bind-Value="_cotacaoId"
+                            Placeholder="Selecione a cotação"
+                            SearchPlaceholder="Buscar cotação..."
+                            EmptyMessage="Nenhuma cotação com vencedor definido." />
+                <BbFieldDescription>
+                    Só aparecem as rodadas que já têm vencedor escolhido em ao menos um item.
+                </BbFieldDescription>
+            </BbField>
+
+            @if (_erro is not null)
+            {
+                <BbAlert Variant="AlertVariant.Destructive">
+                    <BbAlertDescription>@_erro</BbAlertDescription>
+                </BbAlert>
+            }
+
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => AbertoChanged.InvokeAsync(false)">
+                    Cancelar
+                </BbButton>
+                <BbButton OnClick="Gerar" Disabled="@(_gerando || string.IsNullOrEmpty(_cotacaoId))">
+                    Gerar pedidos
+                </BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+    [Parameter] public EventCallback OnGerado { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private List<SelectOption<string>> _opcoes = new();
+    private string _cotacaoId = "";
+    private bool _gerando;
+    private string? _erro;
+    private bool _carregou;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Aberto || _carregou)
+        {
+            if (!Aberto)
+                _carregou = false;
+
+            return;
+        }
+
+        _carregou = true;
+        _erro = null;
+        _cotacaoId = "";
+
+        var cotacoes = await Cotacoes.Buscar(c => c.Status != StatusCotacao.Rascunho);
+
+        _opcoes = cotacoes
+            .Where(c => c.Itens.Any(i => i.ConviteVencedorId != null))
+            .Select(c => new SelectOption<string>(c.Id.ToString(), $"#{c.Id} — {c.Titulo}"))
+            .ToList();
+    }
+
+    private async Task Gerar()
+    {
+        if (!int.TryParse(_cotacaoId, out var id))
+            return;
+
+        _gerando = true;
+        _erro = null;
+
+        try
+        {
+            var geradas = await Ordens.GerarDeCotacao(id, await IdDoUsuario());
+
+            Toasts.Success(
+                geradas.Count == 1 ? "Pedido gerado" : $"{geradas.Count} pedidos gerados",
+                string.Join(", ", geradas.Select(o => o.Numero)));
+
+            await OnGerado.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+        }
+        finally
+        {
+            _gerando = false;
+        }
+    }
+
+    private async Task<Guid> IdDoUsuario()
+    {
+        if (EstadoAutenticacao is null)
+            return Guid.Empty;
+
+        var user = (await EstadoAutenticacao).User;
+
+        return Guid.TryParse(
+            user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+    }
+}

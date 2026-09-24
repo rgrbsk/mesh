@@ -32,6 +32,22 @@ namespace Erp.Model.Produto
 
         public decimal ConsumoMedioDiario { get; set; }
 
+        /// <summary>
+        /// Preço esperado por unidade, usado para avaliar o impacto no
+        /// orçamento ANTES de existir cotação — na aprovação da solicitação o
+        /// preço real ainda não existe, e sem uma referência não há como dizer
+        /// ao aprovador quanto aquilo consome da verba.
+        ///
+        /// É atualizado automaticamente a cada ordem de compra emitida, mas
+        /// continua editável: o comprador pode saber de um reajuste antes de
+        /// ele aparecer numa compra.
+        /// </summary>
+        public decimal PrecoReferencia { get; set; }
+
+        /// <summary>Quando o preço de referência foi atualizado pela última
+        /// compra. Vazio enquanto nunca houve ordem de compra do item.</summary>
+        public DateTime? PrecoReferenciaEm { get; set; }
+
         /// <summary>Fornecedor habitual (Pessoa com Tipo = Fornecedor). Vira
         /// sugestão na hora de montar a cotação.</summary>
         public int? FornecedorPadraoId { get; set; }

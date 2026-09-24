@@ -23,6 +23,22 @@ namespace Erp.Model.Acesso
         public const string LogsSistema = "logs.sistema";
         public const string UsuariosGerir = "usuarios.gerir";
 
+        // ---- Ordem de compra e recebimento ----
+        public const string OrdensVer = "ordens.ver";
+        public const string OrdensGerir = "ordens.gerir";
+        public const string RecebimentoRegistrar = "recebimento.registrar";
+
+        // ---- Orçamento ----
+        public const string OrcamentoVer = "orcamento.ver";
+        public const string OrcamentoGerir = "orcamento.gerir";
+
+        // ---- Alçada de aprovação ----
+        public const string AlcadasGerir = "alcadas.gerir";
+
+        // ---- Contas a pagar ----
+        public const string TitulosVer = "titulos.ver";
+        public const string TitulosBaixar = "titulos.baixar";
+
         /// <summary>
         /// Catálogo: é daqui que sai a tela de permissões e o seed do papel
         /// Administrador. Acrescentar permissão = uma linha aqui.
@@ -38,7 +54,15 @@ namespace Erp.Model.Acesso
             new(FornecedorEditar,  "Editar pessoas",       "Cadastra, altera e exclui pessoas.",                        "Cadastros"),
             new(CentrosCustoGerir, "Gerir centros de custo","Cadastra centros e define quem aprova cada um.",           "Cadastros"),
             new(CotacoesGerir,     "Gerir cotações",       "Monta rodadas de cotação e envia os links aos fornecedores.", "Compras"),
+            new(OrdensVer,         "Ver ordens de compra", "Enxerga os pedidos emitidos e o saldo a receber.",          "Compras"),
+            new(OrdensGerir,       "Gerir ordens de compra","Emite, envia e cancela pedidos ao fornecedor.",            "Compras"),
+            new(RecebimentoRegistrar,"Registrar recebimento","Confere a mercadoria que chega e dá entrada no pedido.",  "Compras"),
             new(NotasGerir,        "Receber notas fiscais","Importa o XML da NF-e e confronta com a compra.",           "Compras"),
+            new(OrcamentoVer,      "Ver orçamento",        "Consulta a verba e o consumo dos centros de custo.",        "Gestão"),
+            new(OrcamentoGerir,    "Gerir orçamento",      "Define a verba mensal de cada centro de custo.",            "Gestão"),
+            new(AlcadasGerir,      "Gerir alçadas",        "Define a cadeia de aprovação por valor e as delegações.",   "Gestão"),
+            new(TitulosVer,        "Ver contas a pagar",   "Enxerga os títulos gerados e seus vencimentos.",            "Financeiro"),
+            new(TitulosBaixar,     "Baixar títulos",       "Registra o pagamento e cancela títulos.",                   "Financeiro"),
             new(EtapasGerir,       "Gerir etapas",         "Customiza as colunas do fluxo até a aprovação.",            "Adicionais"),
             new(LogsVer,           "Ver logs",             "Enxerga o histórico de quem fez o quê.",                    "Sistema"),
             new(LogsSistema,       "Ver logs de sistema",  "Acessos, IPs e exceções. Dado sensível de operação.",        "Sistema"),

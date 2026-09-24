@@ -1,0 +1,383 @@
+@using Erp.Model.Compra
+@using Erp.Repository.Compra
+@using Erp.Repository.Recebimento
+@inject OrdemCompraRepository Ordens
+@inject RecebimentoRepository Recebimentos
+@inject ToastService Toasts
+
+@* Mesmo desenho dos demais diálogos: faixa cinza no topo, seções separadas por
+   BbSeparator, rodapé com ActionArea. A régua de passos no topo existe porque
+   o pedido é o único documento do sistema que atravessa três etapas — emitir,
+   entregar, faturar — e sem ela o usuário não sabe em qual delas está. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[60rem] max-w-none h-[88vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="clipboard-list" Size="20" />
+                <BbDialogTitle>@(_ordem?.Numero ?? "Ordem de compra")</BbDialogTitle>
+                @if (_ordem is not null)
+                {
+                    <BbBadge Variant="@StatusOrdemVisual.Badge(_ordem.Status)" Class="ml-1">
+                        @StatusOrdemVisual.Texto(_ordem.Status)
+                    </BbBadge>
+                }
+            </div>
+
+            @if (_carregando)
+            {
+                <div class="flex-1 flex items-center justify-center">
+                    <BbSpinner />
+                </div>
+            }
+            else if (_ordem is null)
+            {
+                <BbEmpty Title="Pedido não encontrado" Class="py-10">
+                    <Icon><LucideIcon Name="file-x" Size="40" Class="text-muted-foreground" /></Icon>
+                </BbEmpty>
+            }
+            else
+            {
+                <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5">
+
+                    @if (_ordem.Status == StatusOrdemCompra.Cancelada)
+                    {
+                        @* Pedido cancelado não tem passo: o ciclo parou. Mostrar
+                           a régua sugeriria que ele ainda anda. *@
+                        <BbAlert Variant="AlertVariant.Destructive">
+                            <BbAlertTitle>Pedido cancelado</BbAlertTitle>
+                            <BbAlertDescription>@_ordem.MotivoCancelamento</BbAlertDescription>
+                        </BbAlert>
+                    }
+                    else
+                    {
+                        <BbStepper ActiveStep="@StatusOrdemVisual.Passo(_ordem.Status)" Clickable="false">
+                            <BbStep Icon="file-pen" />
+                            <BbStep Icon="send" />
+                            <BbStep Icon="package-check" />
+                        </BbStepper>
+                    }
+
+                    <div class="flex flex-wrap items-end gap-y-5 gap-x-5 content-start">
+
+                        <div class="w-full">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dados do pedido</span>
+                            <BbSeparator Class="mt-1.5" />
+                        </div>
+
+                        <BbField Class="grow min-w-72">
+                            <BbFieldLabel>Fornecedor</BbFieldLabel>
+                            <BbInput Value="@(_ordem.Fornecedor?.RazaoSocial ?? "—")" Disabled="true" />
+                        </BbField>
+
+                        <BbField Class="w-[11rem]">
+                            <BbFieldLabel>Emissão</BbFieldLabel>
+                            <BbInput Value="@_ordem.EmitidaEm.ToString("dd/MM/yyyy")" Disabled="true" />
+                        </BbField>
+
+                        <BbField Class="w-[11rem]">
+                            <BbFieldLabel>Prazo de entrega</BbFieldLabel>
+                            <BbInput Value="@(_ordem.PrazoEntrega?.ToString("dd/MM/yyyy") ?? "—")" Disabled="true" />
+                        </BbField>
+
+                        <BbField Class="w-[14rem]">
+                            <BbFieldLabel>Condição de pagamento</BbFieldLabel>
+                            <BbInput @bind-Value="_condicao" Disabled="!_editavel" Placeholder="30/60 dias" />
+                        </BbField>
+
+                        <BbField Class="w-[12rem]">
+                            <BbFieldLabel>Frete</BbFieldLabel>
+                            <BbInput @bind-Value="_frete" Disabled="!_editavel" Placeholder="CIF" />
+                        </BbField>
+
+                        <BbField Class="w-full">
+                            <BbFieldLabel>Observação</BbFieldLabel>
+                            <BbInput @bind-Value="_observacao" Disabled="!_editavel"
+                                     Placeholder="Instruções de entrega, contato no recebimento…" />
+                        </BbField>
+
+                        <div class="w-full">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Itens</span>
+                            <BbSeparator Class="mt-1.5" />
+                        </div>
+
+                        <div class="w-full rounded-lg border border-border overflow-hidden">
+                            <table class="w-full text-sm">
+                                <thead class="bg-muted/60">
+                                    <tr class="text-left">
+                                        <th class="px-3 py-2 font-medium">Produto</th>
+                                        <th class="px-3 py-2 font-medium w-24 text-right">Pedido</th>
+                                        <th class="px-3 py-2 font-medium w-24 text-right">Recebido</th>
+                                        <th class="px-3 py-2 font-medium w-28 text-right">Unitário</th>
+                                        <th class="px-3 py-2 font-medium w-28 text-right">Total</th>
+                                        <th class="px-3 py-2 font-medium w-28">Saldo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in _ordem.Itens)
+                                    {
+                                        <tr class="border-t border-border">
+                                            <td class="px-3 py-2">
+                                                <div class="font-medium">@item.Produto?.Descricao</div>
+                                                <div class="text-xs text-muted-foreground">@item.Produto?.Codigo</div>
+                                            </td>
+                                            <td class="px-3 py-2 text-right tabular-nums">@item.Quantidade.ToString("N2")</td>
+                                            <td class="px-3 py-2 text-right tabular-nums">@item.QuantidadeRecebida.ToString("N2")</td>
+                                            <td class="px-3 py-2 text-right tabular-nums">@item.PrecoUnitario.ToString("C2")</td>
+                                            <td class="px-3 py-2 text-right tabular-nums font-medium">@item.Total.ToString("C2")</td>
+                                            <td class="px-3 py-2">
+                                                @if (item.Atendido)
+                                                {
+                                                    <span class="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-500">
+                                                        <LucideIcon Name="check" Size="14" />
+                                                        Atendido
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-xs text-amber-600 dark:text-amber-500 tabular-nums">
+                                                        faltam @item.Pendente.ToString("N2")
+                                                    </span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot class="bg-muted/40 border-t border-border">
+                                    <tr>
+                                        <td class="px-3 py-2 font-medium" colspan="4">Total do pedido</td>
+                                        <td class="px-3 py-2 text-right font-semibold tabular-nums">@_ordem.ValorTotal.ToString("C2")</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+
+                        @if (_entradas.Count > 0)
+                        {
+                            <div class="w-full">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Entradas registradas</span>
+                                <BbSeparator Class="mt-1.5" />
+                            </div>
+
+                            <div class="w-full flex flex-col gap-2">
+                                @foreach (var entrada in _entradas)
+                                {
+                                    <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-md border border-border">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            <LucideIcon Name="package-open" Size="16" Class="text-muted-foreground" />
+                                            <span class="font-medium">@entrada.Numero</span>
+                                            <span class="text-xs text-muted-foreground truncate">
+                                                @entrada.RecebidoEm.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @entrada.RecebidoPorNome
+                                            </span>
+                                        </div>
+                                        @if (entrada.TemRessalva)
+                                        {
+                                            <BbBadge Variant="BadgeVariant.Destructive">Com ressalva</BbBadge>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <BbSeparator />
+
+                <div class="flex items-center justify-between gap-2">
+                    <div class="text-sm text-muted-foreground">
+                        @if (_ordem.Status is StatusOrdemCompra.Enviada or StatusOrdemCompra.ParcialmenteRecebida)
+                        {
+                            <span>Aguardando entrega de @_ordem.Itens.Count(i => !i.Atendido) item(ns).</span>
+                        }
+                    </div>
+
+                    <ActionArea>
+                        <BbButton Variant="ButtonVariant.Outline" OnClick="Fechar">Fechar</BbButton>
+
+                        @if (PodeGerir && _editavel)
+                        {
+                            <BbButton Variant="ButtonVariant.Outline" OnClick="Salvar" Disabled="_salvando">
+                                Salvar
+                            </BbButton>
+                            <BbButton OnClick="Enviar" Disabled="_salvando" IconPosition="IconPosition.Start">
+                                <ChildContent>Enviar ao fornecedor</ChildContent>
+                                <Icon><LucideIcon Name="send" Size="16" /></Icon>
+                            </BbButton>
+                        }
+
+                        @if (PodeGerir && _ordem.Status != StatusOrdemCompra.Cancelada
+                             && !_ordem.Itens.Any(i => i.QuantidadeRecebida > 0))
+                        {
+                            <BbButton Variant="ButtonVariant.Destructive" OnClick="() => _dialogCancelar = true">
+                                Cancelar pedido
+                            </BbButton>
+                        }
+                    </ActionArea>
+                </div>
+            }
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@* Cancelar é irreversível e some do saldo do orçamento: pede motivo. *@
+<BbDialog @bind-Open="_dialogCancelar">
+    <BbDialogContent Class="max-w-md p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>Cancelar pedido</BbDialogTitle>
+            <p class="text-sm text-muted-foreground">
+                O pedido <strong class="text-foreground">@_ordem?.Numero</strong> deixa de comprometer
+                o orçamento. O histórico permanece.
+            </p>
+            <BbField>
+                <BbFieldLabel>Motivo</BbFieldLabel>
+                <BbInput @bind-Value="_motivoCancelamento" Placeholder="Fornecedor não confirmou o prazo" />
+            </BbField>
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogCancelar = false">Voltar</BbButton>
+                <BbButton Variant="ButtonVariant.Destructive" OnClick="ConfirmarCancelamento">Cancelar pedido</BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+    [Parameter] public int OrdemId { get; set; }
+    [Parameter] public bool PodeGerir { get; set; }
+    [Parameter] public EventCallback OnMudou { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private OrdemCompra? _ordem;
+    private List<Erp.Model.Recebimento.Recebimento> _entradas = new();
+    private bool _carregando;
+    private bool _salvando;
+
+    private string _condicao = "";
+    private string _frete = "";
+    private string _observacao = "";
+
+    private bool _dialogCancelar;
+    private string _motivoCancelamento = "";
+
+    private bool _editavel => _ordem?.Editavel ?? false;
+    private int _ultimoCarregado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Aberto || OrdemId == 0 || OrdemId == _ultimoCarregado)
+            return;
+
+        _ultimoCarregado = OrdemId;
+        _carregando = true;
+
+        _ordem = await Ordens.ObterPorId(OrdemId);
+        _entradas = await Recebimentos.Buscar(OrdemId);
+
+        if (_ordem is not null)
+        {
+            _condicao = _ordem.CondicaoPagamento;
+            _frete = _ordem.Frete;
+            _observacao = _ordem.Observacao;
+        }
+
+        _carregando = false;
+    }
+
+    private async Task Fechar()
+    {
+        _ultimoCarregado = 0;
+        await AbertoChanged.InvokeAsync(false);
+    }
+
+    private async Task Salvar()
+    {
+        if (_ordem is null)
+            return;
+
+        _salvando = true;
+        try
+        {
+            _ordem.CondicaoPagamento = _condicao;
+            _ordem.Frete = _frete;
+            _ordem.Observacao = _observacao;
+
+            await Ordens.Atualizar(_ordem);
+
+            Toasts.Success("Pedido salvo", _ordem.Numero);
+            await OnMudou.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível salvar", ex.Message);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private async Task Enviar()
+    {
+        if (_ordem is null)
+            return;
+
+        _salvando = true;
+        try
+        {
+            await Salvar();
+            await Ordens.Enviar(_ordem.Id, await IdDoUsuario());
+
+            Toasts.Success("Pedido enviado", $"{_ordem.Numero} está com o fornecedor.");
+            await OnMudou.InvokeAsync();
+            await Fechar();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível enviar", ex.Message);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private async Task ConfirmarCancelamento()
+    {
+        if (_ordem is null)
+            return;
+
+        try
+        {
+            await Ordens.Cancelar(_ordem.Id, _motivoCancelamento, await IdDoUsuario());
+
+            _dialogCancelar = false;
+            _motivoCancelamento = "";
+
+            Toasts.Success("Pedido cancelado", _ordem.Numero);
+            await OnMudou.InvokeAsync();
+            await Fechar();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível cancelar", ex.Message);
+        }
+    }
+
+    private async Task<Guid> IdDoUsuario()
+    {
+        if (EstadoAutenticacao is null)
+            return Guid.Empty;
+
+        var user = (await EstadoAutenticacao).User;
+
+        return Guid.TryParse(
+            user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+    }
+}

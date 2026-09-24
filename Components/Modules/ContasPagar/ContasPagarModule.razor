@@ -1,0 +1,307 @@
+@using Erp.Model.Financeiro
+@using Erp.Model.Fiscal
+@using Erp.Components.Modules.Ordens
+@using Erp.Components.Modules.ContasPagar.Dialogs
+@using Erp.Repository.Financeiro
+@using Erp.Repository.Fiscal
+@inject TituloPagarRepository Titulos
+@inject NotaFiscalRepository Notas
+@inject ToastService Toasts
+
+@* Duas abas porque são dois momentos distintos do mesmo ciclo: LIBERAR é
+   decidir que a nota está conferida e pode virar obrigação; BAIXAR é registrar
+   que ela foi paga. Misturar os dois numa lista só esconderia a fronteira. *@
+
+<BbTabs Class="flex flex-col h-full" DefaultValue="titulos">
+    <div class="px-6 pt-6 pb-0 flex items-center justify-between gap-4">
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Contas a Pagar</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                Títulos gerados a partir das notas conferidas, e o que ainda aguarda liberação.
+            </p>
+        </div>
+
+        <ActionArea>
+            <BbButton OnClick="Recarregar" Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                <ChildContent>Atualizar</ChildContent>
+                <Icon><LucideIcon Name="refresh-cw" Size="16" Color="lightblue" /></Icon>
+            </BbButton>
+        </ActionArea>
+    </div>
+
+    <div class="px-6 pt-4">
+        <BbTabsList Class="grid w-full grid-cols-2">
+            <BbTabsTrigger Value="titulos">
+                Títulos@(_titulos.Count > 0 ? $" ({_titulos.Count})" : "")
+            </BbTabsTrigger>
+            <BbTabsTrigger Value="liberar">
+                Notas a liberar@(_aLiberar.Count > 0 ? $" ({_aLiberar.Count})" : "")
+            </BbTabsTrigger>
+        </BbTabsList>
+    </div>
+
+    @* ------------------------------ TÍTULOS ------------------------------ *@
+    <BbTabsContent Value="titulos" Class="flex flex-col flex-1 min-h-0 p-6 pt-4">
+
+        <div class="grid gap-4 mb-5 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+            <StatCard Label="Em aberto" Value="@_resumoAberto.ToString("C2")" />
+            <StatCard Label="Vencido" Value="@_resumoVencido.ToString("C2")" />
+            <StatCard Label="Vence em 7 dias" Value="@_resumoAVencer.ToString("C2")" />
+            <StatCard Label="Títulos em aberto" Value="@_resumoQtd.ToString()" />
+        </div>
+
+        <div class="flex-1 min-h-0">
+            <BbDataGrid TData="TituloPagar"
+                        Items="@_titulos"
+                        IsLoading="_carregando"
+                        Striped
+                        StripeClass="bg-muted/40"
+                        StickyHeader
+                        ShowSearch="true"
+                        SearchPlaceholder="Buscar título ou fornecedor…"
+                        ShowPagination
+                        InitialPageSize="20"
+                        Resizable>
+                <Columns>
+                    <BbDataGridPropertyColumn Property="@(t => t.Identificacao)" Title="Título" Width="150px" Sortable />
+                    <BbDataGridPropertyColumn Property="@(t => t.Fornecedor != null ? t.Fornecedor.RazaoSocial : "—")" Title="Fornecedor" Sortable />
+                    <BbDataGridPropertyColumn Property="@(t => t.Vencimento)" Title="Vencimento" Format="dd/MM/yyyy" Width="130px" Sortable />
+
+                    <BbDataGridTemplateColumn Title="Valor" Width="130px" NoWrap>
+                        <span class="text-sm tabular-nums">@context.Valor.ToString("C2")</span>
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="Saldo" Width="130px" NoWrap>
+                        <span class="text-sm font-medium tabular-nums">@context.Saldo.ToString("C2")</span>
+                    </BbDataGridTemplateColumn>
+
+                    @* Vencido tem que saltar aos olhos: é a única informação
+                       desta tela que exige ação hoje. *@
+                    <BbDataGridTemplateColumn Title="Situação" Width="170px" NoWrap>
+                        @if (context.Vencido)
+                        {
+                            <span class="inline-flex items-center gap-1 text-xs font-medium text-destructive">
+                                <LucideIcon Name="triangle-alert" Size="14" />
+                                Vencido há @(-context.DiasParaVencer) dia(s)
+                            </span>
+                        }
+                        else
+                        {
+                            <BbBadge Variant="@StatusOrdemVisual.Badge(context.Status)">
+                                @StatusOrdemVisual.Texto(context.Status)
+                            </BbBadge>
+                        }
+                    </BbDataGridTemplateColumn>
+
+                    <BbDataGridTemplateColumn Title="Ações" Width="110px" NoWrap>
+                        <div class="flex items-center justify-end gap-1">
+                            @if (_podeBaixar && context.Status is StatusTitulo.Aberto or StatusTitulo.ParcialmentePago)
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                          OnClick="() => Baixar(context)" aria-label="Registrar pagamento">
+                                    <LucideIcon Name="banknote" Size="15" Class="text-emerald-600" />
+                                </BbButton>
+                                @if (context.Baixas.Count == 0)
+                                {
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                              OnClick="() => PedirCancelamento(context)" aria-label="Cancelar">
+                                        <LucideIcon Name="circle-x" Size="15" Class="text-destructive" />
+                                    </BbButton>
+                                }
+                            }
+                        </div>
+                    </BbDataGridTemplateColumn>
+                </Columns>
+
+                <EmptyTemplate>
+                    <BbEmpty Title="Nenhum título gerado"
+                             Description="Libere uma nota conferida na aba ao lado para gerar o título."
+                             Class="py-10">
+                        <Icon><LucideIcon Name="receipt" Size="40" Class="text-muted-foreground" /></Icon>
+                    </BbEmpty>
+                </EmptyTemplate>
+            </BbDataGrid>
+        </div>
+    </BbTabsContent>
+
+    @* --------------------------- NOTAS A LIBERAR --------------------------- *@
+    <BbTabsContent Value="liberar" Class="flex flex-col flex-1 min-h-0 p-6 pt-4">
+        @if (_aLiberar.Count == 0)
+        {
+            <BbEmpty Title="Nada aguardando liberação"
+                     Description="Notas importadas e conferidas aparecem aqui para virar título a pagar."
+                     Class="py-16">
+                <Icon><LucideIcon Name="file-check-2" Size="40" Class="text-muted-foreground" /></Icon>
+            </BbEmpty>
+        }
+        else
+        {
+            <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+                @foreach (var nota in _aLiberar)
+                {
+                    <BbCard>
+                        <BbCardContent Class="p-4">
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="font-semibold">Nota @nota.Numero / @nota.Serie</span>
+                                        @if (nota.OrdemCompra is not null)
+                                        {
+                                            <BbBadge Variant="BadgeVariant.Outline">@nota.OrdemCompra.Numero</BbBadge>
+                                        }
+                                        else
+                                        {
+                                            <span class="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-500">
+                                                <LucideIcon Name="unlink" Size="14" />
+                                                Sem pedido amarrado
+                                            </span>
+                                        }
+                                    </div>
+                                    <div class="text-sm text-muted-foreground mt-1">
+                                        @nota.EmitenteNome
+                                        · emitida em @nota.Emissao.ToString("dd/MM/yyyy")
+                                        · @nota.ValorTotal.ToString("C2")
+                                    </div>
+                                </div>
+
+                                <BbButton OnClick="() => Liberar(nota)" IconPosition="IconPosition.Start">
+                                    <ChildContent>Conferir e liberar</ChildContent>
+                                    <Icon><LucideIcon Name="circle-check" Size="16" /></Icon>
+                                </BbButton>
+                            </div>
+                        </BbCardContent>
+                    </BbCard>
+                }
+            </div>
+        }
+    </BbTabsContent>
+</BbTabs>
+
+<BaixaDialog @bind-Aberto="_dialogBaixa" Titulo="_emBaixa" OnBaixado="Recarregar" />
+<LiberarNotaDialog @bind-Aberto="_dialogLiberar" NotaId="_notaId" OnLiberado="Recarregar" />
+
+<BbDialog @bind-Open="_dialogCancelar">
+    <BbDialogContent Class="max-w-md p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>Cancelar título</BbDialogTitle>
+            <p class="text-sm text-muted-foreground">
+                Cancelar <strong class="text-foreground">@_aCancelar?.Identificacao</strong>?
+                O título some do saldo a pagar, mas permanece no histórico.
+            </p>
+            <BbField>
+                <BbFieldLabel>Motivo</BbFieldLabel>
+                <BbInput @bind-Value="_motivoCancelamento" Placeholder="Nota devolvida ao fornecedor" />
+            </BbField>
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _dialogCancelar = false">Voltar</BbButton>
+                <BbButton Variant="ButtonVariant.Destructive" OnClick="ConfirmarCancelamento">Cancelar título</BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private bool _podeBaixar;
+    private bool _carregando = true;
+
+    private List<TituloPagar> _titulos = new();
+    private List<NotaFiscal> _aLiberar = new();
+
+    private decimal _resumoAberto, _resumoVencido, _resumoAVencer;
+    private int _resumoQtd;
+
+    private bool _dialogBaixa;
+    private TituloPagar? _emBaixa;
+
+    private bool _dialogLiberar;
+    private int _notaId;
+
+    private bool _dialogCancelar;
+    private TituloPagar? _aCancelar;
+    private string _motivoCancelamento = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+            _podeBaixar = (await EstadoAutenticacao).User
+                .HasClaim(Permissoes.ClaimType, Permissoes.TitulosBaixar);
+
+        await Recarregar();
+    }
+
+    private async Task Recarregar()
+    {
+        _carregando = true;
+
+        _titulos = await Titulos.Buscar();
+
+        var (aberto, vencido, aVencer, qtd) = await Titulos.Resumo();
+        _resumoAberto = aberto;
+        _resumoVencido = vencido;
+        _resumoAVencer = aVencer;
+        _resumoQtd = qtd;
+
+        // Nota importada, ainda não liberada e que não é de homologação —
+        // esta última nunca vira título, então não faz sentido oferecê-la.
+        var todas = await Notas.Buscar();
+        _aLiberar = todas
+            .Where(n => !n.LiberadaParaPagamento && n.Ambiente != 2)
+            .OrderByDescending(n => n.ImportadaEm)
+            .ToList();
+
+        _carregando = false;
+    }
+
+    private void Baixar(TituloPagar titulo)
+    {
+        _emBaixa = titulo;
+        _dialogBaixa = true;
+    }
+
+    private void Liberar(NotaFiscal nota)
+    {
+        _notaId = nota.Id;
+        _dialogLiberar = true;
+    }
+
+    private void PedirCancelamento(TituloPagar titulo)
+    {
+        _aCancelar = titulo;
+        _motivoCancelamento = "";
+        _dialogCancelar = true;
+    }
+
+    private async Task ConfirmarCancelamento()
+    {
+        if (_aCancelar is null)
+            return;
+
+        try
+        {
+            await Titulos.Cancelar(_aCancelar.Id, _motivoCancelamento, await IdDoUsuario());
+
+            _dialogCancelar = false;
+            Toasts.Success("Título cancelado", _aCancelar.Identificacao);
+            await Recarregar();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível cancelar", ex.Message);
+        }
+    }
+
+    private async Task<Guid> IdDoUsuario()
+    {
+        if (EstadoAutenticacao is null)
+            return Guid.Empty;
+
+        var user = (await EstadoAutenticacao).User;
+
+        return Guid.TryParse(
+            user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+    }
+}

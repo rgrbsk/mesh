@@ -26,10 +26,21 @@ namespace Erp.Model.CentroCusto
         public ICollection<CentroCusto> Filhos { get; set; } = new List<CentroCusto>();
 
         /// <summary>Quem aprova as solicitações deste centro. Sem responsável,
-        /// as solicitações do centro ficam sem destino.</summary>
+        /// as solicitações do centro ficam sem destino.
+        ///
+        /// Continua valendo como o degrau único da cadeia quando o centro não
+        /// tem alçada cadastrada — é o que mantém compatível o que já existia
+        /// antes de haver alçada.</summary>
         public Guid? ResponsavelId { get; set; }
 
         public Usuario.Usuario? Responsavel { get; set; }
+
+        /// <summary>
+        /// Recusar a aprovação que estoura o orçamento do mês, em vez de apenas
+        /// avisar. Fica desligado por padrão: numa organização que ainda não
+        /// cadastrou verba, travar tudo seria pior que não controlar.
+        /// </summary>
+        public bool BloqueiaAcimaOrcamento { get; set; }
 
         public bool Ativo { get; set; } = true;
 

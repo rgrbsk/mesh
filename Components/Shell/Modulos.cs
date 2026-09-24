@@ -15,6 +15,11 @@ using Erp.Components.Modules.Cotacoes;
 using Erp.Components.Modules.Aprovacoes;
 using Erp.Components.Modules.Logs;
 using Erp.Components.Modules.Notas;
+using Erp.Components.Modules.Ordens;
+using Erp.Components.Modules.Recebimentos;
+using Erp.Components.Modules.Orcamentos;
+using Erp.Components.Modules.ContasPagar;
+using Erp.Components.Modules.Alcadas;
 
 namespace Erp.Components.Shell;
 
@@ -43,11 +48,24 @@ public static class Modulos
         new("kanban",      "Kanban",             "kanban",                 "Comercial", Permissoes.ComprasVer,     typeof(KanbanModule), "#00CED1", ForaDasAbas: true),
         new("cotacoes",    "Cotações",           "mail",                   "Comercial", Permissoes.CotacoesGerir,  typeof(CotacoesModule), "#FF7F50", ForaDasAbas: true),
         new("aprovacoes",  "Aprovações",         "circle-check",           "Comercial", Permissoes.ComprasAprovar, typeof(AprovacoesModule), "#7CFC00"),
+
+        // O ciclo entre a escolha do vencedor e o pagamento: pedido → entrega →
+        // nota → título. Cada um é um módulo porque são momentos distintos, com
+        // públicos distintos — o comprador emite, o almoxarife recebe, o
+        // financeiro paga.
+        new("ordens",      "Ordens de Compra",   "clipboard-list",         "Comercial", Permissoes.OrdensVer,      typeof(OrdensModule), "#FFD700"),
+        new("recebimentos","Recebimentos",       "package-open",           "Comercial", Permissoes.RecebimentoRegistrar, typeof(RecebimentosModule), "#20B2AA"),
         new("notas",       "Notas Fiscais",      "file-check-2",           "Comercial", Permissoes.NotasGerir,     typeof(NotasModule), "#FFB347"),
-        new("pessoas","Pessoas",       "users",                  "Comercial", Permissoes.FornecedorVer,  typeof(PessoasModule), "#ADFF2F"),
-        new("centrosdecusto",  "Centros de Custo",         "currency",                 "Gestão",    Permissoes.CentrosCustoGerir, typeof(FinanceiroModule), "#4F7942"),
-        new("produtos",    "Produtos",           "package",                "Operações", Permissoes.ProdutosVer,    typeof(ProdutosModule), "#E4A0F7"),
+        new("pessoas",     "Pessoas",            "users",                  "Comercial", Permissoes.FornecedorVer,  typeof(PessoasModule), "#ADFF2F"),
+
+        new("centrosdecusto","Centros de Custo", "currency",               "Gestão",    Permissoes.CentrosCustoGerir, typeof(FinanceiroModule), "#4F7942"),
+        new("orcamentos",  "Orçamentos",         "wallet",                 "Gestão",    Permissoes.OrcamentoVer,   typeof(OrcamentosModule), "#9370DB"),
+        new("alcadas",     "Alçadas",            "git-branch",             "Gestão",    Permissoes.AlcadasGerir,   typeof(AlcadasModule), "#FF69B4"),
+        new("contaspagar", "Contas a Pagar",     "receipt",                "Gestão",    Permissoes.TitulosVer,     typeof(ContasPagarModule), "#CD5C5C"),
         new("relatorios",  "Relatórios",         "file-text",              "Gestão",    null,                      typeof(RelatoriosModule),  "#DE3163"),
+
+        new("produtos",    "Produtos",           "package",                "Operações", Permissoes.ProdutosVer,    typeof(ProdutosModule), "#E4A0F7"),
+
         new("logs",        "Logs",               "footprints",             "Sistema",   Permissoes.LogsVer,        typeof(LogsModule), "#FF4F00"),
         new("usuarios",    "Usuários",           "user-key",               "Sistema",   Permissoes.UsuariosGerir,  typeof(UsuariosModule), "#FCF75E"),
         new("adicionais",  "Adicionais",         "settings-2",             "Sistema",   Permissoes.EtapasGerir,    typeof(AdicionaisModule), "#007FFF"),

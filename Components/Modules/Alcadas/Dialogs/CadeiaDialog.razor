@@ -1,0 +1,264 @@
+@using Erp.Model.Aprovacao
+@using Erp.Repository.Aprovacao
+@using Erp.Repository.CentroCusto
+@using Erp.Repository.Usuario
+@inject AlcadaRepository Alcadas
+@inject CentroCustoRepository Centros
+@inject UsuarioRepository Usuarios
+@inject ToastService Toasts
+
+@* A cadeia é salva inteira, nunca degrau a degrau: uma cadeia com buraco de
+   nível deixaria itens promovidos a um degrau inexistente — parados para
+   sempre. Por isso o diálogo edita a lista completa e o repositório substitui
+   tudo de uma vez. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[46rem] max-w-none h-[80vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="git-branch" Size="20" />
+                <BbDialogTitle>Cadeia de aprovação</BbDialogTitle>
+            </div>
+
+            <BbField>
+                <BbFieldLabel>Centro de custo</BbFieldLabel>
+                <BbCombobox TValue="string"
+                            Class="w-full"
+                            Options="@_centros"
+                            @bind-Value="_centroId"
+                            @bind-Value:after="Carregar"
+                            Placeholder="Selecione o centro"
+                            SearchPlaceholder="Buscar centro..."
+                            EmptyMessage="Nenhum centro ativo." />
+            </BbField>
+
+            <BbSeparator />
+
+            <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+                @if (string.IsNullOrEmpty(_centroId))
+                {
+                    <p class="text-sm text-muted-foreground">
+                        Escolha um centro de custo para montar a cadeia.
+                    </p>
+                }
+                else
+                {
+                    @for (var i = 0; i < _degraus.Count; i++)
+                    {
+                        var indice = i;
+                        var degrau = _degraus[indice];
+
+                        <div class="flex items-end gap-3 p-3 rounded-lg border border-border">
+                            <div class="w-10 h-9 flex items-center justify-center rounded-md bg-muted text-sm font-semibold">
+                                @(indice + 1)
+                            </div>
+
+                            <BbField Class="grow min-w-48">
+                                <BbFieldLabel>Aprovador</BbFieldLabel>
+                                <BbCombobox TValue="string"
+                                            Class="w-full"
+                                            Options="@_usuarios"
+                                            @bind-Value="degrau.AprovadorId"
+                                            Placeholder="Selecione"
+                                            SearchPlaceholder="Buscar usuário..."
+                                            EmptyMessage="Nenhum usuário ativo." />
+                            </BbField>
+
+                            <BbField Class="w-[12rem]">
+                                <BbFieldLabel>Aprova até</BbFieldLabel>
+                                <BbInput @bind-Value="degrau.Limite"
+                                         Placeholder="0,00"
+                                         Disabled="degrau.Ilimitado"
+                                         Class="text-right tabular-nums" />
+                            </BbField>
+
+                            <BbField Class="w-[9rem]">
+                                <BbFieldLabel>Sem limite</BbFieldLabel>
+                                <div class="flex items-center h-9">
+                                    <BbSwitch @bind-Checked="degrau.Ilimitado" />
+                                </div>
+                            </BbField>
+
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => _degraus.RemoveAt(indice)" Class="mb-1">
+                                <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                            </BbButton>
+                        </div>
+                    }
+
+                    <BbButton Variant="ButtonVariant.Outline" OnClick="Acrescentar" IconPosition="IconPosition.Start">
+                        <ChildContent>Acrescentar degrau</ChildContent>
+                        <Icon><LucideIcon Name="plus" Size="16" /></Icon>
+                    </BbButton>
+
+                    <BbAlert>
+                        <BbAlertDescription>
+                            O último degrau precisa ser sem limite — é ele que fecha o teto.
+                            Deixar a cadeia vazia devolve o centro ao comportamento padrão:
+                            o responsável decide tudo, sem limite.
+                        </BbAlertDescription>
+                    </BbAlert>
+                }
+            </div>
+
+            @if (_erro is not null)
+            {
+                <BbAlert Variant="AlertVariant.Destructive">
+                    <BbAlertDescription>@_erro</BbAlertDescription>
+                </BbAlert>
+            }
+
+            <BbSeparator />
+
+            <div class="flex items-center justify-end gap-2">
+                <ActionArea>
+                    <BbButton Variant="ButtonVariant.Outline" OnClick="() => AbertoChanged.InvokeAsync(false)">
+                        Cancelar
+                    </BbButton>
+                    <BbButton OnClick="Salvar" Disabled="@(_salvando || string.IsNullOrEmpty(_centroId))">
+                        Salvar cadeia
+                    </BbButton>
+                </ActionArea>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+    [Parameter] public EventCallback OnSalvo { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    /// <summary>Linha da tela. Usa string porque os campos são de texto —
+    /// a conversão acontece uma vez, ao salvar.</summary>
+    private sealed class Degrau
+    {
+        public string AprovadorId { get; set; } = "";
+        public string Limite { get; set; } = "";
+        public bool Ilimitado { get; set; }
+    }
+
+    private List<SelectOption<string>> _centros = new();
+    private List<SelectOption<string>> _usuarios = new();
+    private List<Degrau> _degraus = new();
+    private string _centroId = "";
+    private bool _salvando;
+    private string? _erro;
+    private bool _carregou;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Aberto)
+        {
+            _carregou = false;
+            return;
+        }
+
+        if (_carregou)
+            return;
+
+        _carregou = true;
+        _erro = null;
+        _centroId = "";
+        _degraus = new();
+
+        _centros = (await Centros.BuscarAtivos())
+            .Select(c => new SelectOption<string>(c.Id.ToString(), $"{c.Codigo} — {c.Nome}"))
+            .ToList();
+
+        _usuarios = (await Usuarios.Buscar(null))
+            .Select(u => new SelectOption<string>(
+                u.Id.ToString(), $"{u.Nome} {u.Sobrenome}".Trim()))
+            .ToList();
+    }
+
+    private async Task Carregar()
+    {
+        if (!int.TryParse(_centroId, out var id))
+            return;
+
+        var atuais = await Alcadas.Buscar(id);
+
+        _degraus = atuais
+            .OrderBy(a => a.Ordem)
+            .Select(a => new Degrau
+            {
+                AprovadorId = a.AprovadorId.ToString(),
+                Limite = a.Ilimitado ? "" : a.LimiteValor.ToString("0.00"),
+                Ilimitado = a.Ilimitado,
+            })
+            .ToList();
+    }
+
+    private void Acrescentar() => _degraus.Add(new Degrau
+    {
+        // O primeiro degrau raramente é ilimitado; o último sempre é. Sugerir
+        // ilimitado quando é o primeiro da lista pouparia um clique no caso
+        // mais comum, que é a cadeia de um degrau só.
+        Ilimitado = _degraus.Count == 0,
+    });
+
+    private async Task Salvar()
+    {
+        if (!int.TryParse(_centroId, out var centroId))
+            return;
+
+        _salvando = true;
+        _erro = null;
+
+        try
+        {
+            var lista = _degraus
+                .Select((d, i) => new AlcadaAprovacao
+                {
+                    CentroCustoId = centroId,
+                    Ordem = i + 1,
+                    AprovadorId = Guid.TryParse(d.AprovadorId, out var g) ? g : Guid.Empty,
+                    LimiteValor = d.Ilimitado ? 0m : Numero(d.Limite),
+                    Ativo = true,
+                })
+                .ToList();
+
+            await Alcadas.SalvarCadeia(centroId, lista, await IdDoUsuario());
+
+            Toasts.Success("Cadeia salva",
+                lista.Count == 0
+                    ? "O centro voltou a ser decidido pelo responsável."
+                    : $"{lista.Count} degrau(s) configurado(s).");
+
+            await OnSalvo.InvokeAsync();
+            await AbertoChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private static decimal Numero(string texto) =>
+        decimal.TryParse((texto ?? "").Replace(',', '.'),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var valor) ? valor : 0m;
+
+    private async Task<Guid> IdDoUsuario()
+    {
+        if (EstadoAutenticacao is null)
+            return Guid.Empty;
+
+        var user = (await EstadoAutenticacao).User;
+
+        return Guid.TryParse(
+            user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id)
+                ? id
+                : Guid.Empty;
+    }
+}

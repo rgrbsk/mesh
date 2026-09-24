@@ -38,5 +38,30 @@ namespace Erp.Model.Solicitacao
         public Erp.Model.Usuario.Usuario? DecididoPor { get; set; }
 
         public DateTime? DecididoEm { get; set; }
+
+        // ---- Cadeia de aprovação ----
+
+        /// <summary>
+        /// Degrau em que o item está. Começa em 1 e sobe a cada aprovação que
+        /// não encerra a alçada. Item em nível 2 continua Pendente: a decisão
+        /// do primeiro aprovador foi favorável, mas não bastou.
+        /// </summary>
+        public int NivelAtual { get; set; } = 1;
+
+        /// <summary>
+        /// Valor do item no momento do envio, calculado pelo preço de
+        /// referência do produto. É por ele que a alçada é resolvida e que o
+        /// impacto no orçamento é estimado.
+        ///
+        /// Fica gravado em vez de recalculado: mudar o preço de referência do
+        /// produto não pode reabrir a cadeia de um item que já está em decisão.
+        /// </summary>
+        public decimal ValorEstimado { get; set; }
+
+        public List<Erp.Model.Aprovacao.AprovacaoItem> Aprovacoes { get; set; } = new();
+
+        public decimal PrecoEstimadoUnitario => Quantidade == 0
+            ? 0m
+            : ValorEstimado / Quantidade;
     }
 }

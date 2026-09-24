@@ -1,0 +1,290 @@
+@using Erp.Model.Compra
+@using Erp.Components.Modules.Ordens.Dialogs
+@using Erp.Repository.Compra
+@using BlazorBlueprint.Primitives.Filtering
+@inject OrdemCompraRepository Ordens
+@inject ToastService Toasts
+
+@* O pedido formal ao fornecedor — a peça entre a escolha do vencedor e a
+   chegada da mercadoria. É contra ele que o recebimento dá entrada e que a
+   nota é conferida. *@
+
+<div class="flex flex-col h-full min-h-0 p-6">
+    <div class="mb-5 px-2 flex items-center justify-between gap-4">
+
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight truncate">Ordens de Compra</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+                O pedido enviado ao fornecedor. Recebimento e nota fiscal são conferidos contra ele.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-none">
+            <ActionArea>
+                @if (_buscaAberta)
+                {
+                    <BbInput @ref="_campoBusca"
+                             @bind-Value="_busca"
+                             UpdateTiming="UpdateTiming.Debounced"
+                             DebounceInterval="250"
+                             Placeholder="Buscar nesta lista…"
+                             Class="w-64 border-0 shadow-none focus-visible:ring-0"
+                             @onblur="FecharBuscaSeVazia" />
+                }
+                <BbButton OnClick="AlternarBusca"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>@(_buscaAberta ? "" : "Pesquisar")</ChildContent>
+                    <Icon><LucideIcon Name="@(_buscaAberta ? "x" : "search")" Size="16" /></Icon>
+                </BbButton>
+                <BbButton OnClick="() => _painelFiltros = !_painelFiltros"
+                          Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                    <ChildContent>Filtros@(_condicoes > 0 ? $" ({_condicoes})" : "")</ChildContent>
+                    <Icon><LucideIcon Name="funnel" Size="16" Color="magenta" /></Icon>
+                </BbButton>
+                @if (_podeGerir)
+                {
+                    <BbButton OnClick="() => _dialogGerarAberto = true"
+                              Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start">
+                        <ChildContent>Gerar de cotação</ChildContent>
+                        <Icon><LucideIcon Name="file-plus-2" Size="16" Color="lightgreen" /></Icon>
+                    </BbButton>
+                }
+            </ActionArea>
+
+            <GerarOrdensDialog @bind-Aberto="_dialogGerarAberto" OnGerado="Recarregar" />
+            <OrdemCompraDialog @bind-Aberto="_dialogDetalheAberto"
+                               OrdemId="_selecionadaId"
+                               PodeGerir="_podeGerir"
+                               OnMudou="Recarregar" />
+        </div>
+    </div>
+
+    <div class="grid gap-4 mb-5 px-2 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+        <StatCard Label="Em rascunho" Value="@_rascunhos.ToString()" />
+        <StatCard Label="Aguardando entrega" Value="@_aguardando.ToString()" />
+        <StatCard Label="Recebidas em parte" Value="@_parciais.ToString()" />
+        <StatCard Label="Valor em aberto" Value="@_valorAberto.ToString("C2")" />
+    </div>
+
+    @if (_painelFiltros)
+    {
+        <div class="mb-4 mx-2 p-4 rounded-lg border border-border bg-card">
+            <BbFilterBuilder Fields="_campos"
+                             @bind-Filter="_filtro"
+                             OnFilterChanged="Recarregar"
+                             ApplyButtonText="Aplicar filtros"
+                             ClearButtonText="Limpar" />
+        </div>
+    }
+
+    <div class="flex-1 min-h-0 px-2">
+        <BbDataGrid TData="OrdemCompra"
+                    Items="@_ordens"
+                    IsLoading="_carregando"
+                    Striped
+                    StripeClass="bg-muted/40"
+                    StickyHeader
+                    ShowSearch="false"
+                    SearchText="@_busca"
+                    ShowPagination
+                    InitialPageSize="20"
+                    Resizable>
+            <Columns>
+                <BbDataGridPropertyColumn Property="@(o => o.Numero)" Title="Número" Width="150px" Sortable />
+                <BbDataGridPropertyColumn Property="@(o => o.Fornecedor != null ? o.Fornecedor.RazaoSocial : "—")" Title="Fornecedor" Sortable />
+                <BbDataGridPropertyColumn Property="@(o => o.EmitidaEm)" Title="Emissão" Format="dd/MM/yyyy" Width="120px" Sortable />
+                <BbDataGridPropertyColumn Property="@(o => o.PrazoEntrega)" Title="Prazo" Format="dd/MM/yyyy" Width="120px" Sortable />
+
+                <BbDataGridTemplateColumn Title="Itens" Width="90px" NoWrap>
+                    <span class="text-sm tabular-nums">@context.Itens.Count</span>
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn Title="Valor" Width="130px" NoWrap>
+                    <span class="text-sm font-medium tabular-nums">@context.ValorTotal.ToString("C2")</span>
+                </BbDataGridTemplateColumn>
+
+                @* O atendimento é o que a tela existe para mostrar: quanto do
+                   pedido já entrou. Barra em vez de número porque a leitura é
+                   comparativa, não exata. *@
+                <BbDataGridTemplateColumn Title="Atendimento" Width="160px" NoWrap>
+                    @if (context.Status is StatusOrdemCompra.Rascunho or StatusOrdemCompra.Cancelada)
+                    {
+                        <span class="text-xs text-muted-foreground">—</span>
+                    }
+                    else
+                    {
+                        <div class="flex items-center gap-2">
+                            <BbProgress Value="@PercentualRecebido(context)" Max="100"
+                                        Class="w-20"
+                                        IndicatorClass="@(context.TotalmenteAtendida ? "bg-emerald-500" : "bg-amber-500")" />
+                            <span class="text-xs tabular-nums text-muted-foreground">
+                                @PercentualRecebido(context)%
+                            </span>
+                        </div>
+                    }
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn Title="Situação" Width="180px" NoWrap>
+                    <BbBadge Variant="@StatusOrdemVisual.Badge(context.Status)">
+                        @StatusOrdemVisual.Texto(context.Status)
+                    </BbBadge>
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn Title="Ações" Width="110px" NoWrap>
+                    <div class="flex items-center justify-end gap-1">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                  OnClick="() => Abrir(context)" aria-label="Abrir">
+                            <LucideIcon Name="eye" Size="15" />
+                        </BbButton>
+                        @if (_podeGerir && context.Status == StatusOrdemCompra.Rascunho)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                      OnClick="() => Enviar(context)" aria-label="Enviar ao fornecedor">
+                                <LucideIcon Name="send" Size="15" Class="text-emerald-600" />
+                            </BbButton>
+                        }
+                    </div>
+                </BbDataGridTemplateColumn>
+            </Columns>
+
+            <EmptyTemplate>
+                <BbEmpty Title="@(_condicoes > 0 || !string.IsNullOrWhiteSpace(_busca)
+                                  ? "Nenhum pedido encontrado"
+                                  : "Nenhuma ordem de compra emitida")"
+                         Description="@(_condicoes > 0 || !string.IsNullOrWhiteSpace(_busca)
+                                        ? "Ajuste os filtros ou a busca para ver outros resultados."
+                                        : "Encerre uma cotação, escolha os vencedores e gere o pedido a partir dela.")"
+                         Class="py-10">
+                    <Icon><LucideIcon Name="clipboard-list" Size="40" Class="text-muted-foreground" /></Icon>
+                    <ChildContent>
+                        @if (_podeGerir)
+                        {
+                            <BbButton Class="mt-3" Size="ButtonSize.Small" OnClick="() => _dialogGerarAberto = true">
+                                Gerar de uma cotação
+                            </BbButton>
+                        }
+                    </ChildContent>
+                </BbEmpty>
+            </EmptyTemplate>
+        </BbDataGrid>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private bool _podeGerir;
+
+    private List<OrdemCompra> _ordens = new();
+    private bool _carregando = true;
+
+    private bool _dialogGerarAberto;
+    private bool _dialogDetalheAberto;
+    private int _selecionadaId;
+
+    private bool _painelFiltros;
+    private bool _buscaAberta;
+    private bool _focarBusca;
+    private string _busca = string.Empty;
+    private BbInput? _campoBusca;
+
+    private FilterDefinition _filtro = new();
+    private int _condicoes => _filtro?.TotalConditionCount ?? 0;
+
+    private int _rascunhos => _ordens.Count(o => o.Status == StatusOrdemCompra.Rascunho);
+    private int _aguardando => _ordens.Count(o => o.Status == StatusOrdemCompra.Enviada);
+    private int _parciais => _ordens.Count(o => o.Status == StatusOrdemCompra.ParcialmenteRecebida);
+
+    // O que já foi prometido ao fornecedor e ainda não entrou.
+    private decimal _valorAberto => _ordens
+        .Where(o => o.Status is StatusOrdemCompra.Enviada or StatusOrdemCompra.ParcialmenteRecebida)
+        .Sum(o => o.ValorTotal - o.ValorRecebido);
+
+    private readonly List<FilterField> _campos = new()
+    {
+        new FilterField { Name = nameof(OrdemCompra.Numero),     Label = "Número",    Type = FilterFieldType.Text },
+        new FilterField { Name = nameof(OrdemCompra.Status),     Label = "Situação",  Type = FilterFieldType.Number },
+        new FilterField { Name = nameof(OrdemCompra.EmitidaEm),  Label = "Emissão",   Type = FilterFieldType.Date },
+        new FilterField { Name = nameof(OrdemCompra.PrazoEntrega), Label = "Prazo",   Type = FilterFieldType.Date },
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacao is not null)
+            _podeGerir = (await EstadoAutenticacao).User
+                .HasClaim(Permissoes.ClaimType, Permissoes.OrdensGerir);
+
+        await Recarregar();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool primeiroRender)
+    {
+        if (_focarBusca && _campoBusca is not null)
+        {
+            _focarBusca = false;
+            await _campoBusca.Element.FocusAsync();
+        }
+    }
+
+    private void AlternarBusca()
+    {
+        _buscaAberta = !_buscaAberta;
+
+        if (_buscaAberta)
+            _focarBusca = true;
+        else
+            _busca = string.Empty;
+    }
+
+    private void FecharBuscaSeVazia()
+    {
+        if (string.IsNullOrWhiteSpace(_busca))
+            _buscaAberta = false;
+    }
+
+    private static int PercentualRecebido(OrdemCompra ordem)
+    {
+        var pedido = ordem.Itens.Sum(i => i.Quantidade);
+
+        if (pedido <= 0m)
+            return 0;
+
+        var recebido = ordem.Itens.Sum(i => i.QuantidadeRecebida);
+
+        return (int)Math.Min(100m, Math.Round(recebido / pedido * 100m));
+    }
+
+    private async Task Recarregar()
+    {
+        _carregando = true;
+        _ordens = await Ordens.Buscar(_filtro.ToExpression<OrdemCompra>(_campos));
+        _carregando = false;
+    }
+
+    private void Abrir(OrdemCompra ordem)
+    {
+        _selecionadaId = ordem.Id;
+        _dialogDetalheAberto = true;
+    }
+
+    private async Task Enviar(OrdemCompra ordem)
+    {
+        try
+        {
+            var usuario = (await EstadoAutenticacao!).User;
+            await Ordens.Enviar(ordem.Id, IdDe(usuario));
+
+            Toasts.Success("Pedido enviado", $"{ordem.Numero} está com o fornecedor.");
+            await Recarregar();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível enviar", ex.Message);
+        }
+    }
+
+    private static Guid IdDe(System.Security.Claims.ClaimsPrincipal user) =>
+        Guid.TryParse(user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id)
+            ? id
+            : Guid.Empty;
+}

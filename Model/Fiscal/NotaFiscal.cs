@@ -53,6 +53,16 @@ namespace Erp.Model.Fiscal
 
         public Erp.Model.Cotacao.Cotacao? Cotacao { get; set; }
 
+        /// <summary>
+        /// Ordem de compra contra a qual esta nota é conferida. É a terceira
+        /// ponta do three-way match — sem ela, o confronto compara a nota com a
+        /// cotação, que registra o que se pretendia comprar, e não o que foi
+        /// efetivamente pedido.
+        /// </summary>
+        public int? OrdemCompraId { get; set; }
+
+        public Erp.Model.Compra.OrdemCompra? OrdemCompra { get; set; }
+
         /// <summary>O arquivo como veio. Sem ele, uma divergência descoberta
         /// meses depois não teria como ser conferida contra a origem.</summary>
         public string Xml { get; set; } = string.Empty;
@@ -60,6 +70,21 @@ namespace Erp.Model.Fiscal
         public DateTime ImportadaEm { get; set; } = DateTime.UtcNow;
 
         public Guid? ImportadaPorId { get; set; }
+
+        /// <summary>
+        /// Marcada quando o confronto fechou e alguém liberou a nota para o
+        /// financeiro. É a condição para gerar título a pagar: nota com
+        /// divergência aberta não vira obrigação de pagamento.
+        /// </summary>
+        public bool LiberadaParaPagamento { get; set; }
+
+        public DateTime? LiberadaEm { get; set; }
+
+        public Guid? LiberadaPorId { get; set; }
+
+        /// <summary>Justificativa de quem liberou apesar de divergência. Vazio
+        /// quando o confronto fechou sem ressalva.</summary>
+        public string? MotivoLiberacao { get; set; }
 
         public List<NotaFiscalItem> Itens { get; set; } = new();
 
