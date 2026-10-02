@@ -127,7 +127,15 @@ namespace Erp.Repository.Aprovacao
             if (degraus.Any(d => d.AprovadorId == Guid.Empty))
                 throw new InvalidOperationException("Todo degrau precisa de um aprovador.");
 
-            var ultimo = degraus.OrderBy(d => d.Ordem).Last();
+            // As regras de teto valem para os degraus ATIVOS: é só deles que a
+            // cadeia é resolvida. Um último degrau ilimitado porém inativo
+            // deixaria o item caro promovido a um nível que não existe.
+            var ativos = degraus.Where(d => d.Ativo).OrderBy(d => d.Ordem).ToList();
+
+            if (ativos.Count == 0)
+                return;   // tudo inativo: cai no responsável do centro
+
+            var ultimo = ativos.Last();
 
             if (!ultimo.Ilimitado)
                 throw new InvalidOperationException(
@@ -136,9 +144,14 @@ namespace Erp.Repository.Aprovacao
 
             // Limite que não cresce a cada degrau inverte a lógica: o item
             // subiria para alguém que decide menos que o anterior.
-            var anteriores = degraus.OrderBy(d => d.Ordem).ToList();
+            var anteriores = ativos;
             for (var i = 1; i < anteriores.Count; i++)
             {
+                if (anteriores[i - 1].Ilimitado)
+                    throw new InvalidOperationException(
+                        $"O degrau {anteriores[i - 1].Ordem} é ilimitado e encerra a cadeia: "
+                        + "os degraus depois dele nunca seriam alcançados.");
+
                 if (anteriores[i].Ilimitado)
                     continue;
 
@@ -251,9 +264,12 @@ namespace Erp.Repository.Aprovacao
                 .Select(a => a.CentroCustoId)
                 .ToListAsync();
 
-            // Centros sem alçada cadastrada continuam roteando pelo responsável.
+            // Centros sem alçada ATIVA continuam roteando pelo responsável — o
+            // mesmo critério de ResolverCadeia. Contar degrau inativo aqui
+            // tirava o centro da fila do responsável sem pô-lo em outra.
             var comAlcada = await contexto.Alcadas
                 .AsNoTracking()
+                .Where(a => a.Ativo)
                 .Select(a => a.CentroCustoId)
                 .Distinct()
                 .ToListAsync();

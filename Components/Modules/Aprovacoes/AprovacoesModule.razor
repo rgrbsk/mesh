@@ -1,10 +1,10 @@
 @using Erp.Model.Solicitacao
 @using Erp.Components.Modules.Solicitacoes
 @using Erp.Repository.Solicitacao
-@using Erp.Repository.Orcamento
+@using Erp.Repository.Aprovacao
 @using System.Security.Claims
 @inject SolicitacaoRepository Solicitacoes
-@inject OrcamentoRepository Orcamentos
+@inject AlcadaRepository Alcadas
 @inject ToastService Toasts
 
 @* Fila do aprovador. A decisão é por ITEM, e agora também por DEGRAU: o item
@@ -39,6 +39,17 @@
                  Description="Decidir solicitações exige a permissão compras.aprovar."
                  Class="py-16">
             <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
+        </BbEmpty>
+    }
+    else if (!_respondePorCentro)
+    {
+        @* Tem a permissão, mas não é responsável nem degrau de alçada de centro
+           algum — a fila nunca vai ter nada. Diz o que falta, em vez de "nada
+           esperando". *@
+        <BbEmpty Title="Você não responde por nenhum centro de custo"
+                 Description="A permissão de aprovar está concedida, mas as aprovações chegam a quem é responsável por um centro de custo ou faz parte da cadeia de alçada dele. Peça para ser indicado em Centros de Custo ou em Alçadas."
+                 Class="py-16">
+            <Icon><LucideIcon Name="git-branch" Size="40" Class="text-muted-foreground" /></Icon>
         </BbEmpty>
     }
     else if (_fila.Count == 0)
@@ -120,16 +131,6 @@
                                         </td>
                                         <td class="text-sm">
                                             @item.CentroCusto?.Nome
-                                            @if (_consumo.TryGetValue(item.CentroCustoId, out var c) && !c.SemOrcamento)
-                                            {
-                                                <div class="mt-1 flex items-center gap-1.5">
-                                                    <BbProgress Value="@c.Percentual" Max="100" Class="w-16"
-                                                                IndicatorClass="@(c.Estourado ? "bg-destructive" : c.Percentual >= 80 ? "bg-amber-500" : "bg-emerald-500")" />
-                                                    <span class="text-xs tabular-nums @(c.Estourado ? "text-destructive" : "text-muted-foreground")">
-                                                        @c.PercentualReal% da verba
-                                                    </span>
-                                                </div>
-                                            }
                                         </td>
 
                                         @* O que muda com esta aprovação: encerra
@@ -237,11 +238,11 @@
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
 
     private List<(SolicitacaoCompra Solicitacao, List<ItemNaFila> Itens)> _fila = new();
-    private Dictionary<int, Erp.Model.Orcamento.ConsumoOrcamento> _consumo = new();
 
     private Guid _usuarioAtual;
     private string _nomeAtual = "";
     private bool _podeAprovar;
+    private bool _respondePorCentro;
 
     private bool _dialogMotivoAberto;
     private ItemSolicitacao? _emDecisao;
@@ -269,23 +270,10 @@
 
     private async Task Recarregar()
     {
-        _fila = await Solicitacoes.ParaAprovar(_usuarioAtual);
-
-        // Uma consulta de orçamento por centro presente na fila, e não por
-        // item: numa fila de vinte itens do mesmo centro seriam vinte
-        // consultas idênticas.
-        var centros = _fila
-            .SelectMany(f => f.Itens.Select(i => i.Item.CentroCustoId))
-            .Distinct()
-            .ToList();
-
-        _consumo = new();
-
-        foreach (var centroId in centros)
-        {
-            var hoje = DateTime.UtcNow;
-            _consumo[centroId] = await Orcamentos.Consumo(centroId, hoje.Year, hoje.Month);
-        }
+        _respondePorCentro = (await Alcadas.CentrosOndeDecide(_usuarioAtual)).Count > 0;
+        _fila = _respondePorCentro
+            ? await Solicitacoes.ParaAprovar(_usuarioAtual)
+            : new();
     }
 
     private Task Aprovar(ItemSolicitacao item) => Decidir(item, StatusItem.Aprovado, null);

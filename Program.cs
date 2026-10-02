@@ -184,6 +184,25 @@ app.MapPost("/auth/login", async (
         return Results.Redirect("/login?erro=1");
     }
 
+    // Conta inativa não entra. Mesma resposta genérica ao navegador — dizer
+    // "conta inativa" confirmaria que o e-mail existe; o motivo fica no log.
+    if (user.Status != Erp.Model.Usuario.StatusUsuario.Ativo)
+    {
+        await logs.Registrar(new Erp.Model.Log.LogSistema
+        {
+            Evento = Erp.Model.Log.TipoEventoSistema.LoginFalho,
+            Mensagem = "Tentativa de login em conta inativa.",
+            UsuarioId = user.Id,
+            UsuarioNome = $"{user.Nome} {user.Sobrenome}".Trim(),
+            Identificacao = email,
+            Ip = origem.Ip,
+            UserAgent = origem.Agente,
+            Provedor = provedor,
+        });
+
+        return Results.Redirect("/login?erro=1");
+    }
+
     var result = await signIn.PasswordSignInAsync(
         user, senha, isPersistent: lembrar ?? false, lockoutOnFailure: true);
 

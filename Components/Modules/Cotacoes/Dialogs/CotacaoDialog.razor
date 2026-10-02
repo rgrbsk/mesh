@@ -366,7 +366,7 @@
                 CriadoEm = Cotacao.CriadoEm,
             };
 
-        _prazo = _cotacao.PrazoResposta?.ToString("yyyy-MM-dd") ?? "";
+        _prazo = _cotacao.PrazoResposta?.ToLocalTime().ToString("yyyy-MM-dd") ?? "";
 
         _itens = Cotacao is null
             ? new List<LinhaItem> { new() }
@@ -576,8 +576,11 @@
         {
             _cotacao.Itens = itens;
             _cotacao.Convites = convites;
+            // O dia escolhido vale INTEIRO no fuso de quem usa o sistema: o
+            // link vence às 23:59:59 daquele dia. Gravar a data como meia-noite
+            // UTC fazia o prazo cair às 21h da véspera (UTC-3).
             _cotacao.PrazoResposta = DateTime.TryParse(_prazo, out var prazo)
-                ? DateTime.SpecifyKind(prazo, DateTimeKind.Utc)
+                ? DateTime.SpecifyKind(prazo.Date.AddDays(1).AddTicks(-1), DateTimeKind.Local).ToUniversalTime()
                 : null;
 
             if (_cotacao.Id == 0)

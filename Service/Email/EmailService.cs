@@ -77,7 +77,7 @@ namespace Erp.Service.Email
                  <p>{Apresentacao(comprador)} está cotando <strong>{WebUtility.HtmlEncode(tituloCotacao)}</strong>
                  e convidou sua empresa a enviar uma proposta.</p>
                  <p><a href="{link}">Abrir o formulário da cotação #{numeroCotacao}</a></p>
-                 <p>O link é pessoal e vale até <strong>{prazo:dd/MM/yyyy}</strong>.
+                 <p>O link é pessoal e vale até <strong>{prazo.ToLocalTime():dd/MM/yyyy}</strong>.
                  Não é preciso criar conta nem senha.</p>
                  {Assinatura(comprador, numeroCotacao)}
                  """;
@@ -145,7 +145,7 @@ namespace Erp.Service.Email
                  da sua proposta, e o campo para anexar o XML da NF-e.</p>
                  <p>A nota precisa ser emitida contra o CNPJ acima, e com o CNPJ da sua empresa como
                  emitente — é assim que o sistema confere.</p>
-                 <p>Prazo para o envio da nota: <strong>{prazo:dd/MM/yyyy}</strong>.</p>
+                 <p>Prazo para o envio da nota: <strong>{prazo.ToLocalTime():dd/MM/yyyy}</strong>.</p>
                  {Assinatura(comprador, numeroCotacao)}
                  """;
 

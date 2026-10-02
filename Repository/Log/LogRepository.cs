@@ -75,6 +75,24 @@ namespace Erp.Repository.Log
             {
                 await using var contexto = await _fabrica.CreateDbContextAsync();
 
+                // O nome é COPIADO para o registro (RNF06): sem ele a tela
+                // mostrava "externo / sistema" para ações de usuários logados,
+                // e excluir a conta tornaria o histórico anônimo. Quem chama
+                // costuma ter só o id; o nome é resolvido aqui, num lugar só.
+                if (usuarioId is { } id && string.IsNullOrWhiteSpace(usuarioNome))
+                {
+                    var autor = await contexto.Users
+                        .AsNoTracking()
+                        .Where(u => u.Id == id)
+                        .Select(u => new { u.Nome, u.Sobrenome, u.Email })
+                        .FirstOrDefaultAsync();
+
+                    if (autor is not null)
+                        usuarioNome = $"{autor.Nome} {autor.Sobrenome}".Trim() is { Length: > 0 } nome
+                            ? nome
+                            : autor.Email ?? "";
+                }
+
                 contexto.Logs.Add(new RegistroLog
                 {
                     Quando = DateTime.UtcNow,

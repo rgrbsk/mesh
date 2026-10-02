@@ -103,11 +103,14 @@
                     }
                     else
                     {
-                        @* Horizontal porque nome de centro de custo é longo:
-                           na vertical o rótulo vira texto girado e ilegível. *@
-                        <BbBarChart Data="@_porCentro" Height="260px" Horizontal="true">
-                            <BbXAxis />
-                            <BbYAxis DataKey="Centro" />
+                        @* Vertical, no mesmo arranjo do gráfico mensal: centro
+                           no eixo X (categoria) e quantidade no Y. O modo
+                           Horizontal desta biblioteca tratava a quantidade como
+                           categoria e desenhava barra de um valor a outro. Y
+                           começa em zero para a barra ter a altura real. *@
+                        <BbBarChart Data="@_porCentro" Height="260px">
+                            <BbXAxis DataKey="Centro" />
+                            <BbYAxis Min="@((object)0)" />
                             <BbChartTooltip />
                             <BbBar DataKey="Itens" Name="Itens" Color="var(--chart-4)" BorderRadius="4" />
                         </BbBarChart>

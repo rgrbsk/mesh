@@ -25,20 +25,17 @@ namespace Erp.Repository.Solicitacao
         private readonly Erp.Repository.Log.LogRepository _logs;
         private readonly Erp.Repository.Notificacao.NotificacaoRepository _avisos;
         private readonly AlcadaRepository _alcadas;
-        private readonly Erp.Repository.Orcamento.OrcamentoRepository _orcamentos;
 
         public SolicitacaoRepository(
             IDbContextFactory<AppDbContext> fabrica,
             Erp.Repository.Log.LogRepository logs,
             Erp.Repository.Notificacao.NotificacaoRepository avisos,
-            AlcadaRepository alcadas,
-            Erp.Repository.Orcamento.OrcamentoRepository orcamentos)
+            AlcadaRepository alcadas)
         {
             _fabrica = fabrica;
             _logs = logs;
             _avisos = avisos;
             _alcadas = alcadas;
-            _orcamentos = orcamentos;
         }
 
         /// <summary>Lista aplicando o filtro montado no BbFilterBuilder — a
@@ -145,6 +142,16 @@ namespace Erp.Repository.Solicitacao
             solicitacao.CriadoEm = DateTime.UtcNow;
             solicitacao.ModificadoEm = solicitacao.CriadoEm;
 
+            // Toda solicitação nasce rascunho, com itens pendentes: a situação
+            // é consequência do fluxo, não um dado que a tela informa (RN11).
+            solicitacao.Status = StatusSolicitacao.Rascunho;
+            solicitacao.EnviadaEm = null;
+            foreach (var item in solicitacao.Itens)
+            {
+                item.Status = StatusItem.Pendente;
+                item.NivelAtual = 1;
+            }
+
             LimparNavegacoes(solicitacao);
 
             contexto.Solicitacoes.Add(solicitacao);
@@ -157,6 +164,10 @@ namespace Erp.Repository.Solicitacao
         /// Salva cabeçalho e itens de uma vez. Os itens da tela são a verdade:
         /// o que sumiu da lista é apagado, o que veio sem Id é inserido. Sem
         /// isso, remover uma linha na tela não removeria nada no banco.
+        ///
+        /// A situação NÃO vem da tela (RN11): o cabeçalho e os itens mantêm o
+        /// que está gravado, e só rascunho ou devolvida se edita (RN05) — a
+        /// checagem é aqui, não só no botão desabilitado.
         /// </summary>
         public async Task<SolicitacaoCompra> Atualizar(SolicitacaoCompra solicitacao)
         {
@@ -167,9 +178,11 @@ namespace Erp.Repository.Solicitacao
                 .FirstOrDefaultAsync(s => s.Id == solicitacao.Id)
                 ?? throw new InvalidOperationException("Solicitação não encontrada.");
 
+            if (!gravada.Editavel)
+                throw new InvalidOperationException(
+                    "Solicitação enviada não se edita: ela já está na fila de quem aprova.");
+
             gravada.Observacao = solicitacao.Observacao;
-            gravada.Status = solicitacao.Status;
-            gravada.EnviadaEm = solicitacao.EnviadaEm;
             gravada.ModificadoEm = DateTime.UtcNow;
 
             var idsNaTela = solicitacao.Itens.Where(i => i.Id != 0).Select(i => i.Id).ToHashSet();
@@ -190,17 +203,29 @@ namespace Erp.Repository.Solicitacao
                         CentroCustoId = item.CentroCustoId,
                         PrazoDesejado = item.PrazoDesejado,
                         Justificativa = item.Justificativa,
-                        Status = item.Status,
+                        Status = StatusItem.Pendente,
                     });
                     continue;
                 }
+
+                var mudou = alvo.ProdutoId != item.ProdutoId
+                         || alvo.Quantidade != item.Quantidade
+                         || alvo.CentroCustoId != item.CentroCustoId;
 
                 alvo.ProdutoId = item.ProdutoId;
                 alvo.Quantidade = item.Quantidade;
                 alvo.CentroCustoId = item.CentroCustoId;
                 alvo.PrazoDesejado = item.PrazoDesejado;
                 alvo.Justificativa = item.Justificativa;
-                alvo.Status = item.Status;
+
+                // Numa devolvida, item já decidido que teve produto, quantidade
+                // ou centro alterado deixa de ser o item que foi aprovado: volta
+                // a precisar de decisão, desde o primeiro degrau.
+                if (mudou && alvo.Status is StatusItem.Aprovado or StatusItem.Recusado)
+                {
+                    alvo.Status = StatusItem.Devolvido;
+                    alvo.NivelAtual = 1;
+                }
             }
 
             await contexto.SaveChangesAsync();
@@ -247,6 +272,9 @@ namespace Erp.Repository.Solicitacao
                 .Include(s => s.Itens).ThenInclude(i => i.Produto)
                 .FirstOrDefaultAsync(s => s.Id == id)
                 ?? throw new InvalidOperationException("Solicitação não encontrada.");
+
+            if (!solicitacao.Editavel)
+                throw new InvalidOperationException("Esta solicitação já foi enviada.");
 
             if (solicitacao.Itens.Count == 0)
                 throw new InvalidOperationException("Uma solicitação sem itens não tem o que aprovar.");
@@ -354,31 +382,12 @@ namespace Erp.Repository.Solicitacao
 
             if (decisao == StatusItem.Aprovado)
             {
-                // O orçamento só é conferido na aprovação que ENCERRA o item:
-                // conferir a cada degrau avisaria a mesma coisa três vezes.
                 if (degrau.Encerra(item.ValorEstimado))
                 {
-                    var (_, _, estoura, bloqueia) = await _orcamentos.Simular(
-                        item.CentroCustoId, item.ValorEstimado,
-                        item.Solicitacao.EnviadaEm ?? DateTime.UtcNow);
-
-                    if (bloqueia)
-                        throw new InvalidOperationException(
-                            $"Aprovar este item estoura o orçamento de {item.CentroCusto?.Nome}, "
-                            + "que está configurado para bloquear. Reveja a verba ou o pedido.");
-
                     item.Status = StatusItem.Aprovado;
                     item.MotivoDecisao = motivo;
                     item.DecididoPorId = decisorId;
                     item.DecididoEm = DateTime.UtcNow;
-
-                    if (estoura)
-                        await _logs.Registrar(
-                            Erp.Model.Log.TipoAcao.Aprovacao, Modulo,
-                            $"Item #{item.Id} aprovado ACIMA do orçamento de {item.CentroCusto?.Nome}.",
-                            decisorId,
-                            entidade: nameof(SolicitacaoCompra),
-                            entidadeId: item.SolicitacaoId.ToString());
                 }
                 else
                 {

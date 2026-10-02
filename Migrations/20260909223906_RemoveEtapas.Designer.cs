@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Erp.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Erp.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260909223906_RemoveEtapas")]
+    partial class RemoveEtapas
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -54,135 +57,6 @@ namespace Erp.Migrations
                     b.ToTable("AspNetRoles", (string)null);
                 });
 
-            modelBuilder.Entity("Erp.Model.Aprovacao.AlcadaAprovacao", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<Guid>("AprovadorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("Ativo")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("CentroCustoId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("LimiteValor")
-                        .HasColumnType("numeric");
-
-                    b.Property<DateTime>("ModificadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Ordem")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AprovadorId");
-
-                    b.HasIndex("CentroCustoId", "Ordem")
-                        .IsUnique();
-
-                    b.ToTable("Alcadas");
-                });
-
-            modelBuilder.Entity("Erp.Model.Aprovacao.AprovacaoItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<Guid>("AprovadorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("AprovadorNome")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("DecididoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Decisao")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid?>("EmNomeDeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("EmNomeDeNome")
-                        .HasColumnType("text");
-
-                    b.Property<int>("ItemSolicitacaoId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("LimiteNoMomento")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("Motivo")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Nivel")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("ValorNoMomento")
-                        .HasColumnType("numeric");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AprovadorId");
-
-                    b.HasIndex("ItemSolicitacaoId");
-
-                    b.ToTable("AprovacoesItem");
-                });
-
-            modelBuilder.Entity("Erp.Model.Aprovacao.DelegacaoAprovacao", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Ativo")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("Fim")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("Inicio")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Motivo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("SubstitutoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TitularId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SubstitutoId", "Ativo");
-
-                    b.HasIndex("TitularId", "Ativo");
-
-                    b.ToTable("Delegacoes");
-                });
-
             modelBuilder.Entity("Erp.Model.CentroCusto.CentroCusto", b =>
                 {
                     b.Property<int>("Id")
@@ -192,9 +66,6 @@ namespace Erp.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<bool>("Ativo")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("BloqueiaAcimaOrcamento")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Codigo")
@@ -257,118 +128,6 @@ namespace Erp.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Cidades");
-                });
-
-            modelBuilder.Entity("Erp.Model.Compra.ItemOrdemCompra", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("CotacaoItemId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Observacao")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("OrdemCompraId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("PrazoEntrega")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("PrecoUnitario")
-                        .HasColumnType("numeric");
-
-                    b.Property<int>("ProdutoId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Quantidade")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("QuantidadeRecebida")
-                        .HasColumnType("numeric");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CotacaoItemId");
-
-                    b.HasIndex("OrdemCompraId");
-
-                    b.HasIndex("ProdutoId");
-
-                    b.ToTable("ItensOrdemCompra");
-                });
-
-            modelBuilder.Entity("Erp.Model.Compra.OrdemCompra", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CondicaoPagamento")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("CotacaoId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CriadoPorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("EmitidaEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("EnviadaEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("FornecedorId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Frete")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("ModificadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("MotivoCancelamento")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Numero")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Observacao")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("PrazoEntrega")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CotacaoId");
-
-                    b.HasIndex("CriadoPorId");
-
-                    b.HasIndex("FornecedorId");
-
-                    b.HasIndex("Numero")
-                        .IsUnique();
-
-                    b.ToTable("OrdensCompra");
                 });
 
             modelBuilder.Entity("Erp.Model.Cotacao.ConviteFornecedor", b =>
@@ -589,159 +348,6 @@ namespace Erp.Migrations
                     b.ToTable("Empresas");
                 });
 
-            modelBuilder.Entity("Erp.Model.Etapa.Etapa", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Ativo")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Cor")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Descricao")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("ModificadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Nome")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("Ordem")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Etapas");
-                });
-
-            modelBuilder.Entity("Erp.Model.Financeiro.BaixaTitulo", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("Data")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FormaPagamento")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Observacao")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("RegistradaPorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("RegistradaPorNome")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("TituloPagarId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Valor")
-                        .HasColumnType("numeric");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TituloPagarId");
-
-                    b.ToTable("BaixasTitulo");
-                });
-
-            modelBuilder.Entity("Erp.Model.Financeiro.TituloPagar", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CriadoPorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("Emissao")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("FornecedorId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("ModificadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("MotivoCancelamento")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("NotaFiscalId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Numero")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Observacao")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("OrdemCompraId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Parcela")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("TotalParcelas")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Valor")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("ValorPago")
-                        .HasColumnType("numeric");
-
-                    b.Property<DateTime>("Vencimento")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FornecedorId");
-
-                    b.HasIndex("NotaFiscalId");
-
-                    b.HasIndex("OrdemCompraId");
-
-                    b.HasIndex("Numero", "Parcela")
-                        .IsUnique();
-
-                    b.HasIndex("Status", "Vencimento");
-
-                    b.ToTable("TitulosPagar");
-                });
-
             modelBuilder.Entity("Erp.Model.Fiscal.NotaFiscal", b =>
                 {
                     b.Property<int>("Id")
@@ -784,24 +390,9 @@ namespace Erp.Migrations
                     b.Property<Guid?>("ImportadaPorId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("LiberadaEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("LiberadaParaPagamento")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid?>("LiberadaPorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("MotivoLiberacao")
-                        .HasColumnType("text");
-
                     b.Property<string>("Numero")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<int?>("OrdemCompraId")
-                        .HasColumnType("integer");
 
                     b.Property<string>("Protocolo")
                         .IsRequired()
@@ -832,8 +423,6 @@ namespace Erp.Migrations
                     b.HasIndex("CotacaoId");
 
                     b.HasIndex("FornecedorId");
-
-                    b.HasIndex("OrdemCompraId");
 
                     b.ToTable("NotasFiscais");
                 });
@@ -1041,44 +630,6 @@ namespace Erp.Migrations
                     b.ToTable("Notificacoes");
                 });
 
-            modelBuilder.Entity("Erp.Model.Orcamento.Orcamento", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("Ano")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("CentroCustoId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Mes")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("ModificadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Observacao")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("Valor")
-                        .HasColumnType("numeric");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CentroCustoId", "Ano", "Mes")
-                        .IsUnique();
-
-                    b.ToTable("Orcamentos");
-                });
-
             modelBuilder.Entity("Erp.Model.Pessoa.Pessoa", b =>
                 {
                     b.Property<int>("Id")
@@ -1190,12 +741,6 @@ namespace Erp.Migrations
                     b.Property<int>("PrazoEntregaDias")
                         .HasColumnType("integer");
 
-                    b.Property<decimal>("PrecoReferencia")
-                        .HasColumnType("numeric");
-
-                    b.Property<DateTime?>("PrecoReferenciaEm")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<decimal>("SaldoAtual")
                         .HasColumnType("numeric");
 
@@ -1253,80 +798,6 @@ namespace Erp.Migrations
                     b.ToTable("ProdutosFornecedor");
                 });
 
-            modelBuilder.Entity("Erp.Model.Recebimento.ItemRecebimento", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("ComAvaria")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("ItemOrdemCompraId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Observacao")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("Quantidade")
-                        .HasColumnType("numeric");
-
-                    b.Property<int>("RecebimentoId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RecebimentoId");
-
-                    b.HasIndex("ItemOrdemCompraId", "ComAvaria");
-
-                    b.ToTable("ItensRecebimento");
-                });
-
-            modelBuilder.Entity("Erp.Model.Recebimento.Recebimento", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Numero")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Observacao")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("OrdemCompraId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("RecebidoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("RecebidoPorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("RecebidoPorNome")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Numero")
-                        .IsUnique();
-
-                    b.HasIndex("OrdemCompraId");
-
-                    b.HasIndex("RecebidoPorId");
-
-                    b.ToTable("Recebimentos");
-                });
-
             modelBuilder.Entity("Erp.Model.Solicitacao.ItemSolicitacao", b =>
                 {
                     b.Property<int>("Id")
@@ -1351,9 +822,6 @@ namespace Erp.Migrations
                     b.Property<string>("MotivoDecisao")
                         .HasColumnType("text");
 
-                    b.Property<int>("NivelAtual")
-                        .HasColumnType("integer");
-
                     b.Property<DateTime?>("PrazoDesejado")
                         .HasColumnType("timestamp with time zone");
 
@@ -1368,9 +836,6 @@ namespace Erp.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
-
-                    b.Property<decimal>("ValorEstimado")
-                        .HasColumnType("numeric");
 
                     b.HasKey("Id");
 
@@ -1399,9 +864,6 @@ namespace Erp.Migrations
                     b.Property<DateTime?>("EnviadaEm")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int?>("EtapaId")
-                        .HasColumnType("integer");
-
                     b.Property<DateTime>("ModificadoEm")
                         .HasColumnType("timestamp with time zone");
 
@@ -1416,8 +878,6 @@ namespace Erp.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("EtapaId");
 
                     b.HasIndex("SolicitanteId");
 
@@ -1631,63 +1091,6 @@ namespace Erp.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("Erp.Model.Aprovacao.AlcadaAprovacao", b =>
-                {
-                    b.HasOne("Erp.Model.Usuario.Usuario", "Aprovador")
-                        .WithMany()
-                        .HasForeignKey("AprovadorId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Erp.Model.CentroCusto.CentroCusto", "CentroCusto")
-                        .WithMany()
-                        .HasForeignKey("CentroCustoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Aprovador");
-
-                    b.Navigation("CentroCusto");
-                });
-
-            modelBuilder.Entity("Erp.Model.Aprovacao.AprovacaoItem", b =>
-                {
-                    b.HasOne("Erp.Model.Usuario.Usuario", "Aprovador")
-                        .WithMany()
-                        .HasForeignKey("AprovadorId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Erp.Model.Solicitacao.ItemSolicitacao", "ItemSolicitacao")
-                        .WithMany("Aprovacoes")
-                        .HasForeignKey("ItemSolicitacaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Aprovador");
-
-                    b.Navigation("ItemSolicitacao");
-                });
-
-            modelBuilder.Entity("Erp.Model.Aprovacao.DelegacaoAprovacao", b =>
-                {
-                    b.HasOne("Erp.Model.Usuario.Usuario", "Substituto")
-                        .WithMany()
-                        .HasForeignKey("SubstitutoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Erp.Model.Usuario.Usuario", "Titular")
-                        .WithMany()
-                        .HasForeignKey("TitularId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Substituto");
-
-                    b.Navigation("Titular");
-                });
-
             modelBuilder.Entity("Erp.Model.CentroCusto.CentroCusto", b =>
                 {
                     b.HasOne("Erp.Model.CentroCusto.CentroCusto", "Pai")
@@ -1702,57 +1105,6 @@ namespace Erp.Migrations
                     b.Navigation("Pai");
 
                     b.Navigation("Responsavel");
-                });
-
-            modelBuilder.Entity("Erp.Model.Compra.ItemOrdemCompra", b =>
-                {
-                    b.HasOne("Erp.Model.Cotacao.CotacaoItem", "CotacaoItem")
-                        .WithMany()
-                        .HasForeignKey("CotacaoItemId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Erp.Model.Compra.OrdemCompra", "OrdemCompra")
-                        .WithMany("Itens")
-                        .HasForeignKey("OrdemCompraId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Erp.Model.Produto.Produto", "Produto")
-                        .WithMany()
-                        .HasForeignKey("ProdutoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("CotacaoItem");
-
-                    b.Navigation("OrdemCompra");
-
-                    b.Navigation("Produto");
-                });
-
-            modelBuilder.Entity("Erp.Model.Compra.OrdemCompra", b =>
-                {
-                    b.HasOne("Erp.Model.Cotacao.Cotacao", "Cotacao")
-                        .WithMany()
-                        .HasForeignKey("CotacaoId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Erp.Model.Usuario.Usuario", "CriadoPor")
-                        .WithMany()
-                        .HasForeignKey("CriadoPorId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Erp.Model.Pessoa.Pessoa", "Fornecedor")
-                        .WithMany()
-                        .HasForeignKey("FornecedorId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Cotacao");
-
-                    b.Navigation("CriadoPor");
-
-                    b.Navigation("Fornecedor");
                 });
 
             modelBuilder.Entity("Erp.Model.Cotacao.ConviteFornecedor", b =>
@@ -1842,42 +1194,6 @@ namespace Erp.Migrations
                     b.Navigation("CotacaoItem");
                 });
 
-            modelBuilder.Entity("Erp.Model.Financeiro.BaixaTitulo", b =>
-                {
-                    b.HasOne("Erp.Model.Financeiro.TituloPagar", "TituloPagar")
-                        .WithMany("Baixas")
-                        .HasForeignKey("TituloPagarId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("TituloPagar");
-                });
-
-            modelBuilder.Entity("Erp.Model.Financeiro.TituloPagar", b =>
-                {
-                    b.HasOne("Erp.Model.Pessoa.Pessoa", "Fornecedor")
-                        .WithMany()
-                        .HasForeignKey("FornecedorId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Erp.Model.Fiscal.NotaFiscal", "NotaFiscal")
-                        .WithMany()
-                        .HasForeignKey("NotaFiscalId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Erp.Model.Compra.OrdemCompra", "OrdemCompra")
-                        .WithMany()
-                        .HasForeignKey("OrdemCompraId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Fornecedor");
-
-                    b.Navigation("NotaFiscal");
-
-                    b.Navigation("OrdemCompra");
-                });
-
             modelBuilder.Entity("Erp.Model.Fiscal.NotaFiscal", b =>
                 {
                     b.HasOne("Erp.Model.Cotacao.Cotacao", "Cotacao")
@@ -1890,16 +1206,9 @@ namespace Erp.Migrations
                         .HasForeignKey("FornecedorId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("Erp.Model.Compra.OrdemCompra", "OrdemCompra")
-                        .WithMany()
-                        .HasForeignKey("OrdemCompraId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Cotacao");
 
                     b.Navigation("Fornecedor");
-
-                    b.Navigation("OrdemCompra");
                 });
 
             modelBuilder.Entity("Erp.Model.Fiscal.NotaFiscalItem", b =>
@@ -1929,17 +1238,6 @@ namespace Erp.Migrations
                         .IsRequired();
 
                     b.Navigation("Destinatario");
-                });
-
-            modelBuilder.Entity("Erp.Model.Orcamento.Orcamento", b =>
-                {
-                    b.HasOne("Erp.Model.CentroCusto.CentroCusto", "CentroCusto")
-                        .WithMany()
-                        .HasForeignKey("CentroCustoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CentroCusto");
                 });
 
             modelBuilder.Entity("Erp.Model.Pessoa.Pessoa", b =>
@@ -1986,43 +1284,6 @@ namespace Erp.Migrations
                     b.Navigation("Produto");
                 });
 
-            modelBuilder.Entity("Erp.Model.Recebimento.ItemRecebimento", b =>
-                {
-                    b.HasOne("Erp.Model.Compra.ItemOrdemCompra", "ItemOrdemCompra")
-                        .WithMany()
-                        .HasForeignKey("ItemOrdemCompraId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Erp.Model.Recebimento.Recebimento", "Recebimento")
-                        .WithMany("Itens")
-                        .HasForeignKey("RecebimentoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ItemOrdemCompra");
-
-                    b.Navigation("Recebimento");
-                });
-
-            modelBuilder.Entity("Erp.Model.Recebimento.Recebimento", b =>
-                {
-                    b.HasOne("Erp.Model.Compra.OrdemCompra", "OrdemCompra")
-                        .WithMany()
-                        .HasForeignKey("OrdemCompraId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Erp.Model.Usuario.Usuario", "RecebidoPor")
-                        .WithMany()
-                        .HasForeignKey("RecebidoPorId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("OrdemCompra");
-
-                    b.Navigation("RecebidoPor");
-                });
-
             modelBuilder.Entity("Erp.Model.Solicitacao.ItemSolicitacao", b =>
                 {
                     b.HasOne("Erp.Model.CentroCusto.CentroCusto", "CentroCusto")
@@ -2059,18 +1320,11 @@ namespace Erp.Migrations
 
             modelBuilder.Entity("Erp.Model.Solicitacao.SolicitacaoCompra", b =>
                 {
-                    b.HasOne("Erp.Model.Etapa.Etapa", "Etapa")
-                        .WithMany()
-                        .HasForeignKey("EtapaId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("Erp.Model.Usuario.Usuario", "Solicitante")
                         .WithMany()
                         .HasForeignKey("SolicitanteId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("Etapa");
 
                     b.Navigation("Solicitante");
                 });
@@ -2131,11 +1385,6 @@ namespace Erp.Migrations
                     b.Navigation("Filhos");
                 });
 
-            modelBuilder.Entity("Erp.Model.Compra.OrdemCompra", b =>
-                {
-                    b.Navigation("Itens");
-                });
-
             modelBuilder.Entity("Erp.Model.Cotacao.ConviteFornecedor", b =>
                 {
                     b.Navigation("Propostas");
@@ -2153,24 +1402,9 @@ namespace Erp.Migrations
                     b.Navigation("Propostas");
                 });
 
-            modelBuilder.Entity("Erp.Model.Financeiro.TituloPagar", b =>
-                {
-                    b.Navigation("Baixas");
-                });
-
             modelBuilder.Entity("Erp.Model.Fiscal.NotaFiscal", b =>
                 {
                     b.Navigation("Itens");
-                });
-
-            modelBuilder.Entity("Erp.Model.Recebimento.Recebimento", b =>
-                {
-                    b.Navigation("Itens");
-                });
-
-            modelBuilder.Entity("Erp.Model.Solicitacao.ItemSolicitacao", b =>
-                {
-                    b.Navigation("Aprovacoes");
                 });
 
             modelBuilder.Entity("Erp.Model.Solicitacao.SolicitacaoCompra", b =>

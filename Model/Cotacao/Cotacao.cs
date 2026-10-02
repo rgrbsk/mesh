@@ -35,6 +35,10 @@ namespace Erp.Model.Cotacao
         /// <summary>Rascunho ainda se monta; aberta já foi para a rua.</summary>
         public bool Editavel => Status == StatusCotacao.Rascunho;
 
-        public int Respostas => Convites.Count(c => c.Status == StatusConvite.Respondido);
+        /// <summary>Convites que já mandaram proposta. Vencedor e NotaEnviada
+        /// também responderam — contar só Respondido zerava o número assim que
+        /// o vencedor era anunciado.</summary>
+        public int Respostas => Convites.Count(c => c.Status is StatusConvite.Respondido
+            or StatusConvite.Vencedor or StatusConvite.NotaEnviada);
     }
 }

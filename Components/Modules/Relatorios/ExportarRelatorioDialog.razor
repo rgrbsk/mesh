@@ -1,0 +1,535 @@
+@using Erp.Repository.Relatorio
+@using System.Globalization
+@using System.Text
+@inject RelatorioRepository Relatorios
+@inject IJSRuntime JS
+@inject ToastService Toasts
+
+@* Configuração da exportação: período, critério e quais colunas saem.
+
+   O critério é aplicado sobre o RESULTADO já carregado, não concatenado no SQL.
+   Filtro montado pelo usuário virando texto de consulta é injeção com outro
+   nome — e aqui o volume é de relatório agregado, cabe em memória. *@
+
+<BbDialog Open="Aberto" OpenChanged="AbertoChanged">
+    <BbDialogContent Class="w-[72rem] max-w-none h-[92vh] p-6">
+        <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
+
+            <div class="-mx-6 -mt-6 px-6 py-3 flex items-center gap-2
+                        bg-muted border-b border-border rounded-t-[inherit]">
+                <LucideIcon Name="file-text" Size="20" />
+                <BbDialogTitle>@(Relatorio?.Titulo ?? "Relatório")</BbDialogTitle>
+                @if (Relatorio is not null)
+                {
+                    <BbBadge Variant="BadgeVariant.Secondary">@Relatorio.Modulo</BbBadge>
+                }
+            </div>
+
+            @if (Relatorio is null)
+            {
+                <p class="text-sm text-muted-foreground">Nenhum relatório selecionado.</p>
+            }
+            else
+            {
+                <p class="text-sm text-muted-foreground">@Relatorio.Descricao</p>
+
+                <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5">
+
+                    @* ---------- Período ---------- *@
+                    @if (Relatorio.FiltraPorData)
+                    {
+                        <div>
+                            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Período</span>
+                            <BbSeparator Class="mt-1.5 mb-3" />
+
+                            <div class="flex items-end gap-3 flex-wrap">
+                                @* BbDatePicker em vez de input nativo: calendário
+                                   com a localização pt-BR do BlazorBlueprint, e
+                                   igual ao das outras telas. *@
+                                <BbField Class="w-[12rem]">
+                                    <BbFieldLabel>De</BbFieldLabel>
+                                    <BbDatePicker @bind-Value="_de" Placeholder="dd/mm/aaaa"
+                                                  Class="w-full" ButtonCssClass="w-full justify-between" />
+                                </BbField>
+                                <BbField Class="w-[12rem]">
+                                    <BbFieldLabel>Até</BbFieldLabel>
+                                    <BbDatePicker @bind-Value="_ate" Placeholder="dd/mm/aaaa"
+                                                  Class="w-full" ButtonCssClass="w-full justify-between" />
+                                </BbField>
+                                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
+                                          OnClick="Carregar" Class="mb-1">Aplicar</BbButton>
+
+                                <div class="flex items-center gap-1 mb-1">
+                                    @foreach (var (rotulo, dias) in Atalhos)
+                                    {
+                                        <button type="button" @onclick="() => Atalho(dias)"
+                                                class="px-2 py-1 text-xs rounded-md border border-border
+                                                       text-muted-foreground hover:bg-accent cursor-pointer">
+                                            @rotulo
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    @* ---------- Critério ---------- *@
+                    <div>
+                        <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Critério</span>
+                        <BbSeparator Class="mt-1.5 mb-3" />
+
+                        <div class="flex items-end gap-3 flex-wrap">
+                            <BbField Class="w-[16rem]">
+                                <BbFieldLabel>Coluna</BbFieldLabel>
+                                <BbCombobox TValue="string"
+                                            Class="w-[16rem]"
+                                            Options="@_opcoesColuna"
+                                            @bind-Value="_colunaCriterio"
+                                            Placeholder="Sem critério"
+                                            SearchPlaceholder="Buscar coluna..."
+                                            EmptyMessage="Nenhuma coluna." />
+                            </BbField>
+
+                            <BbField Class="w-[11rem]">
+                                <BbFieldLabel>Condição</BbFieldLabel>
+                                <BbSelect TValue="string" @bind-Value="_operador" Options="_operadores" />
+                            </BbField>
+
+                            <BbField Class="w-[13rem]">
+                                <BbFieldLabel>Valor</BbFieldLabel>
+                                <BbInput @bind-Value="_valorCriterio" Placeholder="o que procurar" />
+                            </BbField>
+
+                            @if (!string.IsNullOrWhiteSpace(_colunaCriterio))
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                          OnClick="LimparCriterio" Class="mb-1">Limpar</BbButton>
+                            }
+                        </div>
+                    </div>
+
+                    @* ---------- Colunas ---------- *@
+                    <div>
+                        <div class="flex items-baseline justify-between gap-4">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Colunas a exportar
+                            </span>
+                            <div class="flex items-center gap-2">
+                                <button type="button" @onclick="TodasColunas"
+                                        class="text-xs text-muted-foreground hover:text-foreground cursor-pointer">
+                                    Todas
+                                </button>
+                                <span class="text-xs text-muted-foreground">·</span>
+                                <button type="button" @onclick="NenhumaColuna"
+                                        class="text-xs text-muted-foreground hover:text-foreground cursor-pointer">
+                                    Nenhuma
+                                </button>
+                            </div>
+                        </div>
+                        <BbSeparator Class="mt-1.5 mb-3" />
+
+                        <div class="grid gap-x-6 gap-y-2 grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]">
+                            @foreach (var coluna in _todasColunas)
+                            {
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <BbCheckbox Checked="@_selecionadas.Contains(coluna)"
+                                                CheckedChanged="@(marcado => AlternarColuna(coluna, marcado))" />
+                                    <span class="text-sm truncate">@coluna</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+
+                    @* ---------- Prévia ---------- *@
+                    <div>
+                        <div class="flex items-baseline justify-between gap-4">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Prévia</span>
+                            <span class="text-xs text-muted-foreground">
+                                @_linhasFiltradas.Count de @(_resultado?.Linhas.Count ?? 0)
+                                @(_resultado?.Linhas.Count == 1 ? "linha" : "linhas")
+                            </span>
+                        </div>
+                        <BbSeparator Class="mt-1.5 mb-3" />
+
+                        @if (_carregando)
+                        {
+                            <BbSkeleton Class="h-40 w-full" />
+                        }
+                        else if (_erro is not null)
+                        {
+                            <p class="text-sm text-destructive">@_erro</p>
+                        }
+                        else if (_selecionadas.Count == 0)
+                        {
+                            <p class="text-sm text-muted-foreground py-6 text-center">
+                                Escolha ao menos uma coluna.
+                            </p>
+                        }
+                        else if (_linhasFiltradas.Count == 0)
+                        {
+                            <p class="text-sm text-muted-foreground py-6 text-center">
+                                Nenhuma linha atende ao critério.
+                            </p>
+                        }
+                        else
+                        {
+                            <div class="border border-border rounded-lg overflow-auto">
+                                <table class="erp-table w-full">
+                                    <thead>
+                                        <tr>
+                                            @foreach (var coluna in ColunasVisiveis)
+                                            {
+                                                <th class="@(EhNumerica(coluna) ? "text-right" : "")">@coluna</th>
+                                            }
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @* Prévia é amostra: mostrar mil linhas num
+                                           diálogo não ajuda ninguém a decidir se a
+                                           exportação está certa. *@
+                                        @foreach (var linha in _linhasFiltradas.Take(8))
+                                        {
+                                            <tr>
+                                                @foreach (var coluna in ColunasVisiveis)
+                                                {
+                                                    <td class="text-sm @(EhNumerica(coluna) ? "text-right tabular-nums" : "")">
+                                                        @Valor(linha, coluna)
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            @if (_linhasFiltradas.Count > 8)
+                            {
+                                <p class="text-xs text-muted-foreground mt-2">
+                                    Mostrando 8 de @_linhasFiltradas.Count. A exportação leva todas.
+                                </p>
+                            }
+                        }
+                    </div>
+                </div>
+
+                <BbDialogFooter>
+                    <span class="text-xs text-muted-foreground mr-auto">
+                        @_linhasFiltradas.Count @(_linhasFiltradas.Count == 1 ? "linha" : "linhas")
+                        · @_selecionadas.Count de @_todasColunas.Count @(_todasColunas.Count == 1 ? "coluna" : "colunas")
+                    </span>
+                    <ActionArea>
+                        <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                                  OnClick="() => AbertoChanged.InvokeAsync(false)">
+                            <ChildContent>Fechar</ChildContent>
+                            <Icon><LucideIcon Name="x" Size="16" Color="grey" /></Icon>
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                                  OnClick="ExportarCsv" Disabled="!PodeExportar">
+                            <ChildContent>CSV</ChildContent>
+                            <Icon><LucideIcon Name="sheet" Size="16" Color="lightgreen" /></Icon>
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
+                                  OnClick="ExportarPdf" Disabled="!PodeExportar">
+                            <ChildContent>PDF</ChildContent>
+                            <Icon><LucideIcon Name="printer" Size="16" Color="lightblue" /></Icon>
+                        </BbButton>
+                    </ActionArea>
+                </BbDialogFooter>
+            }
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public bool Aberto { get; set; }
+    [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
+
+    /// <summary>Relatório escolhido no cartão.</summary>
+    [Parameter] public Relatorio? Relatorio { get; set; }
+
+    private static readonly (string Rotulo, int Dias)[] Atalhos =
+        [("7 dias", 7), ("30 dias", 30), ("90 dias", 90), ("1 ano", 365)];
+
+    private readonly List<SelectOption<string>> _operadores =
+    [
+        new("contem", "contém"),
+        new("igual", "é igual a"),
+        new("diferente", "é diferente de"),
+        new("maior", "é maior que"),
+        new("menor", "é menor que"),
+    ];
+
+    private ResultadoRelatorio? _resultado;
+    private List<string> _todasColunas = new();
+    private HashSet<string> _selecionadas = new();
+    private List<SelectOption<string>> _opcoesColuna = new();
+
+    // DateTime? porque é o que o BbDatePicker liga; a conversão para o
+    // repositório acontece no Carregar.
+    private DateTime? _de = DateTime.Today.AddDays(-30);
+    private DateTime? _ate = DateTime.Today;
+
+    private string _colunaCriterio = "";
+    private string _operador = "contem";
+    private string _valorCriterio = "";
+
+    private bool _carregando;
+    private string? _erro;
+    private bool _abertoAnterior;
+
+    /// <summary>Colunas na ORDEM original, só as marcadas. Usar o HashSet
+    /// direto embaralharia a ordem das colunas na exportação.</summary>
+    private IEnumerable<string> ColunasVisiveis =>
+        _todasColunas.Where(c => _selecionadas.Contains(c));
+
+    private bool PodeExportar =>
+        _selecionadas.Count > 0 && _linhasFiltradas.Count > 0 && _erro is null;
+
+    /// <summary>Linhas que passam no critério. Recalculado a cada render — o
+    /// custo é irrelevante no volume de um relatório agregado.</summary>
+    private List<string[]> _linhasFiltradas
+    {
+        get
+        {
+            if (_resultado is null)
+                return new();
+
+            if (string.IsNullOrWhiteSpace(_colunaCriterio) || string.IsNullOrWhiteSpace(_valorCriterio))
+                return _resultado.Linhas;
+
+            var indice = _todasColunas.IndexOf(_colunaCriterio);
+
+            if (indice < 0)
+                return _resultado.Linhas;
+
+            return _resultado.Linhas.Where(l => Passa(l[indice])).ToList();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Aberto && !_abertoAnterior)
+            await Carregar();
+
+        _abertoAnterior = Aberto;
+    }
+
+    private async Task Carregar()
+    {
+        if (Relatorio is null)
+            return;
+
+        _carregando = true;
+        _erro = null;
+
+        try
+        {
+            // O "até" vai até o fim do dia: senão o relatório do próprio dia
+            // volta vazio porque tudo aconteceu depois da meia-noite.
+            var de = (_de ?? DateTime.Today.AddDays(-30)).Date;
+            var ate = (_ate ?? DateTime.Today).Date.AddDays(1).AddTicks(-1);
+
+            _resultado = await Relatorios.Executar(Relatorio.Chave, de, ate);
+
+            // Colunas novas entram marcadas: o padrão é exportar tudo, e quem
+            // quer menos desmarca.
+            if (!_todasColunas.SequenceEqual(_resultado.Colunas))
+            {
+                _todasColunas = _resultado.Colunas;
+                _selecionadas = _todasColunas.ToHashSet();
+
+                _opcoesColuna = _todasColunas
+                    .Select(c => new SelectOption<string>(c, c))
+                    .ToList();
+
+                _colunaCriterio = "";
+                _valorCriterio = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            _erro = ex.Message;
+            _resultado = null;
+        }
+        finally
+        {
+            _carregando = false;
+        }
+    }
+
+    private async Task Atalho(int dias)
+    {
+        _de = DateTime.Today.AddDays(-dias);
+        _ate = DateTime.Today;
+
+        await Carregar();
+    }
+
+    private void AlternarColuna(string coluna, bool marcado)
+    {
+        if (marcado)
+            _selecionadas.Add(coluna);
+        else
+            _selecionadas.Remove(coluna);
+    }
+
+    private void TodasColunas() => _selecionadas = _todasColunas.ToHashSet();
+
+    private void NenhumaColuna() => _selecionadas = new();
+
+    private void LimparCriterio()
+    {
+        _colunaCriterio = "";
+        _valorCriterio = "";
+    }
+
+    /// <summary>
+    /// Aplica o critério a um valor. Maior e menor tentam número primeiro; se
+    /// os dois lados não forem numéricos, cai para comparação de texto — é o
+    /// que faz "maior que" funcionar tanto em valor quanto em nome.
+    /// </summary>
+    private bool Passa(string valor)
+    {
+        var alvo = _valorCriterio.Trim();
+
+        return _operador switch
+        {
+            "igual" => string.Equals(valor.Trim(), alvo, StringComparison.OrdinalIgnoreCase),
+            "diferente" => !string.Equals(valor.Trim(), alvo, StringComparison.OrdinalIgnoreCase),
+            "maior" => Comparar(valor, alvo) > 0,
+            "menor" => Comparar(valor, alvo) < 0,
+            _ => valor.Contains(alvo, StringComparison.OrdinalIgnoreCase),
+        };
+    }
+
+    private static int Comparar(string a, string b) =>
+        Numero(a) is { } na && Numero(b) is { } nb
+            ? na.CompareTo(nb)
+            : string.Compare(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>O resultado chega formatado em pt-BR ("1.234,56"); ler com a
+    /// cultura invariante devolveria 1,23456 e a comparação mentiria.</summary>
+    private static decimal? Numero(string texto) =>
+        decimal.TryParse(texto, NumberStyles.Any, CultureInfo.CurrentCulture, out var valor)
+            ? valor
+            : null;
+
+    private string Valor(string[] linha, string coluna)
+    {
+        var indice = _todasColunas.IndexOf(coluna);
+
+        return indice >= 0 && indice < linha.Length ? linha[indice] : "";
+    }
+
+    private static bool EhNumerica(string coluna) =>
+        Erp.Components.Modules.Relatorios.ColunaVisual.EhNumerica(coluna);
+
+    private string Periodo =>
+        Relatorio?.FiltraPorData == true
+            ? $"{_de:dd/MM/yyyy} a {_ate:dd/MM/yyyy}"
+            : "situação atual";
+
+    private string Criterio =>
+        string.IsNullOrWhiteSpace(_colunaCriterio) || string.IsNullOrWhiteSpace(_valorCriterio)
+            ? "sem critério"
+            : $"{_colunaCriterio} {_operadores.First(o => o.Value == _operador).Text} \"{_valorCriterio}\"";
+
+    private async Task ExportarCsv()
+    {
+        var colunas = ColunasVisiveis.ToList();
+
+        var linhas = new List<string> { string.Join(";", colunas.Select(Escapar)) };
+
+        linhas.AddRange(_linhasFiltradas.Select(l =>
+            string.Join(";", colunas.Select(c => Escapar(Valor(l, c))))));
+
+        // Ponto e vírgula e BOM: é o que o Excel em pt-BR abre em colunas sem
+        // passar pelo assistente de importação.
+        var csv = "﻿" + string.Join("\r\n", linhas);
+
+        await JS.InvokeVoidAsync("mesh.baixarTexto", $"{Relatorio!.Chave}.csv", csv);
+
+        Toasts.Success("CSV gerado", $"{_linhasFiltradas.Count} linhas.");
+    }
+
+    private async Task ExportarPdf()
+    {
+        var abriu = await JS.InvokeAsync<bool>("mesh.imprimirRelatorio", MontarHtml());
+
+        if (abriu)
+            Toasts.Success("Pronto para imprimir",
+                           "Na caixa de impressão, escolha \"Salvar como PDF\".");
+        else
+            Toasts.Error("Pop-up bloqueado",
+                         "Libere pop-ups deste site para gerar o PDF.");
+    }
+
+    /// <summary>
+    /// Documento de impressão. Estilo embutido e sem depender do tema da
+    /// aplicação: papel é sempre branco, e cor de tema escuro sairia como
+    /// mancha preta na folha.
+    /// </summary>
+    private string MontarHtml()
+    {
+        var colunas = ColunasVisiveis.ToList();
+        var html = new StringBuilder();
+
+        html.Append($$"""
+            <!doctype html>
+            <html lang="pt-BR"><head><meta charset="utf-8">
+            <title>{{Escape(Relatorio!.Titulo)}}</title>
+            <style>
+              @page { size: A4 landscape; margin: 14mm; }
+              body { font-family: Segoe UI, Arial, sans-serif; color: #111; font-size: 11px; }
+              h1 { font-size: 16px; margin: 0 0 2px; }
+              .sub { color: #555; font-size: 11px; margin: 0 0 2px; }
+              .meta { color: #777; font-size: 10px; margin: 0 0 14px; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { border-bottom: 1px solid #ddd; padding: 5px 7px; text-align: left; }
+              th { background: #f2f2f2; font-size: 10px; text-transform: uppercase;
+                   letter-spacing: .04em; }
+              td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+              /* Cabeçalho repetido em toda página: tabela longa sem isso vira
+                 folha de números sem significado. */
+              thead { display: table-header-group; }
+              tr { page-break-inside: avoid; }
+            </style></head><body>
+            """);
+
+        html.Append($"<h1>{Escape(Relatorio.Titulo)}</h1>");
+        html.Append($"<p class=\"sub\">{Escape(Relatorio.Descricao)}</p>");
+        html.Append($"<p class=\"meta\">Módulo: {Escape(Relatorio.Modulo)} · Período: {Escape(Periodo)} · "
+                  + $"Critério: {Escape(Criterio)} · {_linhasFiltradas.Count} linhas · "
+                  + $"gerado em {DateTime.Now:dd/MM/yyyy HH:mm}</p>");
+
+        html.Append("<table><thead><tr>");
+
+        foreach (var coluna in colunas)
+            html.Append($"<th class=\"{(EhNumerica(coluna) ? "num" : "")}\">{Escape(coluna)}</th>");
+
+        html.Append("</tr></thead><tbody>");
+
+        foreach (var linha in _linhasFiltradas)
+        {
+            html.Append("<tr>");
+
+            foreach (var coluna in colunas)
+                html.Append($"<td class=\"{(EhNumerica(coluna) ? "num" : "")}\">{Escape(Valor(linha, coluna))}</td>");
+
+            html.Append("</tr>");
+        }
+
+        html.Append("</tbody></table></body></html>");
+
+        return html.ToString();
+    }
+
+    /// <summary>Escapa para HTML: dado de relatório vem do banco e pode conter
+    /// &lt; ou &amp;, que quebrariam o documento.</summary>
+    private static string Escape(string valor) => System.Net.WebUtility.HtmlEncode(valor);
+
+    private static string Escapar(string valor) =>
+        valor.Contains(';') || valor.Contains('"') || valor.Contains('\n')
+            ? $"\"{valor.Replace("\"", "\"\"")}\""
+            : valor;
+}

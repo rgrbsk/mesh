@@ -69,8 +69,8 @@
                     <BbDataGridTemplateColumn Title="Prazo" Width="130px" NoWrap>
                         @if (context.PrazoResposta is { } prazo)
                         {
-                            <span class="text-sm tabular-nums @(prazo.Date < DateTime.Today ? "text-destructive font-medium" : "")">
-                                @prazo.ToString("dd/MM/yyyy")
+                            <span class="text-sm tabular-nums @(prazo.ToLocalTime().Date < DateTime.Today ? "text-destructive font-medium" : "")">
+                                @prazo.ToLocalTime().ToString("dd/MM/yyyy")
                             </span>
                         }
                         else

@@ -53,6 +53,10 @@ namespace Erp.Service.Acesso
             if (user is null)
                 return false;
 
+            // Conta desativada derruba a sessão viva na próxima revalidação.
+            if (user.Status != Erp.Model.Usuario.StatusUsuario.Ativo)
+                return false;
+
             if (!userManager.SupportsUserSecurityStamp)
                 return true;
 
