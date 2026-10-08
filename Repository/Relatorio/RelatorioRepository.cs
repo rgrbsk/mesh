@@ -23,7 +23,9 @@ namespace Erp.Repository.Relatorio
         string Descricao,
         string? Permissao,
         string Sql,
-        bool FiltraPorData = true);
+        bool FiltraPorData = true,
+        // Lê do banco central (log de sistema), filtrado pelos usuários do tenant.
+        bool Central = false);
 
     /// <summary>
     /// Catálogo de relatórios + execução.
@@ -35,10 +37,17 @@ namespace Erp.Repository.Relatorio
     public class RelatorioRepository
     {
         private readonly IDbContextFactory<AppDbContext> _fabrica;
+        private readonly Erp.Data.Tenancy.ConexoesTenant _conexoes;
+        private readonly Erp.Data.Tenancy.TenantAtual _tenant;
 
-        public RelatorioRepository(IDbContextFactory<AppDbContext> fabrica)
+        public RelatorioRepository(
+            IDbContextFactory<AppDbContext> fabrica,
+            Erp.Data.Tenancy.ConexoesTenant conexoes,
+            Erp.Data.Tenancy.TenantAtual tenant)
         {
             _fabrica = fabrica;
+            _conexoes = conexoes;
+            _tenant = tenant;
         }
 
         public static readonly IReadOnlyList<Relatorio> Catalogo =
@@ -303,9 +312,11 @@ namespace Erp.Repository.Relatorio
                        TO_CHAR(MAX(l."Quando"), 'DD/MM/YYYY HH24:MI')           AS "Último acesso"
                 FROM "LogsSistema" l
                 WHERE l."Evento" IN (0, 1) AND l."Quando" BETWEEN @de AND @ate
+                  AND l."UsuarioId" = ANY(@usuarios)
                 GROUP BY 1
                 ORDER BY 2 DESC
-                """),
+                """,
+                Central: true),
 
             new("atividade-modulo", "Sistema",
                 "Atividade por módulo",
@@ -332,9 +343,11 @@ namespace Erp.Repository.Relatorio
                        TO_CHAR(MAX(l."Quando"), 'DD/MM/YYYY HH24:MI') AS "Última vez"
                 FROM "LogsSistema" l
                 WHERE l."Evento" = 5 AND l."Quando" BETWEEN @de AND @ate
+                  AND l."UsuarioId" = ANY(@usuarios)
                 GROUP BY 1
                 ORDER BY 2 DESC
-                """),
+                """,
+                Central: true),
         ];
 
         /// <summary>Módulos que têm relatório, na ordem em que aparecem.</summary>
@@ -346,7 +359,20 @@ namespace Erp.Repository.Relatorio
             var relatorio = Catalogo.FirstOrDefault(r => r.Chave == chave)
                 ?? throw new InvalidOperationException("Relatório não encontrado.");
 
-            await using var contexto = await _fabrica.CreateDbContextAsync();
+            await using var contexto = relatorio.Central
+                ? _conexoes.Central()
+                : await _fabrica.CreateDbContextAsync();
+
+            var usuarios = Array.Empty<Guid>();
+            if (relatorio.Central)
+            {
+                var empresa = await _tenant.EmpresaId();
+                usuarios = await contexto.Usuarios
+                    .Where(u => empresa == null || u.EmpresaId == empresa)
+                    .Select(u => u.Id)
+                    .ToArrayAsync();
+            }
+
             await using var conexao = contexto.Database.GetDbConnection();
 
             await conexao.OpenAsync();
@@ -359,6 +385,14 @@ namespace Erp.Repository.Relatorio
             // ramificar aqui.
             AdicionarParametro(comando, "de", de);
             AdicionarParametro(comando, "ate", ate);
+
+            if (relatorio.Central)
+            {
+                var parametro = comando.CreateParameter();
+                parametro.ParameterName = "usuarios";
+                parametro.Value = usuarios;
+                comando.Parameters.Add(parametro);
+            }
 
             await using var leitor = await comando.ExecuteReaderAsync();
 

@@ -34,7 +34,6 @@
         @* A tela é alcançável por URL mesmo sem a aba aparecer no topo — a
            checagem tem que estar aqui também, não só no catálogo de módulos. *@
         <BbEmpty Title="Sem acesso a este cadastro"
-                 Description="Customizar as etapas do fluxo exige a permissão etapas.gerir."
                  Class="py-16">
             <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
         </BbEmpty>
@@ -52,7 +51,6 @@
             @if (_etapas.Count == 0)
             {
                 <BbEmpty Title="Nenhuma etapa cadastrada"
-                         Description="Sem etapas, o Kanban mostra tudo numa coluna só antes da aprovação."
                          Class="py-10">
                     <Icon><LucideIcon Name="columns-3" Size="40" Class="text-muted-foreground" /></Icon>
                     <ChildContent>

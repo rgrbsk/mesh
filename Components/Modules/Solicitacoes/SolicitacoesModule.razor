@@ -83,7 +83,7 @@
                 <BbDataGridPropertyColumn Property="@(s => s.Id)" Title="#" Width="80px" Sortable />
                 <BbDataGridPropertyColumn Property="@(s => s.Solicitante != null ? (s.Solicitante.Nome + " " + s.Solicitante.Sobrenome).Trim() : "—")" Title="Solicitante" Sortable />
                 <BbDataGridPropertyColumn Property="@(s => s.Itens.Count)" Title="Itens" Width="80px" Sortable />
-                <BbDataGridPropertyColumn Property="@(s => s.CriadoEm)" Title="Criada" Format="dd/MM/yyyy" Sortable />
+                <BbDataGridPropertyColumn Property="@(s => s.CriadoEm.ToLocalTime())" Title="Criada" Format="dd/MM/yyyy" Sortable />
 
                 @* O prazo que importa é o do item mais urgente: é quando alguém
                    começa a ficar sem material. *@

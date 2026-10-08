@@ -348,9 +348,14 @@
     color: var(--foreground);
 }
 
-.dark .login-card,
-.dark .login-form {
-    background: var(--card);
+/* O formulário NÃO ganha fundo próprio no escuro: o login é "sem card"
+   (ver .login-center). Pintá-lo com --card sem borda nem padding deixava um
+   retângulo solto atrás dos campos. */
+
+/* A marca (favicon.png) é preta sobre transparente: no escuro ela sumia.
+   Inverter a deixa branca sem precisar de uma segunda imagem. */
+.dark .form-brand-mark {
+    filter: invert(1);
 }
 
 .login-submit {

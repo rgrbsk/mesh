@@ -192,6 +192,18 @@ namespace Erp.Data
               .HasForeignKey(i => i.ItemSolicitacaoId)
               .OnDelete(DeleteBehavior.Restrict);
 
+            mb.Entity<Erp.Model.Usuario.Usuario>()
+              .HasOne<Erp.Model.Empresa.Empresa>()
+              .WithMany()
+              .HasForeignKey(u => u.EmpresaId)
+              .OnDelete(DeleteBehavior.SetNull);
+
+            mb.Entity<Erp.Model.Cotacao.CotacaoItem>()
+              .HasMany(i => i.Origens)
+              .WithOne()
+              .HasForeignKey(s => s.CotacaoItemId)
+              .OnDelete(DeleteBehavior.SetNull);
+
             mb.Entity<Erp.Model.Cotacao.ConviteFornecedor>()
               .HasOne(c => c.Pessoa)
               .WithMany()

@@ -26,7 +26,7 @@ namespace Erp.Repository.PermissoesUsuario
         public PermissoesRepository(
             UserManager<AppUsuario> usuarios,
             RoleManager<Papel> papeis,
-            IDbContextFactory<Erp.Data.AppDbContext> fabrica,
+            Erp.Data.Tenancy.FabricaCentral fabrica,
             Erp.Repository.Log.LogRepository logs)
         {
             _usuarios = usuarios;
@@ -144,7 +144,10 @@ namespace Erp.Repository.PermissoesUsuario
 
         /// <summary>Papéis existentes, para o seletor da tela.</summary>
         public Task<List<Papel>> Papeis() =>
-            Task.FromResult(_papeis.Roles.OrderBy(p => p.Name).ToList());
+            Task.FromResult(_papeis.Roles
+                .Where(p => p.Name != Permissoes.PapelSuperAdmin)
+                .OrderBy(p => p.Name)
+                .ToList());
 
         public async Task<IList<string>> PapeisDoUsuario(Guid usuarioId)
         {
@@ -161,6 +164,11 @@ namespace Erp.Repository.PermissoesUsuario
                 return;
 
             var atuais = await _usuarios.GetRolesAsync(usuario);
+
+            // O papel do dono não se dá nem se tira pela tela: quem administra
+            // usuários não pode se promover a dono nem rebaixá-lo.
+            if (nomePapel == Permissoes.PapelSuperAdmin || atuais.Contains(Permissoes.PapelSuperAdmin))
+                throw new InvalidOperationException("O papel do dono da aplicação não é alterado por esta tela.");
 
             if (atuais.Count == 1 && atuais[0] == nomePapel)
                 return;

@@ -24,6 +24,15 @@ namespace Erp.Model.Cotacao
 
         public Erp.Model.Solicitacao.ItemSolicitacao? ItemSolicitacao { get; set; }
 
+        /// <summary>Itens de solicitação atendidos por esta linha. Mesmo produto
+        /// pedido em solicitações diferentes vira uma linha só.</summary>
+        public List<Erp.Model.Solicitacao.ItemSolicitacao> Origens { get; set; } = new();
+
+        /// <summary>Transporte da tela para o repositório: ids dos itens de
+        /// solicitação que esta linha atende.</summary>
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public List<int> OrigemIds { get; set; } = new();
+
         public List<PropostaItem> Propostas { get; set; } = new();
 
         // ---- Escolha do vencedor, feita no mapa comparativo ----

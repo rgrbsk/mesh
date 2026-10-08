@@ -87,9 +87,9 @@
                 <BbDataGridPropertyColumn Property="@(p => p.RazaoSocial)" Title="Razão Social" Sortable />
                 <BbDataGridPropertyColumn Property="@(p => p.NomeFantasia ?? "")" Title="Fantasia" Sortable />
                 <BbDataGridPropertyColumn Property="@(p => p.CNPJ)" Title="CPF / CNPJ" />
-                <BbDataGridPropertyColumn Property="@(p => p.Cidade != null ? p.Cidade.Descricao : "—")" Title="Cidade" Sortable />
+                <BbDataGridPropertyColumn Property="@(p => p.Cidade != null ? $"{p.Cidade.Descricao} - {p.Cidade.EstadoString}".TrimEnd(' ', '-') : "—")" Title="Cidade" Sortable />
                 <BbDataGridPropertyColumn Property="@(p => p.Tipo.ToString())" Title="Tipo" Sortable />
-                <BbDataGridPropertyColumn Property="@(p => p.CriadoEm)" Title="Cadastro" Format="dd/MM/yyyy" Sortable />
+                <BbDataGridPropertyColumn Property="@(p => p.CriadoEm.ToLocalTime())" Title="Cadastro" Format="dd/MM/yyyy" Sortable />
 
                 @* Sem fornecedor.editar a tela é de consulta: quem só tem
                    fornecedor.ver enxergava a lista e apagava cadastro. *@

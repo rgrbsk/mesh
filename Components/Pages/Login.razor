@@ -48,6 +48,10 @@
             {
                 <p class="error-text text-center">E-mail ou senha inválidos.</p>
             }
+            else if (Erro == 2)
+            {
+                <p class="error-text text-center">A verificação expirou. Entre de novo.</p>
+            }
 
             @* Cor pelo token, não fixa: com bg-black o botão sumia no tema escuro. *@
             <button type="submit" class="login-submit">Entrar</button>

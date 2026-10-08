@@ -16,6 +16,7 @@ using Erp.Components.Modules.Aprovacoes;
 using Erp.Components.Modules.Logs;
 using Erp.Components.Modules.Notas;
 using Erp.Components.Modules.Alcadas;
+using Erp.Components.Modules.Plataforma;
 
 namespace Erp.Components.Shell;
 
@@ -61,12 +62,23 @@ public static class Modulos
         new("logs",        "Logs",               "footprints",             "Sistema",   Permissoes.LogsVer,        typeof(LogsModule), "#FF4F00"),
         new("usuarios",    "Usuários",           "user-key",               "Sistema",   Permissoes.UsuariosGerir,  typeof(UsuariosModule), "#FCF75E"),
         new("adicionais",  "Adicionais",         "settings-2",             "Sistema",   Permissoes.EtapasGerir,    typeof(AdicionaisModule), "#007FFF"),
+        new("plataforma",  "Plataforma",         "activity",               "Sistema",   Permissoes.Plataforma,     typeof(PlataformaModule), "#8A2BE2"),
     };
 
     public static Modulo? Find(string key) => All.FirstOrDefault(m => m.Key == key);
 
+    /// <summary>O dono da aplicação opera a plataforma, não a empresa: vê só
+    /// os módulos dela, nem mesmo os que são abertos a todos.</summary>
+    public static bool EhDono(ClaimsPrincipal user) =>
+        user.HasClaim(Permissoes.ClaimType, Permissoes.Plataforma);
+
+    public static string PadraoDo(ClaimsPrincipal user) => EhDono(user) ? "plataforma" : Padrao;
+
+    public static bool PodeAbrir(ClaimsPrincipal user, Modulo modulo) =>
+        EhDono(user)
+            ? modulo.Permissao == Permissoes.Plataforma
+            : modulo.Permissao is null || user.HasClaim(Permissoes.ClaimType, modulo.Permissao);
+
     public static IReadOnlyList<Modulo> BuscarPermissoesDoUsuario(ClaimsPrincipal user) =>
-        All.Where(m => m.Permissao is null
-                    || user.HasClaim(Permissoes.ClaimType, m.Permissao))
-           .ToList();
+        All.Where(m => PodeAbrir(user, m)).ToList();
 }

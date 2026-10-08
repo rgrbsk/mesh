@@ -43,11 +43,16 @@ namespace Erp.Service.Acesso
             await using var scope = _scopeFactory.CreateAsyncScope();
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
 
-            return await ValidateSecurityStampAsync(userManager, authenticationState.User);
+            var fabrica = scope.ServiceProvider
+                .GetRequiredService<Erp.Data.Tenancy.FabricaCentral>();
+
+            return await ValidateSecurityStampAsync(userManager, fabrica, authenticationState.User);
         }
 
         private async Task<bool> ValidateSecurityStampAsync(
-            UserManager<Usuario> userManager, ClaimsPrincipal principal)
+            UserManager<Usuario> userManager,
+            Microsoft.EntityFrameworkCore.IDbContextFactory<Erp.Data.AppDbContext> fabrica,
+            ClaimsPrincipal principal)
         {
             var user = await userManager.GetUserAsync(principal);
             if (user is null)
@@ -56,6 +61,19 @@ namespace Erp.Service.Acesso
             // Conta desativada derruba a sessão viva na próxima revalidação.
             if (user.Status != Erp.Model.Usuario.StatusUsuario.Ativo)
                 return false;
+
+            // Acesso restrito pela plataforma (bloqueio do Identity).
+            if (await userManager.IsLockedOutAsync(user))
+                return false;
+
+            // Empresa (tenant) suspensa pelo dono da aplicação derruba também.
+            if (user.EmpresaId is { } empresaId)
+            {
+                await using var contexto = await fabrica.CreateDbContextAsync();
+                if (await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                        .AnyAsync(contexto.Empresas, e => e.Id == empresaId && !e.Ativa))
+                    return false;
+            }
 
             if (!userManager.SupportsUserSecurityStamp)
                 return true;

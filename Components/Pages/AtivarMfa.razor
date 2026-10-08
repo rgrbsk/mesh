@@ -1,0 +1,187 @@
+@page "/login/mfa/ativar"
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@using System.Text
+@using Erp.Model.Log
+@using Microsoft.AspNetCore.Authentication
+@using AppUsuario = Erp.Model.Usuario.Usuario
+@inject SignInManager<AppUsuario> SignIn
+@inject UserManager<AppUsuario> Usuarios
+@inject NavigationManager Nav
+@inject Erp.Repository.Log.LogSistemaRepository Logs
+@inject Erp.Service.Log.ProvedorIpService Provedores
+
+@* Primeiro acesso de quem é obrigado a ter MFA. A senha já foi conferida; aqui
+   o usuário cadastra o autenticador e confirma com um código. Só depois disso
+   a sessão é criada — e os códigos de recuperação aparecem uma única vez. *@
+<PageTitle>Ativar verificação em duas etapas - Mesh Cloud</PageTitle>
+
+<div class="login-center">
+    <div class="login-form">
+        <div class="form-brand">
+            <span class="form-brand-text">mesh cloud</span>
+            <img class="form-brand-mark" src="favicon.png" alt="mesh cloud" />
+        </div>
+
+        @if (_codigosRecuperacao is not null)
+        {
+            <div class="login-head">
+                <h1>Verificação ativada</h1>
+                <p>Guarde estes códigos de recuperação. Cada um entra uma vez, se você perder o celular. Eles não serão mostrados de novo.</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 rounded-lg border border-border p-4 font-mono text-sm text-center">
+                @foreach (var codigo in _codigosRecuperacao)
+                {
+                    <span>@codigo</span>
+                }
+            </div>
+
+            <a href="/home" data-enhance-nav="false" class="login-submit mt-4 text-center block">Continuar</a>
+        }
+        else
+        {
+            <div class="login-head">
+                <h1>Ative a verificação em duas etapas</h1>
+                <p>Esta conta exige um app autenticador (Google ou Microsoft Authenticator, Authy).</p>
+            </div>
+
+            <ol class="text-sm flex flex-col gap-3 list-decimal pl-5">
+                <li>Escaneie o QR code no app.</li>
+                <li>Digite o código de 6 dígitos que aparecer.</li>
+            </ol>
+
+            <div class="flex justify-center my-4">
+                <div id="qr" data-uri="@_uri" class="rounded-lg bg-white p-3"></div>
+            </div>
+
+            <p class="text-xs text-muted-foreground text-center">
+                Sem câmera? Chave manual:<br />
+                <span class="font-mono text-sm text-foreground select-all">@_chaveFormatada</span>
+            </p>
+
+            <form method="post" @onsubmit="Confirmar" @formname="ativar-mfa" class="login-body mt-4">
+                <AntiforgeryToken />
+
+                <div class="field">
+                    <BbLabel For="codigo">Código do app</BbLabel>
+                    <BbInput Id="codigo" Name="Codigo" Placeholder="000000" Required="true"
+                             autocomplete="one-time-code" inputmode="numeric" />
+                </div>
+
+                @if (_erro is not null)
+                {
+                    <p class="error-text text-center">@_erro</p>
+                }
+
+                <button type="submit" class="login-submit">Ativar e entrar</button>
+            </form>
+
+            <script src="lib/qrcode-generator/qrcode.js"></script>
+            <script>
+                (function () {
+                    var alvo = document.getElementById('qr');
+                    if (!alvo || !window.qrcode) return;
+                    var qr = qrcode(0, 'M');
+                    qr.addData(alvo.dataset.uri);
+                    qr.make();
+                    alvo.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 0 });
+                })();
+            </script>
+        }
+
+        <div class="login-foot">
+            <a href="/login">Voltar ao login</a>
+        </div>
+    </div>
+</div>
+
+<div class="login-rainbow" aria-hidden="true"></div>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm] public string? Codigo { get; set; }
+
+    private AppUsuario? _usuario;
+    private string _uri = "";
+    private string _chaveFormatada = "";
+    private string? _erro;
+    private IEnumerable<string>? _codigosRecuperacao;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _usuario = await SignIn.GetTwoFactorAuthenticationUserAsync();
+
+        if (_usuario is null)
+        {
+            Nav.NavigateTo("/login?erro=2");
+            return;
+        }
+
+        // Já ativou (outra aba, por exemplo): vai para o código normal.
+        if (_usuario.TwoFactorEnabled && HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            Nav.NavigateTo("/login/mfa");
+            return;
+        }
+
+        var chave = await Usuarios.GetAuthenticatorKeyAsync(_usuario);
+        if (string.IsNullOrEmpty(chave))
+        {
+            await Usuarios.ResetAuthenticatorKeyAsync(_usuario);
+            chave = await Usuarios.GetAuthenticatorKeyAsync(_usuario) ?? "";
+        }
+
+        _chaveFormatada = string.Join(' ', Enumerable.Range(0, (chave.Length + 3) / 4)
+            .Select(i => chave.Substring(i * 4, Math.Min(4, chave.Length - i * 4))).ToArray()).ToLowerInvariant();
+
+        var conta = Uri.EscapeDataString(_usuario.Email ?? _usuario.UserName ?? "");
+        _uri = $"otpauth://totp/Mesh%20Cloud:{conta}?secret={chave}&issuer=Mesh%20Cloud&digits=6";
+    }
+
+    private async Task Confirmar()
+    {
+        if (_usuario is null)
+            return;
+
+        var codigo = new string((Codigo ?? "").Where(char.IsDigit).ToArray());
+
+        var valido = codigo.Length == 6 && await Usuarios.VerifyTwoFactorTokenAsync(
+            _usuario, Usuarios.Options.Tokens.AuthenticatorTokenProvider, codigo);
+
+        if (!valido)
+        {
+            _erro = "Código inválido. Confira o horário do celular e tente de novo.";
+            return;
+        }
+
+        await Usuarios.SetTwoFactorEnabledAsync(_usuario, true);
+        _codigosRecuperacao = await Usuarios.GenerateNewTwoFactorRecoveryCodesAsync(_usuario, 10);
+
+        // Recarrega: ativar trocou o security stamp, e o cookie tem de nascer
+        // com o novo, senão a revalidação derruba a sessão em 5 minutos.
+        _usuario = await Usuarios.FindByIdAsync(_usuario.Id.ToString());
+
+        await HttpContext.SignOutAsync(IdentityConstants.TwoFactorUserIdScheme);
+        await SignIn.SignInAsync(_usuario!, isPersistent: false, authenticationMethod: "mfa");
+
+        var origem = await Provedores.Localizar(HttpContext.Connection.RemoteIpAddress?.ToString());
+
+        await Logs.Registrar(new LogSistema
+        {
+            Evento = TipoEventoSistema.Login,
+            Mensagem = "Verificação em duas etapas ativada; login efetuado.",
+            UsuarioId = _usuario!.Id,
+            UsuarioNome = $"{_usuario.Nome} {_usuario.Sobrenome}".Trim(),
+            Identificacao = _usuario.Email ?? "",
+            Ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "",
+            UserAgent = HttpContext.Request.Headers.UserAgent.ToString(),
+            Provedor = origem.Provedor,
+            Pais = origem.Pais,
+            Cidade = origem.Cidade,
+            Latitude = origem.Latitude,
+            Longitude = origem.Longitude,
+        });
+    }
+}

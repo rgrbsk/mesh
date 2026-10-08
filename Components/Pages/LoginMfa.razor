@@ -1,0 +1,127 @@
+@page "/login/mfa"
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@using Erp.Model.Log
+@using AppUsuario = Erp.Model.Usuario.Usuario
+@inject SignInManager<AppUsuario> SignIn
+@inject NavigationManager Nav
+@inject Erp.Repository.Log.LogSistemaRepository Logs
+@inject Erp.Service.Log.ProvedorIpService Provedores
+
+@* Segundo fator do login. Só se chega aqui com a senha já conferida: o
+   /auth/login deixa um cookie temporário (5 min) dizendo QUEM está entrando,
+   e a sessão de verdade só sai depois do código do autenticador.
+   Página estática de propósito — o cookie precisa sair nesta resposta HTTP. *@
+<PageTitle>Verificação em duas etapas - Mesh Cloud</PageTitle>
+
+<div class="login-center">
+    <div class="login-form">
+        <div class="form-brand">
+            <span class="form-brand-text">mesh cloud</span>
+            <img class="form-brand-mark" src="favicon.png" alt="mesh cloud" />
+        </div>
+
+        <div class="login-head">
+            <h1>Verificação em duas etapas</h1>
+            <p>Digite o código de 6 dígitos do seu app autenticador.</p>
+        </div>
+
+        <form method="post" @onsubmit="Verificar" @formname="mfa" class="login-body">
+            <AntiforgeryToken />
+
+            <div class="field">
+                <BbLabel For="codigo">Código</BbLabel>
+                <BbInput Id="codigo" Name="Codigo" Placeholder="000000" Required="true"
+                         autocomplete="one-time-code" inputmode="numeric" autofocus />
+            </div>
+
+            @if (_erro is not null)
+            {
+                <p class="error-text text-center">@_erro</p>
+            }
+
+            <button type="submit" class="login-submit">Verificar</button>
+
+            <p class="text-xs text-muted-foreground text-center">
+                Sem o celular? Digite um código de recuperação.
+            </p>
+        </form>
+
+        <div class="login-foot">
+            <a href="/login">Voltar ao login</a>
+        </div>
+    </div>
+</div>
+
+<div class="login-rainbow" aria-hidden="true"></div>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm] public string? Codigo { get; set; }
+
+    private AppUsuario? _usuario;
+    private string? _erro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _usuario = await SignIn.GetTwoFactorAuthenticationUserAsync();
+
+        if (_usuario is null)
+            Nav.NavigateTo("/login?erro=2");
+        else if (!_usuario.TwoFactorEnabled)
+            Nav.NavigateTo("/login/mfa/ativar");
+    }
+
+    private async Task Verificar()
+    {
+        if (_usuario is null)
+            return;
+
+        var digitado = (Codigo ?? "").Trim();
+        var soDigitos = new string(digitado.Where(char.IsDigit).ToArray());
+
+        // 6 dígitos = código do autenticador; o resto = código de recuperação.
+        var resultado = soDigitos.Length == 6 && digitado.Replace(" ", "").Length <= 7
+            ? await SignIn.TwoFactorAuthenticatorSignInAsync(soDigitos, isPersistent: false, rememberClient: false)
+            : await SignIn.TwoFactorRecoveryCodeSignInAsync(digitado.Replace(" ", ""));
+
+        var origem = await Provedores.Localizar(HttpContext.Connection.RemoteIpAddress?.ToString());
+
+        var registro = new LogSistema
+        {
+            UsuarioId = _usuario.Id,
+            UsuarioNome = $"{_usuario.Nome} {_usuario.Sobrenome}".Trim(),
+            Identificacao = _usuario.Email ?? "",
+            Ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "",
+            UserAgent = HttpContext.Request.Headers.UserAgent.ToString(),
+            Provedor = origem.Provedor,
+            Pais = origem.Pais,
+            Cidade = origem.Cidade,
+            Latitude = origem.Latitude,
+            Longitude = origem.Longitude,
+        };
+
+        if (resultado.Succeeded)
+        {
+            registro.Evento = TipoEventoSistema.Login;
+            registro.Mensagem = soDigitos.Length == 6
+                ? "Login efetuado com verificação em duas etapas."
+                : "Login efetuado com código de recuperação.";
+            await Logs.Registrar(registro);
+
+            Nav.NavigateTo("/home", forceLoad: true);
+            return;
+        }
+
+        registro.Evento = TipoEventoSistema.LoginFalho;
+        registro.Mensagem = resultado.IsLockedOut
+            ? "Conta bloqueada por códigos de verificação errados."
+            : "Código de verificação em duas etapas inválido.";
+        await Logs.Registrar(registro);
+
+        _erro = resultado.IsLockedOut
+            ? "Conta bloqueada por tentativas seguidas. Tente mais tarde."
+            : "Código inválido.";
+    }
+}

@@ -47,6 +47,16 @@ namespace Erp.Model.Log
         /// parse do UserAgent a cada renderização.</summary>
         public string Dispositivo { get; set; } = string.Empty;
 
+        // ---- Localização aproximada do IP (só com a consulta externa ligada) ----
+
+        public string Pais { get; set; } = string.Empty;
+
+        public string Cidade { get; set; } = string.Empty;
+
+        public double? Latitude { get; set; }
+
+        public double? Longitude { get; set; }
+
         // ---- Diagnóstico ----
 
         public string? Detalhes { get; set; }

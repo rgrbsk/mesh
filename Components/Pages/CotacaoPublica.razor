@@ -4,6 +4,8 @@
 @using Erp.Model.Cotacao
 @using Erp.Repository.Cotacao
 @inject CotacaoRepository Cotacoes
+@inject Erp.Data.Tenancy.TenantAtual Tenant
+@inject Erp.Data.Tenancy.ConexoesTenant Conexoes
 @inject Erp.Repository.Fiscal.NotaFiscalRepository Notas
 
 @* Tela do FORNECEDOR. É a única página do sistema deliberadamente pública: ele
@@ -75,9 +77,6 @@
             <BbCard Class="mb-4">
                 <BbCardHeader>
                     <BbCardTitle>Itens que você fornece</BbCardTitle>
-                    <BbCardDescription>
-                        Nas quantidades e preços da sua proposta. É contra isto que a nota será conferida.
-                    </BbCardDescription>
                 </BbCardHeader>
                 <BbCardContent>
                     <div class="border border-border rounded-lg overflow-hidden">
@@ -124,10 +123,6 @@
             <BbCard>
                 <BbCardHeader>
                     <BbCardTitle>Enviar a nota fiscal</BbCardTitle>
-                    <BbCardDescription>
-                        O arquivo XML autorizado pela SEFAZ. O DANFE em PDF não serve — o XML é que
-                        tem os dados conferíveis.
-                    </BbCardDescription>
                 </BbCardHeader>
                 <BbCardContent>
                     <div class="flex flex-col items-center gap-4 py-6">
@@ -138,7 +133,7 @@
                                           file:px-3 file:py-1.5 file:text-primary-foreground file:cursor-pointer" />
 
                         <p class="text-xs text-muted-foreground text-center max-w-md">
-                            A nota precisa ser emitida com o CNPJ desta empresa. Ao enviar, o link trava.
+                            Envie o XML da NF-e.
                         </p>
 
                         @if (_erro is not null)
@@ -181,19 +176,28 @@
             <BbCard Class="mb-4">
                 <BbCardHeader>
                     <BbCardTitle>Sua empresa</BbCardTitle>
-                    <BbCardDescription>É como você será identificado na comparação.</BbCardDescription>
                 </BbCardHeader>
                 <BbCardContent>
                     <div class="flex flex-wrap items-end gap-y-4 gap-x-4">
-                        <BbField Class="w-[14rem]">
-                            <BbFieldLabel>CNPJ</BbFieldLabel>
-                            <BbInput @bind-Value="_cnpj" Placeholder="00.000.000/0000-00" />
-                        </BbField>
+                        @if (_doCadastro)
+                        {
+                            <div class="w-full">
+                                <div class="text-base font-medium">@_razaoSocial</div>
+                                <div class="text-sm text-muted-foreground tabular-nums">CNPJ @FormatarCnpj(_cnpj)</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <BbField Class="w-[14rem]">
+                                <BbFieldLabel>CNPJ</BbFieldLabel>
+                                <BbInput @bind-Value="_cnpj" Placeholder="00.000.000/0000-00" />
+                            </BbField>
 
-                        <BbField Class="grow min-w-72">
-                            <BbFieldLabel>Razão social</BbFieldLabel>
-                            <BbInput @bind-Value="_razaoSocial" Placeholder="Empresa X LTDA" />
-                        </BbField>
+                            <BbField Class="grow min-w-72">
+                                <BbFieldLabel>Razão social</BbFieldLabel>
+                                <BbInput @bind-Value="_razaoSocial" Placeholder="Empresa X LTDA" />
+                            </BbField>
+                        }
 
                         <BbField Class="w-[16rem]">
                             <BbFieldLabel>Responsável</BbFieldLabel>
@@ -212,7 +216,7 @@
                 <BbCardHeader>
                     <BbCardTitle>Itens</BbCardTitle>
                     <BbCardDescription>
-                        Deixe o preço em branco no que você não fornece — em branco é "não cotado", diferente de zero.
+                        Deixe em branco o que você não fornece.
                     </BbCardDescription>
                 </BbCardHeader>
                 <BbCardContent>
@@ -283,6 +287,9 @@
 @code {
     [Parameter] public string Token { get; set; } = string.Empty;
 
+    /// <summary>Banco do tenant dono do convite (ausente = banco central).</summary>
+    [SupplyParameterFromQuery(Name = "t")] public string? TenantDoLink { get; set; }
+
     /// <summary>Uma linha da tabela. Preço e prazo ficam como texto para o campo
     /// poder estar vazio — vazio aqui significa "não cotado".</summary>
     private sealed class Linha
@@ -301,6 +308,7 @@
     private List<Linha> _linhas = new();
 
     private string _cnpj = "";
+    private bool _doCadastro;
     private string _razaoSocial = "";
     private string _responsavel = "";
     private string _telefone = "";
@@ -332,6 +340,20 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Sem login aqui: o tenant vem do link. Só vale banco que existe no
+        // catálogo — o parâmetro não abre conexão com banco arbitrário.
+        if (!string.IsNullOrWhiteSpace(TenantDoLink))
+        {
+            await using var central = Conexoes.Central();
+            if (await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .AnyAsync(central.Empresas, e => e.Banco == TenantDoLink))
+                Tenant.Definir(TenantDoLink);
+        }
+        else
+        {
+            Tenant.Definir(null);
+        }
+
         _convite = await Cotacoes.ObterPorToken(Token);
 
         if (EhFaseDaNota(_convite))
@@ -470,12 +492,25 @@
         return null;
     }
 
+    private static string FormatarCnpj(string cnpj)
+    {
+        var d = new string((cnpj ?? "").Where(char.IsDigit).ToArray());
+        return d.Length == 14
+            ? $"{d[..2]}.{d[2..5]}.{d[5..8]}/{d[8..12]}-{d[12..]}"
+            : cnpj ?? "";
+    }
+
     private void Preencher(ConviteFornecedor convite)
     {
         // O que o fornecedor já declarou antes vem de volta; se nunca respondeu,
         // o cadastro que o comprador tinha serve de rascunho.
-        _cnpj = !string.IsNullOrWhiteSpace(convite.Cnpj) ? convite.Cnpj : convite.Pessoa?.CNPJ ?? "";
-        _razaoSocial = convite.Identificacao == convite.Email ? "" : convite.Identificacao;
+        // Convidado do cadastro: o comprador já sabe quem é — nome e CNPJ vêm
+        // de lá e não se digitam. Só o convite avulso (só e-mail) pede os dois.
+        _doCadastro = convite.Pessoa is not null;
+        _cnpj = _doCadastro ? convite.Pessoa!.CNPJ
+              : !string.IsNullOrWhiteSpace(convite.Cnpj) ? convite.Cnpj : "";
+        _razaoSocial = _doCadastro ? convite.Pessoa!.RazaoSocial
+              : convite.Identificacao == convite.Email ? "" : convite.Identificacao;
         _responsavel = convite.Responsavel;
         _telefone = convite.Telefone;
         _condicaoPagamento = convite.CondicaoPagamento;
@@ -501,11 +536,10 @@
 
     private async Task Enviar()
     {
-        if (string.IsNullOrWhiteSpace(_cnpj)
-            || string.IsNullOrWhiteSpace(_razaoSocial)
-            || string.IsNullOrWhiteSpace(_responsavel))
+        if (!_doCadastro
+            && (string.IsNullOrWhiteSpace(_cnpj) || string.IsNullOrWhiteSpace(_razaoSocial)))
         {
-            _erro = "Informe CNPJ, razão social e responsável.";
+            _erro = "Informe CNPJ e razão social.";
             return;
         }
 

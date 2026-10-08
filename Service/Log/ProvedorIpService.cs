@@ -23,7 +23,7 @@ namespace Erp.Service.Log
         /// o ip-api.com, gratuito e sem chave para uso baixo — troque pelo
         /// serviço que você contratar.
         /// </summary>
-        public string Url { get; set; } = "http://ip-api.com/json/{ip}?fields=status,isp,org,country";
+        public string Url { get; set; } = "http://ip-api.com/json/{ip}?fields=status,isp,org,country,city,lat,lon";
 
         /// <summary>Propriedades do JSON tentadas em ordem até uma vir preenchida.</summary>
         public string[] Campos { get; set; } = ["isp", "org"];
@@ -49,7 +49,7 @@ namespace Erp.Service.Log
         /// cada consulta é uma ida à internet. Some quando a aplicação reinicia,
         /// o que é aceitável para um dado de conveniência.
         /// </summary>
-        private static readonly ConcurrentDictionary<string, string> Cache = new();
+        private static readonly ConcurrentDictionary<string, Origem> CacheOrigem = new();
 
         public ProvedorIpService(
             IHttpClientFactory http, IOptions<ProvedorIpOptions> opcoes, ILogger<ProvedorIpService> log)
@@ -59,48 +59,70 @@ namespace Erp.Service.Log
             _log = log;
         }
 
-        public async Task<string> Consultar(string? ip)
+        /// <summary>Origem aproximada de um IP. Vazia com a consulta desligada.</summary>
+        public sealed record Origem(string Provedor, string Pais, string Cidade, double? Latitude, double? Longitude)
         {
-            if (!_opcoes.Habilitado || string.IsNullOrWhiteSpace(ip))
-                return "";
+            public static readonly Origem Vazia = new("", "", "", null, null);
+        }
 
-            // Endereço local não tem provedor — perguntar seria só desperdiçar
-            // uma chamada para receber "private range".
-            if (!IPAddress.TryParse(ip, out var endereco) || EhLocal(endereco))
-                return "";
+        public async Task<string> Consultar(string? ip) => (await Localizar(ip)).Provedor;
 
-            if (Cache.TryGetValue(ip, out var doCache))
+        /// <summary>
+        /// Operadora, país, cidade e coordenadas do IP. Acesso pela rede local
+        /// (localhost, 192.168.x) não tem localização própria: é marcado com a
+        /// localização pública do servidor, que é onde a pessoa fisicamente está.
+        /// </summary>
+        public async Task<Origem> Localizar(string? ip)
+        {
+            if (!_opcoes.Habilitado || string.IsNullOrWhiteSpace(ip)
+                || !IPAddress.TryParse(ip, out var endereco))
+                return Origem.Vazia;
+
+            var local = EhLocal(endereco);
+            var chave = local ? "local" : ip;
+
+            if (CacheOrigem.TryGetValue(chave, out var doCache))
                 return doCache;
+
+            var origem = Origem.Vazia;
 
             try
             {
                 using var cliente = _http.CreateClient();
                 cliente.Timeout = TimeSpan.FromSeconds(_opcoes.TimeoutSegundos);
 
-                var resposta = await cliente.GetStringAsync(_opcoes.Url.Replace("{ip}", ip));
+                // Sem IP no caminho, o serviço responde pelo IP público de quem
+                // pergunta — o próprio servidor.
+                var url = local ? _opcoes.Url.Replace("{ip}", "") : _opcoes.Url.Replace("{ip}", ip);
+                using var json = JsonDocument.Parse(await cliente.GetStringAsync(url));
+                var raiz = json.RootElement;
 
-                using var json = JsonDocument.Parse(resposta);
+                string Texto(string campo) =>
+                    raiz.TryGetProperty(campo, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+                double? Numero(string campo) =>
+                    raiz.TryGetProperty(campo, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
 
-                foreach (var campo in _opcoes.Campos)
-                    if (json.RootElement.TryGetProperty(campo, out var valor)
-                        && valor.ValueKind == JsonValueKind.String
-                        && !string.IsNullOrWhiteSpace(valor.GetString()))
-                    {
-                        var provedor = valor.GetString()!;
-                        Cache[ip] = provedor;
-                        return provedor;
-                    }
+                if (Texto("status") is "success" or "")
+                {
+                    var provedor = _opcoes.Campos.Select(Texto).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? "";
+                    origem = new Origem(
+                        local ? "Rede local" : provedor,
+                        Texto("country"),
+                        local ? $"{Texto("city")} (rede local)".Trim() : Texto("city"),
+                        Numero("lat"),
+                        Numero("lon"));
+                }
             }
             catch (Exception ex)
             {
-                _log.LogDebug(ex, "Consulta de provedor falhou para {Ip}.", ip);
+                _log.LogDebug(ex, "Consulta de origem falhou para {Ip}.", ip);
             }
 
             // Grava o vazio também: sem isso um IP que sempre falha viraria uma
             // consulta nova a cada login.
-            Cache[ip] = "";
+            CacheOrigem[chave] = origem;
 
-            return "";
+            return origem;
         }
 
         private static bool EhLocal(IPAddress endereco)

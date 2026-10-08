@@ -9,6 +9,7 @@
 @inject CotacaoRepository Cotacoes
 @inject ProdutoRepository Produtos
 @inject NavigationManager Navegacao
+@inject Erp.Repository.Notificacao.NotificacaoRepository Notificacoes
 
 @* Primeira tela de quem entra. Tudo aqui é consulta ao banco — era a última
    tela do caminho principal com números escritos no HTML.
@@ -16,6 +17,80 @@
    O critério do que entra: cada bloco responde a uma pergunta que faz alguém
    sair daqui e ir agir. Número bonito que não muda decisão ficou de fora. *@
 
+@if (_comunicados.Count > 0)
+{
+    var c = _comunicados[0];
+    var nota = c.Tipo == Erp.Model.Notificacao.TipoNotificacao.NotaAtualizacao;
+    var acento = nota ? "139,92,246" : "245,158,11";
+    var linhas = c.Mensagem.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    @* Recado ou nota de atualização ainda sem OK: ocupa o painel inteiro, um
+       por vez, no centro da tela. Os indicadores voltam quando não sobrar
+       nenhum. *@
+    <div class="relative h-full min-h-0 flex items-center justify-center p-6 overflow-y-auto"
+         style="background-image:
+                    radial-gradient(circle at 50% 45%, rgba(@acento,0.12), transparent 55%),
+                    linear-gradient(rgba(127,127,127,0.07) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(127,127,127,0.07) 1px, transparent 1px);
+                background-size: 100% 100%, 28px 28px, 28px 28px;">
+
+        <div class="w-full max-w-xl rounded-xl p-px"
+             style="background: linear-gradient(135deg, rgba(@acento,0.9), rgba(6,182,212,0.6) 50%, rgba(@acento,0.25));
+                    box-shadow: 0 0 0 1px rgba(@acento,0.15), 0 20px 60px -20px rgba(@acento,0.45);">
+            <div class="rounded-[11px] bg-background overflow-hidden">
+
+                <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/40">
+                    <span class="h-2.5 w-2.5 rounded-full bg-red-500/80"></span>
+                    <span class="h-2.5 w-2.5 rounded-full bg-amber-500/80"></span>
+                    <span class="h-2.5 w-2.5 rounded-full bg-emerald-500/80"></span>
+                    <span class="ml-2 font-mono text-xs text-muted-foreground truncate">
+                        mesh://@(nota ? "release-notes" : "recado")
+                    </span>
+                    @if (_comunicados.Count > 1)
+                    {
+                        <span class="ml-auto font-mono text-xs text-muted-foreground tabular-nums">1/@_comunicados.Count</span>
+                    }
+                </div>
+
+                <div class="px-6 pt-6 pb-5">
+                    <div class="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.18em]"
+                         style="color: rgb(@acento)">
+                        <LucideIcon Name="@(nota ? "sparkles" : "megaphone")" Size="14" />
+                        @(nota ? "Notas da atualização" : "Recado")
+                    </div>
+
+                    <h3 class="mt-2 text-2xl font-semibold tracking-tight">@c.Titulo</h3>
+
+                    <ul class="mt-4 flex flex-col gap-2">
+                        @foreach (var linha in linhas)
+                        {
+                            var texto = linha.TrimStart('-', '*', '•', ' ');
+                            <li class="flex items-start gap-2.5 text-sm leading-relaxed">
+                                <span class="font-mono mt-px select-none" style="color: rgb(@acento)">&gt;</span>
+                                <span>@texto</span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+
+                <div class="flex items-center gap-3 px-6 py-3.5 border-t border-border bg-muted/30">
+                    <span class="font-mono text-xs text-muted-foreground truncate">
+                        @c.Remetente.ToLowerInvariant() · @c.CriadaEm.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                    </span>
+                    <button type="button" @onclick="() => Confirmar(c)"
+                            class="ml-auto inline-flex items-center gap-2 h-9 px-5 rounded-md text-sm font-semibold text-white cursor-pointer
+                                   transition-opacity hover:opacity-90"
+                            style="background: linear-gradient(135deg, rgb(@acento), rgb(6,182,212));">
+                        OK
+                        <LucideIcon Name="check" Size="15" />
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
 <div class="flex flex-col h-full min-h-0 p-6 overflow-y-auto">
 
     <div class="mb-5 px-2">
@@ -170,6 +245,7 @@
         </div>
     }
 </div>
+}
 
 @code {
     // Classes, não tuplas: os DataKey dos gráficos apontam para NOMES de
@@ -203,9 +279,27 @@
     private int _devolvidas;
     private int _cotacoesAbertas;
     private bool _carregando = true;
+    private List<Erp.Model.Notificacao.Notificacao> _comunicados = new();
+    private Guid _usuarioAtual;
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacao { get; set; }
+
+    private async Task Confirmar(Erp.Model.Notificacao.Notificacao comunicado)
+    {
+        await Notificacoes.Confirmar(comunicado.Id, _usuarioAtual);
+        _comunicados.Remove(comunicado);
+    }
 
     protected override async Task OnInitializedAsync()
     {
+        if (EstadoAutenticacao is not null
+            && Guid.TryParse((await EstadoAutenticacao).User
+                   .FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id))
+        {
+            _usuarioAtual = id;
+            _comunicados = await Notificacoes.ComunicadosPendentes(id);
+        }
+
         var solicitacoes = await Solicitacoes.Buscar();
         var cotacoes = await Cotacoes.Buscar();
 

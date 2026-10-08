@@ -58,6 +58,11 @@ namespace Erp.Model.Solicitacao
         /// </summary>
         public decimal ValorEstimado { get; set; }
 
+        /// <summary>Linha de cotação em que este item entrou. Vários itens do
+        /// mesmo produto podem cair na mesma linha, com as quantidades somadas.
+        /// Nulo enquanto o item aprovado não foi cotado.</summary>
+        public int? CotacaoItemId { get; set; }
+
         public List<Erp.Model.Aprovacao.AprovacaoItem> Aprovacoes { get; set; } = new();
 
         public decimal PrecoEstimadoUnitario => Quantidade == 0

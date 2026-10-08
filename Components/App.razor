@@ -21,11 +21,11 @@
     <script src="@Assets["js/tema.js"]"></script>
     <ImportMap />
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-big.png" />
-    <HeadOutlet @rendermode="InteractiveServer" />
+    <HeadOutlet @rendermode="ModoDaPagina" />
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    <Routes @rendermode="ModoDaPagina" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
     <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
@@ -44,3 +44,13 @@
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    // Páginas marcadas com [ExcludeFromInteractiveRouting] (o segundo fator do
+    // login) rodam só no servidor: precisam do HttpContext para emitir o cookie
+    // na própria resposta. O resto continua interativo.
+    private IComponentRenderMode? ModoDaPagina =>
+        HttpContext.AcceptsInteractiveRouting() ? InteractiveServer : null;
+}

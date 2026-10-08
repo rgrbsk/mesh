@@ -21,11 +21,6 @@
                 <BbDialogTitle>De-para de produtos por fornecedor</BbDialogTitle>
             </div>
 
-            <p class="text-sm text-muted-foreground">
-                O código que vem na NF-e é o do fornecedor, não o seu. Aqui fica a tradução —
-                é o que faz a nota dele já chegar casada com o seu catálogo.
-            </p>
-
             <div class="flex flex-wrap items-end gap-3">
                 <BbField Class="w-[20rem]">
                     <BbFieldLabel>Fornecedor</BbFieldLabel>
@@ -74,7 +69,6 @@
                 @if (_linhas.Count == 0)
                 {
                     <BbEmpty Title="Nenhuma tradução cadastrada"
-                             Description="As amarrações feitas ao receber uma nota aparecem aqui."
                              Class="py-12">
                         <Icon><LucideIcon Name="arrow-left-right" Size="36" Class="text-muted-foreground" /></Icon>
                     </BbEmpty>
@@ -124,9 +118,6 @@
             </div>
 
             <BbDialogFooter>
-                <span class="text-xs text-muted-foreground mr-auto">
-                    Um código por fornecedor: cadastrar o mesmo de novo aponta para o produto novo.
-                </span>
                 <ActionArea>
                     <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
                               OnClick="() => AbertoChanged.InvokeAsync(false)">

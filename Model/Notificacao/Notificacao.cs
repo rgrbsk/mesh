@@ -33,5 +33,28 @@ namespace Erp.Model.Notificacao
         public DateTime CriadaEm { get; set; } = DateTime.UtcNow;
 
         public DateTime? LidaEm { get; set; }
+
+        // ---- Comunicados da plataforma (recado e nota de atualização) ----
+
+        public TipoNotificacao Tipo { get; set; } = TipoNotificacao.Sistema;
+
+        /// <summary>Agrupa as cópias de um mesmo comunicado enviado a muitos
+        /// usuários — é por ele que o console conta quantos já confirmaram.</summary>
+        public Guid? EnvioId { get; set; }
+
+        public string Remetente { get; set; } = string.Empty;
+
+        /// <summary>Comunicado fica no painel até o usuário dar OK. Ler no sino
+        /// não basta: é a confirmação de que ele viu.</summary>
+        public bool Confirmada { get; set; }
+
+        public DateTime? ConfirmadaEm { get; set; }
+    }
+
+    public enum TipoNotificacao
+    {
+        Sistema = 0,
+        Recado = 1,
+        NotaAtualizacao = 2,
     }
 }

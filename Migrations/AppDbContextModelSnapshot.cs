@@ -565,6 +565,13 @@ namespace Erp.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("Ativa")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Banco")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("CNPJ")
                         .IsRequired()
                         .HasColumnType("text");
@@ -583,6 +590,9 @@ namespace Erp.Migrations
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("SuspensaEm")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
@@ -901,6 +911,10 @@ namespace Erp.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Cidade")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Detalhes")
                         .HasColumnType("text");
 
@@ -919,7 +933,17 @@ namespace Erp.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
+
                     b.Property<string>("Mensagem")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Pais")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -1006,10 +1030,19 @@ namespace Erp.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("Confirmada")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("ConfirmadaEm")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("CriadaEm")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("DestinatarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("EnvioId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Icone")
@@ -1029,6 +1062,13 @@ namespace Erp.Migrations
                     b.Property<string>("Mensagem")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("Remetente")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Titulo")
                         .IsRequired()
@@ -1338,6 +1378,9 @@ namespace Erp.Migrations
                     b.Property<int>("CentroCustoId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("CotacaoItemId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("DecididoEm")
                         .HasColumnType("timestamp with time zone");
 
@@ -1375,6 +1418,8 @@ namespace Erp.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CentroCustoId");
+
+                    b.HasIndex("CotacaoItemId");
 
                     b.HasIndex("DecididoPorId");
 
@@ -1458,6 +1503,9 @@ namespace Erp.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid?>("EmpresaId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
@@ -1517,6 +1565,8 @@ namespace Erp.Migrations
                         .HasColumnType("character varying(256)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EmpresaId");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -2031,6 +2081,11 @@ namespace Erp.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Erp.Model.Cotacao.CotacaoItem", null)
+                        .WithMany("Origens")
+                        .HasForeignKey("CotacaoItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Erp.Model.Usuario.Usuario", "DecididoPor")
                         .WithMany()
                         .HasForeignKey("DecididoPorId")
@@ -2073,6 +2128,14 @@ namespace Erp.Migrations
                     b.Navigation("Etapa");
 
                     b.Navigation("Solicitante");
+                });
+
+            modelBuilder.Entity("Erp.Model.Usuario.Usuario", b =>
+                {
+                    b.HasOne("Erp.Model.Empresa.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -2150,6 +2213,8 @@ namespace Erp.Migrations
 
             modelBuilder.Entity("Erp.Model.Cotacao.CotacaoItem", b =>
                 {
+                    b.Navigation("Origens");
+
                     b.Navigation("Propostas");
                 });
 

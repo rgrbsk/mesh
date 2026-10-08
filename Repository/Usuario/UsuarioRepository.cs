@@ -15,11 +15,21 @@ namespace Erp.Repository.Usuario
     {
         private readonly IDbContextFactory<AppDbContext> _fabrica;
         private readonly UserManager<AppUsuario> _identity;
+        private readonly Erp.Data.Tenancy.TenantAtual _tenant;
+        private readonly Erp.Data.Tenancy.EspelhoUsuarios _espelho;
 
-        public UsuarioRepository(IDbContextFactory<AppDbContext> fabrica, UserManager<AppUsuario> identity)
+        // Usuários moram no banco central (é lá que o login acontece); cada
+        // tenant enxerga só os seus, e o banco do tenant guarda uma cópia.
+        public UsuarioRepository(
+            Erp.Data.Tenancy.FabricaCentral fabrica,
+            UserManager<AppUsuario> identity,
+            Erp.Data.Tenancy.TenantAtual tenant,
+            Erp.Data.Tenancy.EspelhoUsuarios espelho)
         {
             _fabrica = fabrica;
             _identity = identity;
+            _tenant = tenant;
+            _espelho = espelho;
         }
 
         /// <summary>Usuários para seletores (responsável pelo centro de custo,
@@ -32,7 +42,18 @@ namespace Erp.Repository.Usuario
         {
             await using var contexto = await _fabrica.CreateDbContextAsync();
 
-            var query = contexto.Usuarios.AsNoTracking().AsQueryable();
+            // O dono da aplicação não aparece para quem administra usuários:
+            // não se edita, não se desativa e não se exclui por aqui.
+            var papelDono = contexto.Roles
+                .Where(r => r.Name == Erp.Model.Acesso.Permissoes.PapelSuperAdmin)
+                .Select(r => r.Id);
+
+            var query = contexto.Usuarios.AsNoTracking()
+                .Where(u => !contexto.UserRoles.Any(ur => ur.UserId == u.Id && papelDono.Contains(ur.RoleId)));
+
+            // Só os usuários da empresa de quem está olhando.
+            if (await _tenant.EmpresaId() is { } empresa)
+                query = query.Where(u => u.EmpresaId == empresa);
 
             if (filtro is not null)
                 query = query.Where(filtro);
@@ -64,7 +85,23 @@ namespace Erp.Repository.Usuario
             usuario.DataCadastro = DateTime.UtcNow;
             usuario.DataModificacao = usuario.DataCadastro;
 
-            return await _identity.CreateAsync(usuario, senha);
+            // Todo usuário criado pela tela pertence ao tenant de quem cria.
+            usuario.EmpresaId ??= await _tenant.EmpresaId();
+
+            if (usuario.EmpresaId is null)
+            {
+                await using var contexto = await _fabrica.CreateDbContextAsync();
+                usuario.EmpresaId = await contexto.Empresas
+                    .OrderBy(e => e.CriadoEm)
+                    .Select(e => (Guid?)e.Id)
+                    .FirstOrDefaultAsync();
+            }
+
+            var criado = await _identity.CreateAsync(usuario, senha);
+            if (criado.Succeeded)
+                await _espelho.Sincronizar(usuario.Id);
+
+            return criado;
         }
 
         /// <summary>
@@ -93,7 +130,11 @@ namespace Erp.Repository.Usuario
                 await _identity.SetUserNameAsync(usuario, editado.Email);
             }
 
-            return await _identity.UpdateAsync(usuario);
+            var resultado = await _identity.UpdateAsync(usuario);
+            if (resultado.Succeeded)
+                await _espelho.Sincronizar(usuario.Id);
+
+            return resultado;
         }
 
         /// <summary>Troca a senha sem pedir a atual — é a redefinição feita por
@@ -114,6 +155,23 @@ namespace Erp.Repository.Usuario
             var usuario = await _identity.FindByIdAsync(id.ToString());
             if (usuario is null)
                 return IdentityResult.Failed(new IdentityError { Description = "Usuário não encontrado." });
+
+            if (await _identity.IsInRoleAsync(usuario, Erp.Model.Acesso.Permissoes.PapelSuperAdmin))
+                return IdentityResult.Failed(new IdentityError { Description = "O dono da aplicação não pode ser excluído." });
+
+            // A cópia sai primeiro: se o usuário tem histórico no tenant, o
+            // banco recusa — e aí o login também não deve sumir.
+            try
+            {
+                await _espelho.Remover(usuario.Id);
+            }
+            catch (Exception ex) when (ex is DbUpdateException or Npgsql.PostgresException)
+            {
+                return IdentityResult.Failed(new IdentityError
+                {
+                    Description = "Este usuário tem histórico no sistema. Desative em vez de excluir.",
+                });
+            }
 
             return await _identity.DeleteAsync(usuario);
         }

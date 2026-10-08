@@ -28,6 +28,19 @@ namespace Erp.Model.Acesso
         // ---- Alçada de aprovação ----
         public const string AlcadasGerir = "alcadas.gerir";
 
+        // ---- Dono da aplicação ----
+
+        /// <summary>
+        /// Saúde, observabilidade e métricas de uso. Fica FORA do catálogo de
+        /// propósito: não aparece na tela de permissões, então nenhum
+        /// administrador concede — só o papel SuperAdmin tem.
+        /// </summary>
+        public const string Plataforma = "plataforma.ver";
+
+        /// <summary>Papel do dono da aplicação. Não aparece no seletor de papéis
+        /// e não se atribui pela tela de usuários.</summary>
+        public const string PapelSuperAdmin = "SuperAdmin";
+
 
         /// <summary>
         /// Catálogo: é daqui que sai a tela de permissões e o seed do papel

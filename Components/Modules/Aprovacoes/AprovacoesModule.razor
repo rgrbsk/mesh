@@ -36,7 +36,6 @@
     @if (!_podeAprovar)
     {
         <BbEmpty Title="Sem acesso às aprovações"
-                 Description="Decidir solicitações exige a permissão compras.aprovar."
                  Class="py-16">
             <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
         </BbEmpty>
@@ -47,7 +46,6 @@
            algum — a fila nunca vai ter nada. Diz o que falta, em vez de "nada
            esperando". *@
         <BbEmpty Title="Você não responde por nenhum centro de custo"
-                 Description="A permissão de aprovar está concedida, mas as aprovações chegam a quem é responsável por um centro de custo ou faz parte da cadeia de alçada dele. Peça para ser indicado em Centros de Custo ou em Alçadas."
                  Class="py-16">
             <Icon><LucideIcon Name="git-branch" Size="40" Class="text-muted-foreground" /></Icon>
         </BbEmpty>
@@ -57,7 +55,6 @@
         @* Ter a permissão não basta: é preciso ser aprovador de algum degrau,
            senão não há fila. *@
         <BbEmpty Title="Nada esperando você"
-                 Description="Quando um item chegar a um degrau de alçada que é seu, ele aparece aqui. Se acha que deveria haver algo, confira em Alçadas se você está na cadeia do centro de custo."
                  Class="py-16">
             <Icon><LucideIcon Name="circle-check" Size="40" Class="text-muted-foreground" /></Icon>
         </BbEmpty>

@@ -35,7 +35,6 @@
             else if (_respondentes.Count == 0)
             {
                 <BbEmpty Title="Nenhuma proposta ainda"
-                         Description="Assim que um fornecedor enviar pelo link dele, a comparação aparece aqui."
                          Class="py-16">
                     <Icon><LucideIcon Name="inbox" Size="40" Class="text-muted-foreground" /></Icon>
                 </BbEmpty>
@@ -111,7 +110,7 @@
                                                 {
                                                     <div class="text-xs text-muted-foreground truncate">@proposta.Observacao</div>
                                                 }
-                                                @if (!venceu)
+                                                @if (!venceu && !Anunciada)
                                                 {
                                                     <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
                                                               Class="mt-1"
@@ -138,10 +137,13 @@
                                                     {
                                                         <div class="text-xs text-muted-foreground">@item.MotivoEscolha</div>
                                                     }
-                                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
-                                                              OnClick="() => Limpar(item)">
-                                                        Refazer
-                                                    </BbButton>
+                                                    @if (!Anunciada)
+                                                    {
+                                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                                  OnClick="() => Limpar(item)">
+                                                            Refazer
+                                                        </BbButton>
+                                                    }
                                                 </div>
                                             </div>
                                         }
@@ -168,26 +170,13 @@
             }
 
             <BbDialogFooter>
-                <span class="text-xs text-muted-foreground mr-auto">
-                    @if (_escolhidos == 0)
-                    {
-                        <text>Escolher quem não tem o menor preço exige motivo.</text>
-                    }
-                    else
-                    {
-                        <text>
-                            @_escolhidos de @(_cotacao?.Itens.Count ?? 0) itens decididos.
-                            Anunciar avisa os vencedores e libera o envio da nota fiscal.
-                        </text>
-                    }
-                </span>
                 <ActionArea>
                     <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
                               OnClick="() => AbertoChanged.InvokeAsync(false)">
                         <ChildContent>Fechar</ChildContent>
                         <Icon><LucideIcon Name="x" Size="16" Color="grey" /></Icon>
                     </BbButton>
-                    @if (_escolhidos > 0)
+                    @if (_escolhidos > 0 && !Anunciada)
                     {
                         <BbButton Variant="ButtonVariant.Ghost" IconPosition="IconPosition.Start"
                                   OnClick="() => _dialogAnuncioAberto = true" Disabled="_anunciando">
@@ -208,12 +197,6 @@
         <div class="flex flex-col gap-4">
             <BbDialogTitle>Anunciar vencedores</BbDialogTitle>
 
-            <p class="text-sm text-muted-foreground">
-                Os fornecedores com item vencedor passam a ver, no mesmo link que usaram
-                para cotar, o que venceram — e podem enviar o XML da nota fiscal por lá.
-                A cotação é encerrada e não aceita mais propostas.
-            </p>
-
             @if (_naoDecididos > 0)
             {
                 @* Anunciar com item indeciso é possível, mas quase sempre é
@@ -231,7 +214,6 @@
             <BbField>
                 <BbFieldLabel>Prazo para envio da nota fiscal</BbFieldLabel>
                 <BbInput @bind-Value="_prazoNota" Type="InputType.Date" />
-                <BbFieldDescription>Depois dessa data o link para de aceitar o XML.</BbFieldDescription>
             </BbField>
 
             @if (_erroAnuncio is not null)
@@ -334,10 +316,12 @@
 
         // Só quem respondeu vira coluna: convite pendente não tem o que comparar.
         _respondentes = _cotacao?.Convites
-            .Where(c => c.Status == StatusConvite.Respondido)
+            .Where(c => c.Status is StatusConvite.Respondido or StatusConvite.Vencedor or StatusConvite.NotaEnviada)
             .OrderBy(c => c.Identificacao)
             .ToList() ?? new();
     }
+
+    private bool Anunciada => _cotacao?.Convites.Any(c => c.Status is StatusConvite.Vencedor or StatusConvite.NotaEnviada) == true;
 
     private static decimal? MenorPreco(CotacaoItem item) =>
         item.Propostas.Where(p => p.PrecoUnitario is not null).Min(p => p.PrecoUnitario);
@@ -437,7 +421,7 @@
         {
             var resultado = await Cotacoes.AnunciarVencedores(
                 CotacaoId,
-                DateTime.SpecifyKind(prazo, DateTimeKind.Utc),
+                DateTime.SpecifyKind(prazo.Date.AddDays(1).AddTicks(-1), DateTimeKind.Local).ToUniversalTime(),
                 _usuarioAtual,
                 Navegacao.BaseUri);
 

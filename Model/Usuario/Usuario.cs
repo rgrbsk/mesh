@@ -26,5 +26,9 @@ namespace Erp.Model.Usuario
         public List<string>? Tag { get; set; }
 
         public string? TemaPreferencial { get; set; } = "light";
+
+        /// <summary>Tenant (empresa cliente) a que o usuário pertence. Nulo só
+        /// para o dono da aplicação, que fica acima dos tenants.</summary>
+        public Guid? EmpresaId { get; set; }
     }
 }

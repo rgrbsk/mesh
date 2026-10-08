@@ -14,7 +14,6 @@
        qualquer autenticado abriria /home/usuarios digitando. *@
     <div class="h-full flex items-center justify-center p-6">
         <BbEmpty Title="Você não tem acesso a este módulo"
-                 Description="Se precisa dele, peça a permissão a quem administra o sistema."
                  Class="py-10">
             <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
             <ChildContent>
@@ -42,17 +41,25 @@ else
     // (assim a aba correspondente fica destacada no menu).
     protected override async Task OnParametersSetAsync()
     {
+        var usuario = (await EstadoAutenticacao).User;
+        var padrao = Modulos.PadraoDo(usuario);
+
         if (string.IsNullOrEmpty(ModuleKey))
         {
-            Nav.NavigateTo($"/home/{Modulos.Padrao}", replace: true);
+            Nav.NavigateTo($"/home/{padrao}", replace: true);
             return;
         }
 
-        var modulo = Modulos.Find(ModuleKey) ?? Modulos.Find(Modulos.Padrao);
-        var usuario = (await EstadoAutenticacao).User;
+        var modulo = Modulos.Find(ModuleKey) ?? Modulos.Find(padrao);
 
-        _semAcesso = modulo?.Permissao is not null
-                  && !usuario.HasClaim(Permissoes.ClaimType, modulo.Permissao);
+        // O dono não tem ERP para ver: qualquer outro módulo volta ao console.
+        if (Modulos.EhDono(usuario) && modulo is not null && !Modulos.PodeAbrir(usuario, modulo))
+        {
+            Nav.NavigateTo($"/home/{padrao}", replace: true);
+            return;
+        }
+
+        _semAcesso = modulo is not null && !Modulos.PodeAbrir(usuario, modulo);
     }
 
     private Type Tipo =>

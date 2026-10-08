@@ -45,7 +45,6 @@
     @if (!_podeGerir)
     {
         <BbEmpty Title="Sem acesso às notas fiscais"
-                 Description="Receber e conferir NF-e exige a permissão notas.gerir."
                  Class="py-16">
             <Icon><LucideIcon Name="lock" Size="40" Class="text-muted-foreground" /></Icon>
         </BbEmpty>
@@ -83,7 +82,7 @@
                 <Columns>
                     <BbDataGridPropertyColumn Property="@(n => n.Numero)" Title="Nota" Width="100px" Sortable />
                     <BbDataGridPropertyColumn Property="@(n => n.EmitenteNome)" Title="Emitente" Sortable />
-                    <BbDataGridPropertyColumn Property="@(n => n.Emissao)" Title="Emissão" Format="dd/MM/yyyy" Sortable />
+                    <BbDataGridPropertyColumn Property="@(n => n.Emissao.ToLocalTime())" Title="Emissão" Format="dd/MM/yyyy" Sortable />
                     <BbDataGridPropertyColumn Property="@(n => n.Itens.Count)" Title="Itens" Width="80px" />
 
                     <BbDataGridTemplateColumn Title="Total" Width="130px" NoWrap>
@@ -143,7 +142,6 @@
 
                 <EmptyTemplate>
                     <BbEmpty Title="Nenhuma nota recebida"
-                             Description="Quando o fornecedor vencedor mandar o XML, importe aqui para conferir contra a compra."
                              Class="py-10">
                         <Icon><LucideIcon Name="file-check-2" Size="40" Class="text-muted-foreground" /></Icon>
                         <ChildContent>

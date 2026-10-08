@@ -1,11 +1,7 @@
 @inject NavigationManager Nav
 
-@* Navegação horizontal estilo Pipefy, em DUAS linhas:
-   1) marca + workspace + ações do usuário
-   2) abas de módulos (BbNavigationMenu) com sublinhado no item ativo. *@
 <header class="flex-none border-b border-border bg-background">
 
-    @* ---------- Linha 1: marca + workspace + ações ---------- *@
     <div class="h-12 flex items-center gap-3 px-4">
 
         <div class="flex items-center gap-2 flex-none">
@@ -14,44 +10,38 @@
 
         <div class="h-5 w-px bg-border flex-none"></div>
 
+        @* O dono da aplicação não opera compras: os atalhos do ERP não são para ele. *@
+        <AuthorizeView Roles="@Permissoes.PapelSuperAdmin">
+            <Authorized>
+                <span class="text-sm font-medium text-muted-foreground">Console da plataforma</span>
+            </Authorized>
+            <NotAuthorized>
+            <button type="button" @onclick='() => Nav.NavigateTo("/home/kanban")'
+                    class="flex items-center gap-2 h-8 px-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors cursor-pointer">
+                <LucideIcon Name="kanban" Size="16" />
+                <span>Kanban</span>
+            </button>
 
-        <button type="button"
-                class="flex items-center gap-2 h-8 px-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors">
-            <LucideIcon Name="shopping-cart" Size="16" />
-            <span>Processo de compra</span>
-            <LucideIcon Name="external-link" Size="14" Class="text-muted-foreground" />
-        </button>
+            <button type="button" @onclick='() => Nav.NavigateTo("/home/cotacoes")'
+                    class="flex items-center gap-2 h-8 px-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors cursor-pointer">
+                <LucideIcon Name="mail" Size="16" />
+                <span>Cotações</span>
+            </button>
+            </NotAuthorized>
+        </AuthorizeView>
 
-        <button type="button" @onclick='() => Nav.NavigateTo("/home/kanban")'
-                class="flex items-center gap-2 h-8 px-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors cursor-pointer">
-            <LucideIcon Name="kanban" Size="16" />
-            <span>Kanban</span>
-        </button>
-
-        <button type="button" @onclick='() => Nav.NavigateTo("/home/cotacoes")'
-                class="flex items-center gap-2 h-8 px-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors cursor-pointer">
-            <LucideIcon Name="mail" Size="16" />
-            <span>Cotações</span>
-        </button>
-
-        @* Ações à direita *@
         <div class="ml-auto flex items-center gap-1 flex-none">
+            <AuthorizeView Roles="@Permissoes.PapelSuperAdmin">
+                <Authorized>
+                    <span class="inline-flex items-center gap-1 h-6 px-2 mr-1 rounded-full text-xs font-semibold tracking-wide
+                                 border border-violet-500/40 bg-violet-500/15 text-violet-700 dark:text-violet-300">
+                        <LucideIcon Name="shield-check" Size="12" />
+                        superadmin
+                    </span>
+                </Authorized>
+            </AuthorizeView>
             <TemaToggle />
             <SinoNotificacoes />
-
-            <BbTooltip>
-                <BbTooltipTrigger AsChild="false" Class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors" aria-label="Alterar Empresa">
-                    <LucideIcon Name="database-zap" Size="18" />
-                </BbTooltipTrigger>
-                <BbTooltipContent>Alternar entre Empresas</BbTooltipContent>
-            </BbTooltip>
-
-            @* <BbTooltip>
-                <BbTooltipTrigger AsChild="false" @onclick="OnPerfil" Class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors" aria-label="Perfil">
-                    <LucideIcon Name="user" Size="18" />
-                </BbTooltipTrigger>
-                <BbTooltipContent>Perfil</BbTooltipContent>
-            </BbTooltip> *@
 
             <BbDropdownMenu ItemClass="py-1.5 text-sm">
                 <BbDropdownMenuTrigger AsChild="false"
@@ -75,14 +65,9 @@
                 </BbDropdownMenuContent>
             </BbDropdownMenu>
 
-            @* <BbButton Class="hover:text-red-500" Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
-                      OnClick="() => OnLogout.InvokeAsync()">
-                <LucideIcon  Name="log-out" Size="16" /> Sair
-            </BbButton> *@
         </div>
     </div>
 
-    @* ---------- Linha 2: abas de módulos (NavLink nativo) ---------- *@
     <nav class="h-11 flex items-center gap-0.5 px-2">
         @foreach (var m in Modules.Where(m => !m.ForaDasAbas))
         {
@@ -102,5 +87,4 @@
     [Parameter, EditorRequired] public IReadOnlyList<Modulo> Modules { get; set; } = Array.Empty<Modulo>();
     [Parameter] public EventCallback OnLogout { get; set; }
 
-    private void OnPerfil() => Nav.NavigateTo("/perfil");
 }

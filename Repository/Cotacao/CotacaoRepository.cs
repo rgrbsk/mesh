@@ -26,14 +26,26 @@ namespace Erp.Repository.Cotacao
         private readonly Erp.Repository.Notificacao.NotificacaoRepository _avisos;
         private readonly Erp.Service.Email.EmailService _emails;
         private readonly Erp.Repository.Empresa.EmpresaRepository _empresas;
+        private readonly Erp.Data.Tenancy.TenantAtual _tenant;
+
+        /// <summary>Link público do convite. Fora do banco central, leva o
+        /// tenant junto — a página do fornecedor não tem login para descobrir.</summary>
+        public async Task<string> LinkDoConvite(string urlBase, string token)
+        {
+            var banco = await _tenant.Banco();
+            var link = $"{urlBase.TrimEnd('/')}/cotacao/{token}";
+            return string.IsNullOrWhiteSpace(banco) ? link : $"{link}?t={Uri.EscapeDataString(banco)}";
+        }
 
         public CotacaoRepository(
             IDbContextFactory<AppDbContext> fabrica,
             Erp.Repository.Log.LogRepository logs,
             Erp.Repository.Notificacao.NotificacaoRepository avisos,
             Erp.Service.Email.EmailService emails,
-            Erp.Repository.Empresa.EmpresaRepository empresas)
+            Erp.Repository.Empresa.EmpresaRepository empresas,
+            Erp.Data.Tenancy.TenantAtual tenant)
         {
+            _tenant = tenant;
             _fabrica = fabrica;
             _logs = logs;
             _avisos = avisos;
@@ -84,7 +96,9 @@ namespace Erp.Repository.Cotacao
 
             return await contexto.Cotacoes
                 .AsNoTracking()
+                .AsSplitQuery()
                 .Include(c => c.Itens).ThenInclude(i => i.Produto)
+                .Include(c => c.Itens).ThenInclude(i => i.Origens)
                 .Include(c => c.Convites).ThenInclude(f => f.Pessoa)
                 .Include(c => c.Convites).ThenInclude(f => f.Propostas)
                 .FirstOrDefaultAsync(c => c.Id == id);
@@ -100,10 +114,17 @@ namespace Erp.Repository.Cotacao
             foreach (var convite in cotacao.Convites)
                 PrepararConvite(convite, cotacao.PrazoResposta);
 
+            var origens = cotacao.Itens.Select(i => (Item: i, Origens: i.OrigemIds.ToList())).ToList();
+
             LimparNavegacoes(cotacao);
+
+            await using var transacao = await contexto.Database.BeginTransactionAsync();
 
             contexto.Cotacoes.Add(cotacao);
             await contexto.SaveChangesAsync();
+            await VincularOrigens(contexto, origens);
+
+            await transacao.CommitAsync();
 
             return cotacao;
         }
@@ -132,10 +153,15 @@ namespace Erp.Repository.Cotacao
             gravada.PrazoResposta = cotacao.PrazoResposta;
             gravada.ModificadoEm = DateTime.UtcNow;
 
-            SincronizarItens(contexto, gravada, cotacao);
+            await using var transacao = await contexto.Database.BeginTransactionAsync();
+
+            var origens = SincronizarItens(contexto, gravada, cotacao);
             SincronizarConvites(contexto, gravada, cotacao);
 
             await contexto.SaveChangesAsync();
+            await VincularOrigens(contexto, origens);
+
+            await transacao.CommitAsync();
 
             return gravada;
         }
@@ -260,6 +286,10 @@ namespace Erp.Repository.Cotacao
                 .FirstOrDefaultAsync(i => i.Id == cotacaoItemId)
                 ?? throw new InvalidOperationException("Item da cotação não encontrado.");
 
+            if (await contexto.Convites.AnyAsync(c => c.CotacaoId == item.CotacaoId
+                    && (c.Status == StatusConvite.Vencedor || c.Status == StatusConvite.NotaEnviada)))
+                throw new InvalidOperationException("Vencedores já anunciados: a escolha não pode mais mudar.");
+
             var escolhida = item.Propostas.FirstOrDefault(p => p.ConviteFornecedorId == conviteId)
                 ?? throw new InvalidOperationException("Este fornecedor não cotou este item.");
 
@@ -278,6 +308,18 @@ namespace Erp.Repository.Cotacao
             item.MotivoEscolha = motivo;
             item.EscolhidoPorId = escolhidoPorId;
             item.EscolhidoEm = DateTime.UtcNow;
+
+            // O preço vencedor vira o preço de referência do produto. É ele que
+            // estima o valor da próxima solicitação e, com isso, decide em que
+            // degrau de alçada ela para — sem esta linha o valor ficava R$ 0,00
+            // e a alçada por valor nunca subia de nível.
+            var produto = await contexto.Produtos.FirstOrDefaultAsync(p => p.Id == item.ProdutoId);
+            if (produto is not null)
+            {
+                produto.PrecoReferencia = escolhida.PrecoUnitario.Value;
+                produto.PrecoReferenciaEm = DateTime.UtcNow;
+                produto.ModificadoEm = DateTime.UtcNow;
+            }
 
             await contexto.SaveChangesAsync();
 
@@ -370,7 +412,7 @@ namespace Erp.Repository.Cotacao
 
             foreach (var convite in anunciados.Where(c => !string.IsNullOrWhiteSpace(c.Email)))
             {
-                var link = $"{urlBase.TrimEnd('/')}/cotacao/{convite.Token}";
+                var link = await LinkDoConvite(urlBase, convite.Token);
 
                 if (await _emails.EnviarAvisoDeVitoria(
                         convite.Email, cotacaoId, cotacao.Titulo, link, prazoParaNota, comprador))
@@ -401,6 +443,10 @@ namespace Erp.Repository.Cotacao
             if (item is null)
                 return;
 
+            if (await contexto.Convites.AnyAsync(c => c.CotacaoId == item.CotacaoId
+                    && (c.Status == StatusConvite.Vencedor || c.Status == StatusConvite.NotaEnviada)))
+                throw new InvalidOperationException("Vencedores já anunciados: a escolha não pode mais mudar.");
+
             item.ConviteVencedorId = null;
             item.MotivoEscolha = null;
             item.EscolhidoPorId = null;
@@ -427,8 +473,9 @@ namespace Erp.Repository.Cotacao
                 .AsNoTracking()
                 .Include(i => i.Produto)
                 .Include(i => i.CentroCusto)
-                .Include(i => i.Solicitacao)
+                .Include(i => i.Solicitacao!).ThenInclude(s => s.Solicitante)
                 .Where(i => i.Status == Erp.Model.Solicitacao.StatusItem.Aprovado
+                         && i.CotacaoItemId == null
                          && !jaCotados.Contains(i.Id))
                 .OrderBy(i => i.SolicitacaoId)
                 .ToListAsync();
@@ -455,6 +502,7 @@ namespace Erp.Repository.Cotacao
 
             return await contexto.Convites
                 .AsNoTracking()
+                .Include(c => c.Pessoa)
                 .Include(c => c.Propostas)
                 .Include(c => c.Cotacao!)
                     .ThenInclude(co => co.Itens)
@@ -478,6 +526,7 @@ namespace Erp.Repository.Cotacao
             var convite = await contexto.Convites
                 .Include(c => c.Cotacao!).ThenInclude(co => co.Itens)
                 .Include(c => c.Propostas)
+                .Include(c => c.Pessoa)
                 .FirstOrDefaultAsync(c => c.Token == token)
                 ?? throw new InvalidOperationException("Link inválido.");
 
@@ -493,8 +542,10 @@ namespace Erp.Repository.Cotacao
             if (convite.ExpiraEm < DateTime.UtcNow)
                 throw new InvalidOperationException("O prazo para responder venceu.");
 
-            convite.Cnpj = dadosDeclarados.Cnpj;
-            convite.RazaoSocial = dadosDeclarados.RazaoSocial;
+            // Convidado do cadastro responde como o cadastro diz: um CNPJ
+            // digitado na tela pública não substitui o que o comprador escolheu.
+            convite.Cnpj = convite.Pessoa?.CNPJ ?? dadosDeclarados.Cnpj;
+            convite.RazaoSocial = convite.Pessoa?.RazaoSocial ?? dadosDeclarados.RazaoSocial;
             convite.Responsavel = dadosDeclarados.Responsavel;
             convite.Telefone = dadosDeclarados.Telefone;
             convite.CondicaoPagamento = dadosDeclarados.CondicaoPagamento;
@@ -536,7 +587,8 @@ namespace Erp.Repository.Cotacao
             await _logs.Registrar(
                 Erp.Model.Log.TipoAcao.Resposta, Modulo,
                 $"Proposta recebida na cotação #{convite.CotacaoId} de "
-                + $"{convite.RazaoSocial} (CNPJ {convite.Cnpj}), respondida por {convite.Responsavel}.",
+                + $"{convite.RazaoSocial} (CNPJ {convite.Cnpj})"
+                + (string.IsNullOrWhiteSpace(convite.Responsavel) ? "." : $", respondida por {convite.Responsavel}."),
                 entidade: nameof(ConviteFornecedor),
                 entidadeId: convite.Id.ToString());
 
@@ -579,8 +631,11 @@ namespace Erp.Repository.Cotacao
             convite.Cotacao = null;
         }
 
-        private static void SincronizarItens(AppDbContext contexto, Cotacao gravada, Cotacao daTela)
+        private static List<(CotacaoItem Item, List<int> Origens)> SincronizarItens(
+            AppDbContext contexto, Cotacao gravada, Cotacao daTela)
         {
+            var origens = new List<(CotacaoItem Item, List<int> Origens)>();
+
             var idsNaTela = daTela.Itens.Where(i => i.Id != 0).Select(i => i.Id).ToHashSet();
 
             foreach (var removido in gravada.Itens.Where(i => !idsNaTela.Contains(i.Id)).ToList())
@@ -592,18 +647,47 @@ namespace Erp.Repository.Cotacao
 
                 if (alvo is null)
                 {
-                    gravada.Itens.Add(new CotacaoItem
-                    {
-                        ProdutoId = item.ProdutoId,
-                        Quantidade = item.Quantidade,
-                        ItemSolicitacaoId = item.ItemSolicitacaoId,
-                    });
-                    continue;
+                    alvo = new CotacaoItem();
+                    gravada.Itens.Add(alvo);
                 }
 
                 alvo.ProdutoId = item.ProdutoId;
                 alvo.Quantidade = item.Quantidade;
                 alvo.ItemSolicitacaoId = item.ItemSolicitacaoId;
+
+                origens.Add((alvo, item.OrigemIds.ToList()));
+            }
+
+            return origens;
+        }
+
+        /// <summary>
+        /// Marca em cada item de solicitação a linha de cotação que o atende.
+        /// Solta antes o que estava preso a estas linhas — item tirado da tela
+        /// volta a ficar disponível para outra cotação. Só prende item aprovado
+        /// e ainda livre: duas cotações não levam o mesmo item.
+        /// </summary>
+        private static async Task VincularOrigens(
+            AppDbContext contexto, List<(CotacaoItem Item, List<int> Origens)> origens)
+        {
+            var linhas = origens.Select(o => o.Item.Id).ToList();
+
+            await contexto.ItensSolicitacao
+                .Where(s => s.CotacaoItemId != null && linhas.Contains(s.CotacaoItemId.Value))
+                .ExecuteUpdateAsync(u => u.SetProperty(s => s.CotacaoItemId, (int?)null));
+
+            foreach (var (item, ids) in origens)
+            {
+                if (ids.Count == 0)
+                    continue;
+
+                var linha = item.Id;
+
+                await contexto.ItensSolicitacao
+                    .Where(s => ids.Contains(s.Id)
+                             && s.CotacaoItemId == null
+                             && s.Status == Erp.Model.Solicitacao.StatusItem.Aprovado)
+                    .ExecuteUpdateAsync(u => u.SetProperty(s => s.CotacaoItemId, (int?)linha));
             }
         }
 
@@ -654,6 +738,7 @@ namespace Erp.Repository.Cotacao
                 item.Produto = null;
                 item.Cotacao = null;
                 item.ItemSolicitacao = null;
+                item.Origens = new();
             }
         }
     }

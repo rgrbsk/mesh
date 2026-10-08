@@ -10,6 +10,7 @@
 @inject IJSRuntime JS
 @inject Erp.Service.Email.EmailService Emails
 @inject ToastService Toasts
+@inject Erp.Data.Tenancy.TenantAtual Tenant
 
 @* Monta a rodada: o que se quer comprar e quem vai precificar. Depois de aberta
    nada disso muda — mexer nos itens com fornecedor respondendo tornaria as
@@ -46,7 +47,6 @@
                 <BbField Class="w-[12rem]">
                     <BbFieldLabel>Prazo de resposta</BbFieldLabel>
                     <BbInput @bind-Value="_prazo" Type="InputType.Date" Disabled="!_editavel" />
-                    <BbFieldDescription>Vence o link do fornecedor.</BbFieldDescription>
                 </BbField>
 
                 <BbField Class="w-full">
@@ -69,8 +69,8 @@
                                    cotado — é o caminho normal; item avulso é a
                                    exceção. *@
                                 <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
-                                          OnClick="ImportarAprovados" IconPosition="IconPosition.Start">
-                                    <ChildContent>Importar itens aprovados (@_aprovadosDisponiveis.Count)</ChildContent>
+                                          OnClick="AbrirSeletor" IconPosition="IconPosition.Start">
+                                    <ChildContent>Importar aprovados (@Disponiveis.Count())</ChildContent>
                                     <Icon><LucideIcon Name="download" Size="14" /></Icon>
                                 </BbButton>
                                 <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
@@ -107,6 +107,12 @@
                                                     SearchPlaceholder="Buscar produto..."
                                                     EmptyMessage="Nenhum produto cadastrado."
                                                     Disabled="!_editavel" />
+                                        @if (item.Solicitacoes.Count > 0)
+                                        {
+                                            <div class="text-xs text-muted-foreground mt-1">
+                                                Solicitação @string.Join(", ", item.Solicitacoes.Order().Select(id => $"#{id}"))
+                                            </div>
+                                        }
                                     </td>
                                     <td>
                                         <BbInput @bind-Value="item.Quantidade" Placeholder="0" Disabled="!_editavel" />
@@ -224,12 +230,10 @@
                         </tbody>
                     </table>
 
-                    @if (_convites.Count > 0)
+                    @if (_convites.Count > 0 && !_emailConfigurado)
                     {
                         <p class="text-xs text-muted-foreground mt-2">
-                            @(_emailConfigurado
-                                ? "Cada link vale só para aquele fornecedor e trava quando ele envia."
-                                : "Envio por e-mail desligado (SMTP não configurado): copie o link e mande você mesmo. Cada link vale só para aquele fornecedor e trava quando ele envia.")
+                            E-mail não configurado: copie o link e envie ao fornecedor.
                         </p>
                     }
                 </div>
@@ -265,6 +269,58 @@
     </BbDialogContent>
 </BbDialog>
 
+<BbDialog @bind-Open="_seletorAberto">
+    <BbDialogContent Class="w-[52rem] max-w-none max-h-[85vh] p-6">
+        <div class="flex flex-col gap-4 min-h-0 max-h-[calc(85vh-3rem)]">
+            <BbDialogTitle>Importar itens aprovados</BbDialogTitle>
+
+            <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+                @if (!Disponiveis.Any())
+                {
+                    <BbEmpty Title="Nenhum item aprovado fora de cotação" Class="py-10">
+                        <Icon><LucideIcon Name="inbox" Size="36" Class="text-muted-foreground" /></Icon>
+                    </BbEmpty>
+                }
+                @foreach (var grupo in Disponiveis.GroupBy(i => i.SolicitacaoId).OrderBy(g => g.Key))
+                {
+                    var solicitacao = grupo.First().Solicitacao;
+                    var todos = grupo.All(i => _marcados.Contains(i.Id));
+
+                    <div class="rounded-lg border border-border">
+                        <label class="flex items-center gap-3 px-3 py-2 bg-muted/50 rounded-t-lg cursor-pointer">
+                            <BbCheckbox Checked="@todos"
+                                        CheckedChanged="@(marcado => MarcarSolicitacao(grupo.Select(i => i.Id), marcado))" />
+                            <span class="text-sm font-medium">#@grupo.Key</span>
+                            <span class="text-sm truncate">@solicitacao?.Observacao</span>
+                            <span class="ml-auto text-xs text-muted-foreground whitespace-nowrap">
+                                @(solicitacao?.Solicitante is { } u ? $"{u.Nome} {u.Sobrenome}".Trim() : "")
+                                @(solicitacao?.EnviadaEm is { } em ? $" · {em.ToLocalTime():dd/MM}" : "")
+                            </span>
+                        </label>
+                        @foreach (var item in grupo)
+                        {
+                            <label class="flex items-center gap-3 px-3 py-1.5 pl-9 border-t border-border cursor-pointer">
+                                <BbCheckbox Checked="@_marcados.Contains(item.Id)"
+                                            CheckedChanged="@(marcado => MarcarItem(item.Id, marcado))" />
+                                <span class="text-sm grow truncate">@item.Produto?.Codigo — @item.Produto?.Descricao</span>
+                                <span class="text-sm tabular-nums whitespace-nowrap">@item.Quantidade.ToString("0.####") @item.Produto?.Unidade</span>
+                                <span class="text-xs text-muted-foreground w-[12rem] truncate text-right">@item.CentroCusto?.Nome</span>
+                            </label>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="flex items-center justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _seletorAberto = false">Cancelar</BbButton>
+                <BbButton OnClick="ImportarMarcados" Disabled="@(_marcados.Count == 0)">
+                    Importar @(_marcados.Count > 0 ? $"({_marcados.Count})" : "")
+                </BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
 @code {
     [Parameter] public bool Aberto { get; set; }
     [Parameter] public EventCallback<bool> AbertoChanged { get; set; }
@@ -284,7 +340,8 @@
         public int Id { get; set; }
         public string ProdutoId { get; set; } = "";
         public string Quantidade { get; set; } = "";
-        public int? ItemSolicitacaoId { get; set; }
+        public List<int> Origens { get; set; } = new();
+        public HashSet<int> Solicitacoes { get; set; } = new();
     }
 
     private sealed class LinhaConvite
@@ -314,6 +371,11 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Fora do banco central o link leva o tenant: a página do fornecedor
+        // não tem login para descobrir de que banco é o convite.
+        var banco = await Tenant.Banco();
+        _sufixoTenant = string.IsNullOrWhiteSpace(banco) ? "" : $"?t={Uri.EscapeDataString(banco)}";
+
         _produtos = (await Produtos.Buscar(p => p.Ativo))
             .Select(p => new SelectOption<string>(p.Id.ToString(), $"{p.Codigo} — {p.Descricao}"))
             .ToList();
@@ -375,7 +437,10 @@
                 Id = i.Id,
                 ProdutoId = i.ProdutoId.ToString(),
                 Quantidade = i.Quantidade.ToString("0.####"),
-                ItemSolicitacaoId = i.ItemSolicitacaoId,
+                Origens = i.Origens.Count > 0
+                    ? i.Origens.Select(o => o.Id).ToList()
+                    : i.ItemSolicitacaoId is { } legado ? new List<int> { legado } : new List<int>(),
+                Solicitacoes = i.Origens.Select(o => o.SolicitacaoId).ToHashSet(),
             }).ToList();
 
         _convites = Cotacao is null
@@ -405,48 +470,74 @@
             convite.Email = email;
     }
 
-    /// <summary>
-    /// Puxa os itens aprovados que ainda não foram cotados. Cada linha guarda o
-    /// ItemSolicitacaoId de origem — é o que amarra a compra ao pedido que a
-    /// motivou, e o que impede o mesmo item de ser cotado duas vezes.
-    /// </summary>
-    private async Task ImportarAprovados()
+    private bool _seletorAberto;
+    private HashSet<int> _marcados = new();
+
+    /// <summary>Aprovados fora de cotação que ainda não estão nesta tela.</summary>
+    private IEnumerable<Erp.Model.Solicitacao.ItemSolicitacao> Disponiveis
     {
-        if (_aprovadosDisponiveis.Count == 0)
+        get
         {
-            Toasts.Error("Nada a importar",
-                         "Não há item aprovado fora de cotação. Aprove uma solicitação primeiro.");
-            return;
+            var naTela = _itens.SelectMany(i => i.Origens).ToHashSet();
+            return _aprovadosDisponiveis.Where(a => !naTela.Contains(a.Id));
         }
+    }
 
-        var jaNaTela = _itens.Where(i => i.ItemSolicitacaoId is not null)
-                             .Select(i => i.ItemSolicitacaoId!.Value)
-                             .ToHashSet();
+    private void AbrirSeletor()
+    {
+        _marcados = new();
+        _seletorAberto = true;
+    }
 
-        var importados = 0;
+    private void MarcarItem(int id, bool marcado)
+    {
+        if (marcado) _marcados.Add(id); else _marcados.Remove(id);
+    }
 
-        foreach (var aprovado in _aprovadosDisponiveis.Where(a => !jaNaTela.Contains(a.Id)))
-        {
-            _itens.Add(new LinhaItem
-            {
-                ProdutoId = aprovado.ProdutoId.ToString(),
-                Quantidade = aprovado.Quantidade.ToString("0.####"),
-                ItemSolicitacaoId = aprovado.Id,
-            });
+    private void MarcarSolicitacao(IEnumerable<int> ids, bool marcado)
+    {
+        foreach (var id in ids)
+            MarcarItem(id, marcado);
+    }
 
-            importados++;
-        }
+    /// <summary>
+    /// Traz os itens marcados. Mesmo produto vira uma linha só, com as
+    /// quantidades somadas — o fornecedor precifica 160 pares, não 150 + 10.
+    /// Cada linha guarda os itens de origem: é o que liga a compra aos pedidos
+    /// e impede que o mesmo item seja cotado duas vezes.
+    /// </summary>
+    private void ImportarMarcados()
+    {
+        var escolhidos = Disponiveis.Where(a => _marcados.Contains(a.Id)).ToList();
 
         // A linha em branco do começo vira ruído depois de importar.
         _itens.RemoveAll(i => string.IsNullOrWhiteSpace(i.ProdutoId)
                            && string.IsNullOrWhiteSpace(i.Quantidade));
 
-        Toasts.Success("Itens importados", $"{importados} {(importados == 1 ? "item" : "itens")} de solicitações aprovadas.");
+        foreach (var aprovado in escolhidos)
+        {
+            var produto = aprovado.ProdutoId.ToString();
+            var linha = _itens.FirstOrDefault(i => i.ProdutoId == produto);
 
-        await Task.CompletedTask;
+            if (linha is null)
+            {
+                linha = new LinhaItem { ProdutoId = produto, Quantidade = "0" };
+                _itens.Add(linha);
+            }
+
+            var atual = decimal.TryParse(linha.Quantidade, out var q) ? q : 0m;
+            linha.Quantidade = (atual + aprovado.Quantidade).ToString("0.####");
+            linha.Origens.Add(aprovado.Id);
+            linha.Solicitacoes.Add(aprovado.SolicitacaoId);
+        }
+
+        _seletorAberto = false;
+        _marcados = new();
     }
 
-    private string Link(string token) => $"{Navegacao.BaseUri.TrimEnd('/')}/cotacao/{token}";
+    private string _sufixoTenant = "";
+
+    private string Link(string token) => $"{Navegacao.BaseUri.TrimEnd('/')}/cotacao/{token}{_sufixoTenant}";
 
     private bool _emailConfigurado => Emails.Configurado;
 
@@ -540,7 +631,8 @@
                 Id = linha.Id,
                 ProdutoId = produtoId,
                 Quantidade = quantidade,
-                ItemSolicitacaoId = linha.ItemSolicitacaoId,
+                ItemSolicitacaoId = linha.Origens.Count > 0 ? linha.Origens[0] : null,
+                OrigemIds = linha.Origens.ToList(),
             });
         }
 

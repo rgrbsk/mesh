@@ -21,7 +21,6 @@
                 <BbField Class="grow min-w-64">
                     <BbFieldLabel>Nome</BbFieldLabel>
                     <BbInput @bind-Value="_etapa.Nome" Placeholder="Conferência de orçamento" />
-                    <BbFieldDescription>É o título da coluna no Kanban.</BbFieldDescription>
                 </BbField>
 
                 @* Paleta fechada em vez de campo livre: a cor é só o traço da
@@ -51,7 +50,6 @@
                         <BbSwitch @bind-Checked="_etapa.Ativo" />
                         <span class="text-sm">@(_etapa.Ativo ? "Ativa" : "Inativa")</span>
                     </div>
-                    <BbFieldDescription>Inativa sai do quadro, mas não some do histórico.</BbFieldDescription>
                 </BbField>
             </div>
 

@@ -6,6 +6,7 @@
 @using Erp.Repository.Empresa
 @using Erp.Components.Pages.Usuario.Dialogs
 @inject UserManager<Erp.Model.Usuario.Usuario> Users
+@inject Erp.Data.Tenancy.EspelhoUsuarios Espelho
 @inject EmpresaRepository _empresaRepository
 @inject IJSRuntime JS
 @rendermode InteractiveServer
@@ -48,7 +49,6 @@
                     <BbFieldContent>
                         <BbInput Disabled="true" Type="InputType.Email" @bind-Value="_usuario.Email" />
                     </BbFieldContent>
-                    <BbFieldDescription>É o seu login. Trocar exige quem administra.</BbFieldDescription>
                 </BbField>
 
                 <BbField>
@@ -124,9 +124,6 @@
                     <BbFieldContent>
                         <BbSelect TValue="string" @bind-Value="_tema" Options="_temas" />
                     </BbFieldContent>
-                    <BbFieldDescription>
-                        Fica salvo na sua conta. O botão da barra superior continua mandando na sessão atual.
-                    </BbFieldDescription>
                 </BbField>
 
                 <BbField>
@@ -241,6 +238,8 @@
 
             if (resultado.Succeeded)
             {
+                await Espelho.Sincronizar(_usuario.Id);
+
                 // Aplica na hora, além de salvar. Antes o campo só gravava no
                 // banco e a tela continuava no tema antigo — a preferência
                 // parecia ignorada.

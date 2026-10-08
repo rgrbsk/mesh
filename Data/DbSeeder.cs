@@ -60,6 +60,8 @@ namespace Erp.Data
             // seed de dado falhar, o Program.cs engole a exceção e o resto do
             // método não roda. Com esta ordem, o que se perde é a etapa de
             // exemplo — nunca as permissões, que trancariam todo mundo fora.
+            await GarantirSuperAdmin(userManager, roleManager);
+
             await SemearEtapas(db);
 
             if (await userManager.FindByEmailAsync(DemoEmail) is not null)
@@ -82,10 +84,71 @@ namespace Erp.Data
             await userManager.AddToRoleAsync(usuario, PapelAdmin);
         }
 
+        public const string SuperAdminEmail = "superadmin@demo.com";
+
+        /// <summary>
+        /// O dono da aplicação: papel SuperAdmin com o catálogo inteiro mais a
+        /// permissão da plataforma, que não está no catálogo. Idempotente — cria
+        /// o que falta e não mexe no que já existe (senha trocada continua
+        /// trocada).
+        /// </summary>
+        private static async Task GarantirSuperAdmin(UserManager<Usuario> userManager, RoleManager<Papel> roleManager)
+        {
+            var papel = await roleManager.FindByNameAsync(Permissoes.PapelSuperAdmin);
+            if (papel is null)
+            {
+                papel = new Papel(Permissoes.PapelSuperAdmin) { Descricao = "Dono da aplicação" };
+                await roleManager.CreateAsync(papel);
+            }
+
+            // O dono opera a plataforma, não a empresa: não é um usuário comum
+            // e não enxerga os módulos do ERP. A única permissão é a dele.
+            var atuais = (await roleManager.GetClaimsAsync(papel))
+                .Where(c => c.Type == Permissoes.ClaimType)
+                .ToList();
+
+            foreach (var sobra in atuais.Where(c => c.Value != Permissoes.Plataforma))
+                await roleManager.RemoveClaimAsync(papel, sobra);
+
+            if (atuais.All(c => c.Value != Permissoes.Plataforma))
+                await roleManager.AddClaimAsync(papel, new Claim(Permissoes.ClaimType, Permissoes.Plataforma));
+
+            var usuario = await userManager.FindByEmailAsync(SuperAdminEmail);
+            if (usuario is null)
+            {
+                usuario = new Usuario
+                {
+                    UserName = SuperAdminEmail,
+                    Email = SuperAdminEmail,
+                    EmailConfirmed = true,
+                    Nome = "Super",
+                    Sobrenome = "Admin",
+                    Cargo = "Dono da aplicação",
+                    Status = Erp.Model.Usuario.StatusUsuario.Ativo,
+                };
+
+                var resultado = await userManager.CreateAsync(usuario, DemoSenha);
+                if (!resultado.Succeeded)
+                    throw new InvalidOperationException(
+                        "Falha ao criar o superadmin: " +
+                        string.Join("; ", resultado.Errors.Select(e => e.Description)));
+            }
+
+            if (!await userManager.IsInRoleAsync(usuario, Permissoes.PapelSuperAdmin))
+                await userManager.AddToRoleAsync(usuario, Permissoes.PapelSuperAdmin);
+
+            // Acima dos tenants: não pertence a nenhuma empresa.
+            if (usuario.EmpresaId is not null)
+            {
+                usuario.EmpresaId = null;
+                await userManager.UpdateAsync(usuario);
+            }
+        }
+
         /// <summary>Duas etapas para o Kanban não abrir sem nenhuma coluna antes
         /// da aprovação. São sugestão: quem tem etapas.gerir renomeia, reordena
         /// ou apaga em Adicionais.</summary>
-        private static async Task SemearEtapas(AppDbContext db)
+        internal static async Task SemearEtapas(AppDbContext db)
         {
             if (await db.Etapas.AnyAsync())
                 return;

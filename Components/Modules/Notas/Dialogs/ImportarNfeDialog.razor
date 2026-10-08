@@ -8,10 +8,6 @@
 @inject ProdutoRepository Produtos
 @inject ToastService Toasts
 
-@* Recebe o XML da NF-e, lê e confronta com o que foi comprado daquele
-   fornecedor. A importação só acontece depois de a pessoa ver o confronto:
-   importar direto esconderia justamente o que ela precisa decidir. *@
-
 <BbDialog Open="Aberto" OpenChanged="AbertoChanged">
     <BbDialogContent Class="w-[76rem] max-w-none h-[92vh] p-6">
         <div class="flex flex-col h-full gap-4 rounded-[inherit] min-h-0">
@@ -26,12 +22,7 @@
             {
                 <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-4">
                     <LucideIcon Name="file-up" Size="44" Class="text-muted-foreground" />
-                    <div class="text-center">
-                        <p class="text-sm font-medium">Selecione o arquivo XML da nota</p>
-                        <p class="text-xs text-muted-foreground mt-1">
-                            O XML autorizado pela SEFAZ, como o fornecedor envia. Não usamos o DANFE em PDF.
-                        </p>
-                    </div>
+                    <p class="text-sm font-medium">Selecione o arquivo XML da nota</p>
 
                     <InputFile OnChange="Carregar" accept=".xml"
                                class="text-sm file:mr-3 file:rounded-md file:border-0 file:bg-primary
@@ -47,22 +38,12 @@
             {
                 <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
 
-                    @if (_nota.EhHomologacao)
+                    @foreach (var aviso in Avisos())
                     {
-                        @* Nota de homologação não vale nada fiscalmente. Deixar
-                           entrar sem aviso colocaria uma compra inexistente no
-                           sistema. *@
-                        <div class="rounded-lg border border-destructive/50 bg-destructive/10 p-3
-                                    flex items-start gap-2">
-                            <LucideIcon Name="triangle-alert" Size="18" Class="text-destructive mt-0.5" />
-                            <div>
-                                <p class="text-sm font-medium text-destructive">
-                                    Nota emitida em ambiente de homologação
-                                </p>
-                                <p class="text-xs text-muted-foreground">
-                                    Não tem valor fiscal. Serve para teste — não use para pagar nem dar entrada.
-                                </p>
-                            </div>
+                        <div class="rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2
+                                    flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+                            <LucideIcon Name="triangle-alert" Size="16" />
+                            @aviso
                         </div>
                     }
 
@@ -91,12 +72,10 @@
                             @if (_fornecedor is null)
                             {
                                 <p class="text-sm text-destructive">Não encontrado</p>
-                                <p class="text-xs text-muted-foreground">Sem cadastro com este CNPJ.</p>
                             }
                             else
                             {
                                 <p class="text-sm">@_fornecedor.RazaoSocial</p>
-                                <p class="text-xs text-muted-foreground">Casado pelo CNPJ.</p>
                             }
                         </div>
                     </div>
@@ -105,17 +84,13 @@
 
                     @if (_fornecedor is null)
                     {
-                        <BbEmpty Title="Sem fornecedor correspondente"
-                                 Description="Cadastre uma Pessoa do tipo Fornecedor com este CNPJ para confrontar a nota com a compra."
-                                 Class="py-8">
+                        <BbEmpty Title="Sem fornecedor correspondente" Class="py-8">
                             <Icon><LucideIcon Name="user-x" Size="36" Class="text-muted-foreground" /></Icon>
                         </BbEmpty>
                     }
                     else if (_cotacoes.Count == 0)
                     {
-                        <BbEmpty Title="Nenhuma compra deste fornecedor"
-                                 Description="Não há cotação com item vencedor dele. A nota pode ser importada, mas não há o que confrontar."
-                                 Class="py-8">
+                        <BbEmpty Title="Nenhuma compra deste fornecedor" Class="py-8">
                             <Icon><LucideIcon Name="search-x" Size="36" Class="text-muted-foreground" /></Icon>
                         </BbEmpty>
                     }
@@ -166,7 +141,7 @@
                                         <th class="w-[9rem]">Preço nota</th>
                                         <th class="w-[9rem]">Preço cotado</th>
                                         <th class="w-[9rem]">Diferença</th>
-                                        <th class="w-[11rem]">Situação</th>
+                                        <th class="w-[16rem]">Situação</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -194,16 +169,12 @@
                                                     @ConfrontoVisual.Texto(linha.Situacao)
                                                 </span>
 
-                                                @* "Fora da compra" quase nunca é item a mais:
-                                                   é o código do fornecedor que a gente ainda não
-                                                   sabe traduzir. Amarrar aqui resolve esta nota e
-                                                   todas as próximas dele. *@
                                                 @if (linha.Situacao == SituacaoConfronto.ForaDaCompra
                                                      && _fornecedor is not null)
                                                 {
                                                     <div class="mt-1.5">
                                                         <BbCombobox TValue="string"
-                                                                    Class="w-full"
+                                                                    Class="w-full min-w-0 text-left [&>span]:truncate [&>span]:min-w-0"
                                                                     Options="@_produtos"
                                                                     Value="@Amarrado(linha.CodigoFornecedor)"
                                                                     ValueChanged="@(id => Amarrar(linha.CodigoFornecedor, linha.Descricao, id))"
@@ -301,8 +272,23 @@
         _abertoAnterior = Aberto;
     }
 
+    private string? _avisoDuplicada;
+
+    private IEnumerable<string> Avisos()
+    {
+        if (_avisoDuplicada is not null)
+            yield return _avisoDuplicada;
+
+        if (_nota?.EhHomologacao == true)
+            yield return "Nota emitida em homologação: sem valor fiscal.";
+
+        if (_nota is not null && _fornecedor is null)
+            yield return "Emitente sem cadastro de fornecedor: a nota entra sem confronto.";
+    }
+
     private void Limpar()
     {
+        _avisoDuplicada = null;
         _nota = null;
         _fornecedor = null;
         _cotacoes = new();
@@ -346,13 +332,10 @@
 
         var jaImportada = await Notas.PorChave(_nota.Chave);
 
-        if (jaImportada is not null)
-        {
-            _erro = $"Esta nota já foi importada em "
-                  + $"{jaImportada.ImportadaEm.ToLocalTime():dd/MM/yyyy HH:mm}.";
-            _nota = null;
-            return;
-        }
+        _avisoDuplicada = jaImportada is null
+            ? null
+            : $"Nota já importada em {jaImportada.ImportadaEm.ToLocalTime():dd/MM/yyyy HH:mm}. "
+              + "Importar de novo substitui a anterior.";
 
         _fornecedor = await Notas.FornecedorPorCnpj(_nota.EmitenteCnpj);
 

@@ -136,9 +136,7 @@ namespace Erp.Repository.Fiscal
         {
             await using var contexto = await _fabrica.CreateDbContextAsync();
 
-            if (await contexto.NotasFiscais.AnyAsync(n => n.Chave == nota.Chave))
-                throw new InvalidOperationException(
-                    $"A nota {nota.Numero} (chave {nota.Chave}) já foi importada.");
+            var substituiu = await RemoverAnterior(contexto, nota.Chave);
 
             nota.ImportadaEm = DateTime.UtcNow;
             nota.Fornecedor = null;
@@ -158,6 +156,7 @@ namespace Erp.Repository.Fiscal
                 $"NF-e {nota.Numero} de {nota.EmitenteNome} importada — "
                 + $"{nota.Itens.Count} {(nota.Itens.Count == 1 ? "item" : "itens")}, "
                 + $"total {nota.ValorTotal:C2}."
+                + (substituiu ? " Substituiu a importação anterior da mesma chave." : "")
                 + (nota.EhHomologacao ? " ATENÇÃO: nota de homologação, sem valor fiscal." : ""),
                 nota.ImportadaPorId,
                 entidade: nameof(NotaFiscal),
@@ -203,12 +202,11 @@ namespace Erp.Repository.Fiscal
             var esperado = Erp.Service.Fiscal.LeitorNfe.SoDigitos(
                 string.IsNullOrWhiteSpace(convite.Cnpj) ? convite.Pessoa?.CNPJ : convite.Cnpj);
 
-            if (!string.IsNullOrWhiteSpace(esperado) && esperado != nota.EmitenteCnpj)
-                throw new InvalidOperationException(
-                    "O CNPJ que emitiu esta nota não é o da empresa convidada para esta cotação.");
+            // CNPJ diferente do convidado não barra: fica registrado como aviso
+            // para o comprador conferir.
+            var cnpjDivergente = !string.IsNullOrWhiteSpace(esperado) && esperado != nota.EmitenteCnpj;
 
-            if (await contexto.NotasFiscais.AnyAsync(n => n.Chave == nota.Chave))
-                throw new InvalidOperationException("Esta nota já foi enviada.");
+            await RemoverAnterior(contexto, nota.Chave);
 
             nota.FornecedorId = convite.PessoaId;
             nota.CotacaoId = convite.CotacaoId;
@@ -235,6 +233,7 @@ namespace Erp.Repository.Fiscal
                 $"NF-e {nota.Numero} enviada pelo fornecedor {nota.EmitenteNome} "
                 + $"(CNPJ {nota.EmitenteCnpj}) na cotação #{convite.CotacaoId}, "
                 + $"total {nota.ValorTotal:C2}."
+                + (cnpjDivergente ? $" ATENÇÃO: CNPJ do emitente diferente do convidado ({esperado})." : "")
                 + (nota.EhHomologacao ? " ATENÇÃO: nota de homologação, sem valor fiscal." : ""),
                 entidade: nameof(NotaFiscal),
                 entidadeId: nota.Id.ToString());
@@ -280,6 +279,23 @@ namespace Erp.Repository.Fiscal
                 .ToDictionary(g => g.Key, g => g.First().ProdutoId);
 
             return Erp.Service.Fiscal.ConfrontoNfe.Comparar(nota, comprados, dePara);
+        }
+
+        /// <summary>Nota com a mesma chave já importada é substituída pela nova,
+        /// em vez de barrar a importação. Devolve se havia uma anterior.</summary>
+        private static async Task<bool> RemoverAnterior(AppDbContext contexto, string chave)
+        {
+            var anterior = await contexto.NotasFiscais.FirstOrDefaultAsync(n => n.Chave == chave);
+            if (anterior is null)
+                return false;
+
+            await contexto.TitulosPagar
+                .Where(t => t.NotaFiscalId == anterior.Id)
+                .ExecuteUpdateAsync(u => u.SetProperty(t => t.NotaFiscalId, (int?)null));
+
+            contexto.NotasFiscais.Remove(anterior);
+            await contexto.SaveChangesAsync();
+            return true;
         }
 
         public async Task<bool> Excluir(int id)

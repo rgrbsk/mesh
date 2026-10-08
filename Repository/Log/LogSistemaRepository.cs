@@ -12,12 +12,15 @@ namespace Erp.Repository.Log
     public class LogSistemaRepository
     {
         private readonly IDbContextFactory<AppDbContext> _fabrica;
+        private readonly IServiceProvider _servicos;
         private readonly ILogger<LogSistemaRepository> _log;
 
         public LogSistemaRepository(
-            IDbContextFactory<AppDbContext> fabrica, ILogger<LogSistemaRepository> log)
+            Erp.Data.Tenancy.FabricaCentral fabrica, ILogger<LogSistemaRepository> log,
+            IServiceProvider servicos)
         {
             _fabrica = fabrica;
+            _servicos = servicos;
             _log = log;
         }
 
@@ -26,6 +29,15 @@ namespace Erp.Repository.Log
             await using var contexto = await _fabrica.CreateDbContextAsync();
 
             var query = contexto.LogsSistema.AsNoTracking().AsQueryable();
+
+            // Log de sistema mora no banco central, de todos os tenants juntos:
+            // quem é de uma empresa vê só os eventos dos usuários dela.
+            var tenant = _servicos.GetService<Erp.Data.Tenancy.TenantAtual>();
+            if (tenant is not null && await tenant.EmpresaId() is { } empresa)
+            {
+                var daEmpresa = contexto.Usuarios.Where(u => u.EmpresaId == empresa).Select(u => (Guid?)u.Id);
+                query = query.Where(l => daEmpresa.Contains(l.UsuarioId));
+            }
 
             if (filtro is not null)
                 query = query.Where(filtro);

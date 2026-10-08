@@ -1,0 +1,35 @@
+@using Erp.Repository.Plataforma
+
+@if (Itens is null)
+{
+    <BbSkeleton Class="h-24 w-full" />
+}
+else if (Itens.Count == 0)
+{
+    <p class="text-sm text-muted-foreground py-6 text-center">@Vazio</p>
+}
+else
+{
+    <ul class="flex flex-col divide-y divide-border">
+        @foreach (var e in Itens)
+        {
+            <li class="py-2 flex items-start gap-3">
+                <span class="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5">
+                    @e.Quando.ToLocalTime().ToString("dd/MM HH:mm")
+                </span>
+                <div class="min-w-0">
+                    <div class="text-sm break-words line-clamp-2">@e.Mensagem</div>
+                    @if (!string.IsNullOrWhiteSpace(e.Usuario))
+                    {
+                        <div class="text-xs text-muted-foreground truncate">@e.Usuario</div>
+                    }
+                </div>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter] public List<PlataformaRepository.EventoRecente>? Itens { get; set; }
+    [Parameter] public string Vazio { get; set; } = "";
+}

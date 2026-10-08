@@ -61,13 +61,11 @@
                 <BbField Class="w-[11rem]">
                     <BbFieldLabel>Saldo atual</BbFieldLabel>
                     <BbInput @bind-Value="_saldo" @bind-Value:after="Recalcular" Placeholder="0" />
-                    <BbFieldDescription>Sem movimentação de estoque ainda: hoje é digitado.</BbFieldDescription>
                 </BbField>
 
                 <BbField Class="w-[11rem]">
                     <BbFieldLabel>Estoque mínimo</BbFieldLabel>
                     <BbInput @bind-Value="_minimo" @bind-Value:after="Recalcular" Placeholder="0" />
-                    <BbFieldDescription>Piso que não deveria ser cruzado.</BbFieldDescription>
                 </BbField>
 
                 <BbField Class="w-[11rem]">
@@ -112,7 +110,6 @@
                                 Placeholder="Nenhum"
                                 SearchPlaceholder="Buscar fornecedor..."
                                 EmptyMessage="Nenhum fornecedor cadastrado." />
-                    <BbFieldDescription>Vira sugestão na hora de montar a cotação.</BbFieldDescription>
                 </BbField>
 
                 <BbField Class="w-[22rem]">
@@ -124,7 +121,11 @@
                                 Placeholder="Nenhum"
                                 SearchPlaceholder="Buscar centro..."
                                 EmptyMessage="Nenhum centro cadastrado." />
-                    <BbFieldDescription>Preenche o item da solicitação de compra.</BbFieldDescription>
+                </BbField>
+
+                <BbField Class="w-[14rem]">
+                    <BbFieldLabel>Preço de referência (R$)</BbFieldLabel>
+                    <BbInput @bind-Value="_preco" Placeholder="0,00" />
                 </BbField>
             </div>
 
@@ -171,6 +172,7 @@
     private string _consumo = "0";
     private string _prazo = "0";
     private string _pontoPedido = "0";
+    private string _preco = "0";
 
     private List<SelectOption<string>> _fornecedores = new();
     private List<SelectOption<string>> _centros = new();
@@ -220,6 +222,8 @@
                 PontoPedido = Produto.PontoPedido,
                 PrazoEntregaDias = Produto.PrazoEntregaDias,
                 ConsumoMedioDiario = Produto.ConsumoMedioDiario,
+                PrecoReferencia = Produto.PrecoReferencia,
+                PrecoReferenciaEm = Produto.PrecoReferenciaEm,
                 FornecedorPadraoId = Produto.FornecedorPadraoId,
                 CentroCustoPadraoId = Produto.CentroCustoPadraoId,
                 Ativo = Produto.Ativo,
@@ -232,6 +236,7 @@
         _consumo = Texto(_produto.ConsumoMedioDiario);
         _prazo = _produto.PrazoEntregaDias.ToString();
         _pontoPedido = Texto(_produto.PontoPedido);
+        _preco = Texto(_produto.PrecoReferencia);
 
         _fornecedorSelecionado = _produto.FornecedorPadraoId?.ToString() ?? "";
         _centroSelecionado = _produto.CentroCustoPadraoId?.ToString() ?? "";
@@ -272,6 +277,13 @@
             _produto.ConsumoMedioDiario = Numero(_consumo);
             _produto.PrazoEntregaDias = (int)Numero(_prazo);
             _produto.PontoPedido = Numero(_pontoPedido);
+
+            var preco = Numero(_preco);
+            if (preco != _produto.PrecoReferencia)
+            {
+                _produto.PrecoReferencia = preco;
+                _produto.PrecoReferenciaEm = DateTime.UtcNow;
+            }
 
             if (string.IsNullOrWhiteSpace(_produto.Unidade))
                 _produto.Unidade = "UN";

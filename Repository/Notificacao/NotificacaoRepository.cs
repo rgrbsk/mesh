@@ -121,6 +121,35 @@ namespace Erp.Repository.Notificacao
             await contexto.SaveChangesAsync();
         }
 
+        /// <summary>Recados e notas de atualização que o usuário ainda não
+        /// confirmou — enquanto houver, o painel mostra eles no lugar dos gráficos.</summary>
+        public async Task<List<Notificacao>> ComunicadosPendentes(Guid destinatarioId)
+        {
+            await using var contexto = await _fabrica.CreateDbContextAsync();
+
+            return await contexto.Notificacoes.AsNoTracking()
+                .Where(n => n.DestinatarioId == destinatarioId
+                         && n.Tipo != Erp.Model.Notificacao.TipoNotificacao.Sistema
+                         && !n.Confirmada)
+                .OrderByDescending(n => n.CriadaEm)
+                .ToListAsync();
+        }
+
+        /// <summary>O "OK" do painel. Só confirma o que é do próprio usuário.</summary>
+        public async Task Confirmar(int id, Guid destinatarioId)
+        {
+            await using var contexto = await _fabrica.CreateDbContextAsync();
+            var agora = DateTime.UtcNow;
+
+            await contexto.Notificacoes
+                .Where(n => n.Id == id && n.DestinatarioId == destinatarioId)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(n => n.Confirmada, true)
+                    .SetProperty(n => n.ConfirmadaEm, agora)
+                    .SetProperty(n => n.Lida, true)
+                    .SetProperty(n => n.LidaEm, n => n.LidaEm ?? agora));
+        }
+
         public async Task MarcarTodasLidas(Guid destinatarioId)
         {
             await using var contexto = await _fabrica.CreateDbContextAsync();

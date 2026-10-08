@@ -1,0 +1,1377 @@
+@using System.Diagnostics
+@using System.Runtime.InteropServices
+@using Erp.Model.Log
+@using Erp.Repository.Plataforma
+@using Erp.Service.Plataforma
+@implements IDisposable
+@inject MetricasAplicacao Metricas
+@inject PlataformaRepository Plataforma
+@inject IWebHostEnvironment Ambiente
+@inject Erp.Service.Email.EmailService Emails
+@inject Erp.Service.Plataforma.ProvisionamentoTenant Provisionamento
+@inject IJSRuntime JS
+@inject ToastService Toasts
+
+@* Painel do dono da aplicação. Só o papel SuperAdmin chega aqui: a permissão
+   plataforma.ver não está no catálogo e nenhum administrador a concede. *@
+
+<div class="flex flex-col h-full min-h-0 p-6 overflow-y-auto">
+
+    <div class="mb-5 px-2 flex items-start justify-between gap-4">
+        <div class="min-w-0">
+            <h2 class="text-xl font-semibold tracking-tight">Console da plataforma</h2>
+            <div class="mt-3 inline-flex rounded-lg border border-border p-0.5">
+                @foreach (var (chave, titulo) in Abas)
+                {
+                    <button type="button" @onclick="() => TrocarAba(chave)"
+                            class="px-3 py-1 text-sm rounded-md cursor-pointer transition-colors
+                                   @(_aba == chave ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")">
+                        @titulo
+                    </button>
+                }
+            </div>
+        </div>
+        <div class="flex items-center gap-3 flex-none text-xs text-muted-foreground">
+            <span class="inline-flex items-center gap-1.5">
+                <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Atualiza a cada 5 s
+            </span>
+            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="CarregarBanco"
+                      IconPosition="IconPosition.Start">
+                <ChildContent>Atualizar</ChildContent>
+                <Icon><LucideIcon Name="refresh-cw" Size="14" /></Icon>
+            </BbButton>
+        </div>
+    </div>
+
+    @if (_aba == "visao")
+    {
+        var online = Metricas.Sessoes().Where(s => s.UsuarioId is not null).Select(s => s.UsuarioId!.Value).ToHashSet();
+
+        <div class="grid gap-4 mb-5 px-2 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
+            <StatCard Label="Tenants ativos" Value="@($"{_tenants?.Tenants.Count(t => t.Ativa) ?? 0} de {_tenants?.Tenants.Count ?? 0}")" />
+            <StatCard Label="Usuários" Value="@(_tenants?.Tenants.Sum(t => t.Usuarios.Count(u => u.Ativo)).ToString() ?? "—")" />
+            <StatCard Label="Online agora" Value="@online.Count.ToString()" />
+            <StatCard Label="Logins (24 h)" Value="@Contar(TipoEventoSistema.Login).ToString()" />
+            <StatCard Label="Exceções (24 h)" Value="@Contar(TipoEventoSistema.Excecao).ToString()"
+                      Up="@(Contar(TipoEventoSistema.Excecao) == 0)"
+                      Delta="@(Contar(TipoEventoSistema.Excecao) > 0 ? "ver abaixo" : null)" />
+            <StatCard Label="Logins falhos (24 h)" Value="@Contar(TipoEventoSistema.LoginFalho).ToString()" />
+        </div>
+
+        <div class="px-2 mb-5">
+            <BbCard>
+                <BbCardHeader>
+                    <div class="flex items-center justify-between gap-4">
+                        <BbCardTitle>Tenants</BbCardTitle>
+                        <BbButton Size="ButtonSize.Small" OnClick="AbrirNovoTenant" IconPosition="IconPosition.Start">
+                            <ChildContent>Novo tenant</ChildContent>
+                            <Icon><LucideIcon Name="plus" Size="14" /></Icon>
+                        </BbButton>
+                    </div>
+                </BbCardHeader>
+                <BbCardContent>
+                    @if (_tenants is null)
+                    {
+                        <BbSkeleton Class="h-24 w-full" />
+                    }
+                    else
+                    {
+                        <table class="erp-table w-full">
+                            <thead>
+                                <tr>
+                                    <th>Empresa</th><th>Situação</th><th class="text-right">Usuários</th>
+                                    <th class="text-right">Online</th><th>Último login</th><th>Atividade recente</th><th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var t in _tenants.Tenants)
+                                {
+                                    var aberto = _tenantAberto == t.Id;
+                                    <tr class="cursor-pointer" @onclick="() => _tenantAberto = aberto ? null : t.Id">
+                                        <td>
+                                            <div class="flex items-center gap-2">
+                                                <LucideIcon Name="@(aberto ? "chevron-down" : "chevron-right")" Size="14" Class="text-muted-foreground" />
+                                                <div>
+                                                    <div class="text-sm font-medium">@t.Nome</div>
+                                                    <div class="text-xs text-muted-foreground">@t.Cnpj · desde @t.CriadoEm.ToLocalTime().ToString("dd/MM/yyyy")</div>
+                                                    <div class="text-xs text-muted-foreground font-mono flex items-center gap-1">
+                                                        <LucideIcon Name="database" Size="11" /> @t.Banco
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if (t.Ativa)
+                                            {
+                                                <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">Ativa</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-destructive/15 text-destructive">Suspensa</span>
+                                                <div class="text-xs text-muted-foreground mt-0.5">@t.SuspensaEm?.ToLocalTime().ToString("dd/MM/yyyy")</div>
+                                            }
+                                        </td>
+                                        <td class="text-right tabular-nums">@t.Usuarios.Count(u => u.Ativo) / @t.Usuarios.Count</td>
+                                        <td class="text-right tabular-nums">@t.Usuarios.Count(u => online.Contains(u.Id))</td>
+                                        <td class="text-sm">
+                                            @if (t.UltimoLogin is { } ul)
+                                            {
+                                                <div>@Relativo(ul)</div>
+                                                <div class="text-xs text-muted-foreground">@t.UltimoLoginDe</div>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted-foreground">nunca</span>
+                                            }
+                                        </td>
+                                        <td class="text-sm max-w-[22rem]">
+                                            <div>@t.Acoes7Dias ações em 7 dias</div>
+                                            @if (t.UltimaAcao is { } ua)
+                                            {
+                                                <div class="text-xs text-muted-foreground truncate" title="@t.UltimaAcaoDescricao">
+                                                    @Relativo(ua) · @t.UltimaAcaoDe: @t.UltimaAcaoDescricao
+                                                </div>
+                                            }
+                                        </td>
+                                        <td class="text-right" @onclick:stopPropagation="true">
+                                            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
+                                                      OnClick="() => _confirmarTenant = t">
+                                                @(t.Ativa ? "Suspender" : "Reativar")
+                                            </BbButton>
+                                        </td>
+                                    </tr>
+                                    @if (aberto)
+                                    {
+                                        <tr>
+                                            <td colspan="7" class="bg-muted/40">
+                                                <table class="w-full text-sm">
+                                                    <thead>
+                                                        <tr class="text-xs text-muted-foreground">
+                                                            <th class="text-left font-medium py-1">Usuário</th><th class="text-left font-medium">Situação</th>
+                                                            <th class="text-left font-medium">Último login</th><th class="text-right font-medium">Ações (30 d)</th><th class="text-left font-medium pl-4">Agora</th><th></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (var u in t.Usuarios)
+                                                        {
+                                                            var m = _uso?.Usuarios.FirstOrDefault(x => x.Id == u.Id);
+                                                            <tr>
+                                                                <td class="py-1">@u.Nome <span class="text-xs text-muted-foreground">@u.Email</span></td>
+                                                                <td>
+                                                                    @if (u.Restrito)
+                                                                    {
+                                                                        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-destructive/15 text-destructive">
+                                                                            @(u.RestritoAte == DateTimeOffset.MaxValue ? "Restrito" : $"Restrito até {u.RestritoAte!.Value.ToLocalTime():dd/MM HH:mm}")
+                                                                        </span>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @(u.Ativo ? "Ativo" : "Inativo")
+                                                                    }
+                                                                </td>
+                                                                <td>@(m?.UltimoLogin is { } l ? Relativo(l) : "nunca")</td>
+                                                                <td class="text-right tabular-nums">@(m?.Acoes ?? 0)</td>
+                                                                <td class="pl-4">
+                                                                    @if (online.Contains(u.Id))
+                                                                    {
+                                                                        <span class="text-emerald-600 dark:text-emerald-400">online</span>
+                                                                    }
+                                                                </td>
+                                                                <td class="text-right py-1">
+                                                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                                              OnClick="() => RecadoPara(u)">Recado</BbButton>
+                                                                    @if (u.Restrito)
+                                                                    {
+                                                                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small"
+                                                                                  OnClick="() => Liberar(u)">Liberar acesso</BbButton>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                                                  OnClick="() => AbrirRestricao(u)">Restringir acesso</BbButton>
+                                                                    }
+                                                                </td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </BbCardContent>
+            </BbCard>
+        </div>
+
+        <div class="grid gap-4 px-2 grid-cols-1 xl:grid-cols-3">
+            <BbCard Class="xl:col-span-2">
+                <BbCardHeader><BbCardTitle>De onde os usuários acessam (30 dias)</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <div id="mapa-origens" class="w-full h-[340px]"></div>
+                    @if (_origens is { } o)
+                    {
+                        <p class="text-xs text-muted-foreground mt-2">
+                            @o.Logins logins no período ·
+                            @(o.Logins - o.SemLocalizacao) com localização
+                            @if (o.SemLocalizacao > 0)
+                            {
+                                <span> · @o.SemLocalizacao sem localização (consulta de IP desligada ou anteriores a ela)</span>
+                            }
+                        </p>
+                    }
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard>
+                <BbCardHeader><BbCardTitle>Principais origens</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    @if (_origens is null || _origens.Pontos.Count == 0)
+                    {
+                        <p class="text-sm text-muted-foreground py-6 text-center">Nenhum acesso com localização.</p>
+                    }
+                    else
+                    {
+                        <ul class="flex flex-col divide-y divide-border">
+                            @foreach (var ponto in _origens.Pontos.Take(8))
+                            {
+                                <li class="py-2 flex items-center justify-between gap-3 text-sm">
+                                    <span class="truncate">@ponto.Nome</span>
+                                    <span class="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                                        @ponto.Acessos acessos · @ponto.Usuarios usuários
+                                    </span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard Class="xl:col-span-2">
+                <BbCardHeader><BbCardTitle>Exceções recentes</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <ListaEventos Itens="@(_eventos?.UltimasExcecoes)" Vazio="Nenhuma exceção registrada." />
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard>
+                <BbCardHeader><BbCardTitle>Atividade recente</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    @if (_tenants is null || _tenants.Atividade.Count == 0)
+                    {
+                        <p class="text-sm text-muted-foreground py-6 text-center">Nada ainda.</p>
+                    }
+                    else
+                    {
+                        <ul class="flex flex-col divide-y divide-border">
+                            @foreach (var a in _tenants.Atividade)
+                            {
+                                <li class="py-2">
+                                    <div class="text-sm line-clamp-2">@a.Descricao</div>
+                                    <div class="text-xs text-muted-foreground">
+                                        @Relativo(a.Quando) · @a.Usuario · @a.Modulo
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </BbCardContent>
+            </BbCard>
+        </div>
+    }
+    else if (_aba == "comunicados")
+    {
+        <div class="grid gap-4 px-2 grid-cols-1 xl:grid-cols-5">
+            <BbCard Class="xl:col-span-3">
+                <BbCardHeader><BbCardTitle>Novo comunicado</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex flex-wrap gap-2">
+                            @foreach (var (tipo, titulo, icone) in TiposComunicado)
+                            {
+                                <button type="button" @onclick="() => _tipoComunicado = tipo"
+                                        class="inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border cursor-pointer transition-colors
+                                               @(_tipoComunicado == tipo ? "border-primary bg-accent" : "border-border text-muted-foreground hover:text-foreground")">
+                                    <LucideIcon Name="@icone" Size="14" /> @titulo
+                                </button>
+                            }
+                        </div>
+
+                        <div>
+                            <div class="text-sm font-medium mb-2">Para quem</div>
+                            <div class="flex flex-wrap gap-2">
+                                @foreach (var (destino, titulo) in Destinos)
+                                {
+                                    <button type="button" @onclick="() => _destino = destino"
+                                            class="px-3 py-1.5 text-sm rounded-md border cursor-pointer transition-colors
+                                                   @(_destino == destino ? "border-primary bg-accent" : "border-border text-muted-foreground hover:text-foreground")">
+                                        @titulo
+                                    </button>
+                                }
+                            </div>
+
+                            @if (_destino == PlataformaRepository.DestinoComunicado.Tenant)
+                            {
+                                <div class="flex flex-wrap gap-2 mt-3">
+                                    @foreach (var t in _tenants?.Tenants ?? new())
+                                    {
+                                        <button type="button" @onclick="() => _tenantComunicado = t.Id"
+                                                class="px-3 py-1.5 text-sm rounded-md border cursor-pointer transition-colors
+                                                       @(_tenantComunicado == t.Id ? "border-primary bg-accent" : "border-border text-muted-foreground hover:text-foreground")">
+                                            @t.Nome
+                                        </button>
+                                    }
+                                </div>
+                            }
+                            else if (_destino == PlataformaRepository.DestinoComunicado.Usuarios)
+                            {
+                                <div class="mt-3 max-h-64 overflow-y-auto rounded-lg border border-border">
+                                    @foreach (var t in _tenants?.Tenants ?? new())
+                                    {
+                                        <div class="px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground bg-muted/40">@t.Nome</div>
+                                        @foreach (var u in t.Usuarios.Where(x => x.Ativo))
+                                        {
+                                            <label class="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-accent">
+                                                <BbCheckbox Checked="@_selecionados.Contains(u.Id)"
+                                                            CheckedChanged="@(marcado => { if (marcado) _selecionados.Add(u.Id); else _selecionados.Remove(u.Id); })" />
+                                                <span class="text-sm">@u.Nome</span>
+                                                <span class="text-xs text-muted-foreground">@u.Email</span>
+                                            </label>
+                                        }
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <BbField>
+                            <BbFieldLabel>Título</BbFieldLabel>
+                            <BbInput @bind-Value="_tituloComunicado"
+                                     Placeholder="@(_tipoComunicado == Erp.Model.Notificacao.TipoNotificacao.NotaAtualizacao ? "Versão 1.4 — o que mudou" : "Manutenção programada")" />
+                        </BbField>
+
+                        <BbField>
+                            <BbFieldLabel>Mensagem</BbFieldLabel>
+                            <textarea @bind="_mensagemComunicado" rows="7"
+                                      class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm
+                                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                      placeholder="Uma linha por item, se for nota de atualização."></textarea>
+                        </BbField>
+
+                        <div class="flex items-center justify-end gap-3">
+                            <span class="text-sm text-muted-foreground">@DestinatariosPrevistos() destinatário(s)</span>
+                            <BbButton OnClick="EnviarComunicado" Disabled="@(_enviando || DestinatariosPrevistos() == 0)">
+                                Enviar
+                            </BbButton>
+                        </div>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard Class="xl:col-span-2">
+                <BbCardHeader><BbCardTitle>Enviados</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    @if (_enviados.Count == 0)
+                    {
+                        <p class="text-sm text-muted-foreground py-6 text-center">Nenhum comunicado enviado.</p>
+                    }
+                    else
+                    {
+                        <ul class="flex flex-col divide-y divide-border">
+                            @foreach (var c in _enviados)
+                            {
+                                var pct = c.Destinatarios == 0 ? 0 : c.Confirmados * 100 / c.Destinatarios;
+                                <li class="py-2.5">
+                                    <div class="flex items-center gap-2">
+                                        <LucideIcon Name="@(c.Tipo == Erp.Model.Notificacao.TipoNotificacao.NotaAtualizacao ? "sparkles" : "megaphone")"
+                                                    Size="14" Class="text-muted-foreground flex-none" />
+                                        <span class="text-sm font-medium truncate">@c.Titulo</span>
+                                        <span class="ml-auto text-xs text-muted-foreground whitespace-nowrap">@Relativo(c.EnviadoEm)</span>
+                                    </div>
+                                    <div class="mt-1.5 flex items-center gap-2">
+                                        <div class="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+                                            <div class="h-full bg-emerald-500" style="width:@(pct)%"></div>
+                                        </div>
+                                        <span class="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                                            @c.Confirmados/@c.Destinatarios deram OK
+                                        </span>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </BbCardContent>
+            </BbCard>
+        </div>
+    }
+    else if (_aba == "saude")
+    {
+        var status = StatusGeral();
+
+        <div class="px-2 mb-5">
+            <div class="rounded-lg border p-4 flex items-center gap-3 @status.Classe">
+                <LucideIcon Name="@status.Icone" Size="22" />
+                <div>
+                    <div class="font-semibold">@status.Titulo</div>
+                    <div class="text-sm opacity-80">@status.Detalhe</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid gap-4 mb-5 px-2 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+            <StatCard Label="No ar há" Value="@Duracao(DateTime.UtcNow - Metricas.IniciadoEm)" />
+            <StatCard Label="CPU do processo" Value="@($"{_cpu:0.0}%")" />
+            <StatCard Label="Memória (working set)" Value="@Bytes(_processo.Memoria)" />
+            <StatCard Label="Heap gerenciado" Value="@Bytes(_processo.Heap)" />
+            <StatCard Label="Threads" Value="@_processo.Threads.ToString()" />
+            <StatCard Label="Abas abertas (circuitos)" Value="@Metricas.Sessoes().Count.ToString()" />
+        </div>
+
+        <div class="grid gap-4 px-2 grid-cols-1 xl:grid-cols-2">
+            <BbCard>
+                <BbCardHeader><BbCardTitle>Banco de dados</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    @if (_banco is null)
+                    {
+                        <BbSkeleton Class="h-32 w-full" />
+                    }
+                    else
+                    {
+                        <dl class="grid grid-cols-[12rem_1fr] gap-y-2 text-sm">
+                            <dt class="text-muted-foreground">Situação</dt>
+                            <dd class="@(_banco.Online ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")">
+                                @(_banco.Online ? "Conectado" : $"Fora do ar — {_banco.Erro}")
+                            </dd>
+                            @if (_banco.Online)
+                            {
+                                <dt class="text-muted-foreground">Latência</dt>
+                                <dd class="tabular-nums">@_banco.LatenciaMs.ToString("0.0") ms</dd>
+                                <dt class="text-muted-foreground">PostgreSQL</dt>
+                                <dd>@_banco.Versao</dd>
+                                <dt class="text-muted-foreground">Tamanho</dt>
+                                <dd class="tabular-nums">@Bytes(_banco.TamanhoBytes)</dd>
+                                <dt class="text-muted-foreground">Conexões abertas</dt>
+                                <dd class="tabular-nums">@_banco.Conexoes</dd>
+                                <dt class="text-muted-foreground">Migrations</dt>
+                                <dd>
+                                    @_banco.MigracoesAplicadas aplicadas
+                                    @if (_banco.MigracoesPendentes.Count > 0)
+                                    {
+                                        <span class="text-destructive"> · @_banco.MigracoesPendentes.Count pendentes</span>
+                                    }
+                                    <div class="text-xs text-muted-foreground truncate">@_banco.UltimaMigracao</div>
+                                </dd>
+                            }
+                        </dl>
+                    }
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard>
+                <BbCardHeader><BbCardTitle>Ambiente</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <dl class="grid grid-cols-[12rem_1fr] gap-y-2 text-sm">
+                        <dt class="text-muted-foreground">Ambiente</dt>
+                        <dd>@Ambiente.EnvironmentName</dd>
+                        <dt class="text-muted-foreground">Runtime</dt>
+                        <dd>@RuntimeInformation.FrameworkDescription</dd>
+                        <dt class="text-muted-foreground">Sistema</dt>
+                        <dd>@RuntimeInformation.OSDescription</dd>
+                        <dt class="text-muted-foreground">Máquina</dt>
+                        <dd>@Environment.MachineName · @Environment.ProcessorCount núcleos</dd>
+                        <dt class="text-muted-foreground">Iniciado em</dt>
+                        <dd>@Metricas.IniciadoEm.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</dd>
+                        <dt class="text-muted-foreground">Coletas do GC</dt>
+                        <dd class="tabular-nums">gen0 @_processo.Gen0 · gen1 @_processo.Gen1 · gen2 @_processo.Gen2</dd>
+                        <dt class="text-muted-foreground">Envio de e-mail</dt>
+                        <dd>@(Emails.Configurado ? "SMTP configurado" : "SMTP não configurado")</dd>
+                    </dl>
+                </BbCardContent>
+            </BbCard>
+
+            @if (_banco?.MaioresTabelas.Count > 0)
+            {
+                <BbCard Class="xl:col-span-2">
+                    <BbCardHeader><BbCardTitle>Maiores tabelas</BbCardTitle></BbCardHeader>
+                    <BbCardContent>
+                        <BbBarChart Data="@_tabelas" Height="240px">
+                            <BbXAxis DataKey="Tabela" />
+                            <BbYAxis Min="@((object)0)" />
+                            <BbChartTooltip />
+                            <BbBar DataKey="Linhas" Name="Linhas" Color="var(--chart-3)" BorderRadius="4" />
+                        </BbBarChart>
+                    </BbCardContent>
+                </BbCard>
+            }
+        </div>
+    }
+    else if (_aba == "observabilidade")
+    {
+        <div class="grid gap-4 mb-5 px-2 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
+            <StatCard Label="Requisições (1 h)" Value="@_req.Total.ToString("N0")" />
+            <StatCard Label="Por minuto (últimos 5)" Value="@_req.PorMinuto.ToString("0.0")" />
+            <StatCard Label="Latência p50" Value="@($"{_req.P50:0} ms")" />
+            <StatCard Label="Latência p95" Value="@($"{_req.P95:0} ms")" />
+            <StatCard Label="Erros 5xx" Value="@($"{_req.Taxa5xx:0.0}%")" Up="@(_req.Taxa5xx < 1)"
+                      Delta="@(_req.Erros5xx > 0 ? $"{_req.Erros5xx} na última hora" : null)" />
+            <StatCard Label="Exceções (24 h)" Value="@Contar(TipoEventoSistema.Excecao).ToString()" />
+            <StatCard Label="Logins falhos (24 h)" Value="@Contar(TipoEventoSistema.LoginFalho).ToString()" />
+        </div>
+
+        <div class="grid gap-4 px-2 grid-cols-1 xl:grid-cols-2">
+            <BbCard>
+                <BbCardHeader><BbCardTitle>Requisições por minuto</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <BbBarChart Data="@_porMinuto" Height="240px">
+                        <BbXAxis DataKey="Minuto" />
+                        <BbYAxis Min="@((object)0)" />
+                        <BbChartTooltip />
+                        <BbChartLegend />
+                        <BbBar DataKey="Sucesso" Name="2xx/3xx" Color="var(--chart-2)" BorderRadius="4" />
+                        <BbBar DataKey="Erro" Name="4xx/5xx" Color="var(--chart-1)" BorderRadius="4" />
+                    </BbBarChart>
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard>
+                <BbCardHeader><BbCardTitle>Eventos de sistema (24 h)</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <BbBarChart Data="@_porHora" Height="240px">
+                        <BbXAxis DataKey="Hora" />
+                        <BbYAxis Min="@((object)0)" />
+                        <BbChartTooltip />
+                        <BbChartLegend />
+                        <BbBar DataKey="Excecoes" Name="Exceções" Color="var(--chart-1)" />
+                        <BbBar DataKey="Falhos" Name="Logins falhos" Color="var(--chart-4)" />
+                    </BbBarChart>
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard Class="xl:col-span-2">
+                <BbCardHeader><BbCardTitle>Rotas</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    @if (_rotas.Count == 0)
+                    {
+                        <p class="text-sm text-muted-foreground py-6 text-center">Nenhuma requisição na última hora.</p>
+                    }
+                    else
+                    {
+                        <table class="erp-table w-full">
+                            <thead>
+                                <tr><th>Rota</th><th class="text-right">Chamadas</th><th class="text-right">p50</th><th class="text-right">p95</th><th class="text-right">Erros</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in _rotas)
+                                {
+                                    <tr>
+                                        <td class="font-mono text-xs">@r.Caminho</td>
+                                        <td class="text-right tabular-nums">@r.Chamadas</td>
+                                        <td class="text-right tabular-nums">@r.P50.ToString("0") ms</td>
+                                        <td class="text-right tabular-nums">@r.P95.ToString("0") ms</td>
+                                        <td class="text-right tabular-nums @(r.Erros > 0 ? "text-destructive" : "")">@r.Erros</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard>
+                <BbCardHeader><BbCardTitle>Últimas exceções</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <ListaEventos Itens="@(_eventos?.UltimasExcecoes)" Vazio="Nenhuma exceção registrada." />
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard>
+                <BbCardHeader><BbCardTitle>Últimos logins falhos</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <ListaEventos Itens="@(_eventos?.UltimosLoginsFalhos)" Vazio="Nenhum login falho." />
+                </BbCardContent>
+            </BbCard>
+        </div>
+    }
+    else
+    {
+        var online = Metricas.Sessoes().Where(s => s.UsuarioId is not null).GroupBy(s => s.UsuarioId).ToList();
+
+        <div class="grid gap-4 mb-5 px-2 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
+            <StatCard Label="Online agora" Value="@online.Count.ToString()" />
+            <StatCard Label="Ativos hoje" Value="@(_uso?.AtivosPorDia.LastOrDefault().Ativos.ToString() ?? "—")" />
+            <StatCard Label="Usuários ativos" Value="@(_uso?.Usuarios.Count(u => u.Ativo).ToString() ?? "—")" />
+            <StatCard Label="Logins (30 dias)" Value="@(_uso?.Usuarios.Sum(u => u.Logins).ToString() ?? "—")" />
+            <StatCard Label="Ações (30 dias)" Value="@(_uso?.Usuarios.Sum(u => u.Acoes).ToString() ?? "—")" />
+        </div>
+
+        <div class="grid gap-4 px-2 grid-cols-1 xl:grid-cols-2">
+            <BbCard>
+                <BbCardHeader><BbCardTitle>Usuários ativos por dia</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <BbBarChart Data="@_ativosDia" Height="240px">
+                        <BbXAxis DataKey="Dia" />
+                        <BbYAxis Min="@((object)0)" />
+                        <BbChartTooltip />
+                        <BbBar DataKey="Ativos" Name="Ativos" Color="var(--chart-2)" BorderRadius="4" />
+                    </BbBarChart>
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard>
+                <BbCardHeader><BbCardTitle>Ações por módulo (30 dias)</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <BbBarChart Data="@_porModulo" Height="240px">
+                        <BbXAxis DataKey="Modulo" />
+                        <BbYAxis Min="@((object)0)" />
+                        <BbChartTooltip />
+                        <BbBar DataKey="Acoes" Name="Ações" Color="var(--chart-5)" BorderRadius="4" />
+                    </BbBarChart>
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard Class="xl:col-span-2">
+                <BbCardHeader><BbCardTitle>Online agora</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    @if (online.Count == 0)
+                    {
+                        <p class="text-sm text-muted-foreground py-6 text-center">Ninguém conectado.</p>
+                    }
+                    else
+                    {
+                        <table class="erp-table w-full">
+                            <thead>
+                                <tr><th>Usuário</th><th class="text-right">Abas</th><th>Conectado desde</th><th>Última atividade</th><th>Conexão</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var grupo in online)
+                                {
+                                    var u = _uso?.Usuarios.FirstOrDefault(x => x.Id == grupo.Key);
+                                    <tr>
+                                        <td>
+                                            <div class="text-sm">@(u?.Nome ?? grupo.First().Login)</div>
+                                            <div class="text-xs text-muted-foreground">@(u?.Papel)</div>
+                                        </td>
+                                        <td class="text-right tabular-nums">@grupo.Count()</td>
+                                        <td class="tabular-nums">@grupo.Min(s => s.Desde).ToLocalTime().ToString("dd/MM HH:mm")</td>
+                                        <td class="tabular-nums">@Relativo(grupo.Max(s => s.UltimaAtividade))</td>
+                                        <td>
+                                            @if (grupo.Any(s => s.Conectado))
+                                            {
+                                                <span class="text-emerald-600 dark:text-emerald-400 text-sm">Conectado</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-amber-600 text-sm">Reconectando</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </BbCardContent>
+            </BbCard>
+
+            <BbCard Class="xl:col-span-2">
+                <BbCardHeader><BbCardTitle>Uso por usuário (30 dias)</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    @if (_uso is null)
+                    {
+                        <BbSkeleton Class="h-40 w-full" />
+                    }
+                    else
+                    {
+                        <table class="erp-table w-full">
+                            <thead>
+                                <tr>
+                                    <th>Usuário</th><th>Papel</th><th>Último login</th>
+                                    <th class="text-right">Logins</th><th class="text-right">Ações</th>
+                                    <th>Módulo mais usado</th><th class="text-right">Logins falhos</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var u in _uso.Usuarios)
+                                {
+                                    <tr class="@(u.Ativo ? "" : "opacity-50")">
+                                        <td>
+                                            <div class="text-sm">@u.Nome</div>
+                                            <div class="text-xs text-muted-foreground">@u.Email</div>
+                                        </td>
+                                        <td class="text-sm">@u.Papel</td>
+                                        <td class="tabular-nums text-sm">@(u.UltimoLogin is { } ul ? Relativo(ul) : "nunca")</td>
+                                        <td class="text-right tabular-nums">@u.Logins</td>
+                                        <td class="text-right tabular-nums">@u.Acoes</td>
+                                        <td class="text-sm">@(u.ModuloPrincipal ?? "—")</td>
+                                        <td class="text-right tabular-nums @(u.LoginsFalhos > 0 ? "text-destructive" : "")">@u.LoginsFalhos</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </BbCardContent>
+            </BbCard>
+        </div>
+    }
+</div>
+
+<BbDialog Open="@(_confirmarTenant is not null)" OpenChanged="@(aberto => { if (!aberto) _confirmarTenant = null; })">
+    <BbDialogContent Class="max-w-md p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>
+                @(_confirmarTenant?.Ativa == true ? $"Suspender {_confirmarTenant.Nome}?" : $"Reativar {_confirmarTenant?.Nome}?")
+            </BbDialogTitle>
+            <p class="text-sm text-muted-foreground">
+                @(_confirmarTenant?.Ativa == true
+                    ? "Ninguém desta empresa conseguirá entrar, e quem está conectado cai em até 5 minutos."
+                    : "Os usuários desta empresa voltam a poder entrar.")
+            </p>
+            <div class="flex justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _confirmarTenant = null">Cancelar</BbButton>
+                <BbButton Variant="@(_confirmarTenant?.Ativa == true ? ButtonVariant.Destructive : ButtonVariant.Default)"
+                          OnClick="AlternarTenant">
+                    @(_confirmarTenant?.Ativa == true ? "Suspender" : "Reativar")
+                </BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+<BbDialog Open="@_novoTenantAberto" OpenChanged="@(aberto => { if (!aberto && !_provisionando) _novoTenantAberto = false; })">
+    <BbDialogContent Class="w-[60rem] max-w-none max-h-[90vh] p-6">
+        <div class="flex flex-col gap-4 min-h-0 max-h-[calc(90vh-3rem)]">
+            <BbDialogTitle>Novo tenant</BbDialogTitle>
+
+            @if (_passos.Count > 0)
+            {
+                <div class="rounded-lg border border-border bg-muted/30 p-4 font-mono text-sm flex flex-col gap-1.5">
+                    @for (var i = 0; i < _passos.Count; i++)
+                    {
+                        var ultimo = i == _passos.Count - 1;
+                        <div class="flex items-center gap-2">
+                            @if (ultimo && _provisionando)
+                            {
+                                <LucideIcon Name="loader-circle" Size="14" Class="animate-spin text-muted-foreground" />
+                            }
+                            else if (ultimo && _erroProvisionamento is not null)
+                            {
+                                <LucideIcon Name="circle-x" Size="14" Class="text-destructive" />
+                            }
+                            else
+                            {
+                                <LucideIcon Name="check" Size="14" Class="text-emerald-600 dark:text-emerald-400" />
+                            }
+                            <span>@_passos[i]</span>
+                        </div>
+                    }
+                    @if (_erroProvisionamento is not null)
+                    {
+                        <div class="text-destructive mt-1">@_erroProvisionamento</div>
+                    }
+                </div>
+            }
+
+            @if (_resultadoTenant is not null)
+            {
+                <p class="text-sm">
+                    Tenant criado na base <span class="font-mono">@_resultadoTenant.Banco</span> com
+                    @_resultadoTenant.Usuarios usuário(s). A senha inicial é a que você informou; cada um troca no perfil.
+                </p>
+                <div class="flex justify-end">
+                    <BbButton OnClick="() => _novoTenantAberto = false">Fechar</BbButton>
+                </div>
+            }
+            else
+            {
+                <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5 pr-1">
+                    <div class="grid grid-cols-12 gap-x-4 gap-y-4">
+                        <BbField Class="col-span-6">
+                            <BbFieldLabel>Empresa</BbFieldLabel>
+                            <BbInput Value="@_novoEmpresa" ValueChanged="@((string v) => TrocarNomeEmpresa(v))" Placeholder="Metalúrgica Exemplo Ltda" />
+                        </BbField>
+                        <BbField Class="col-span-6">
+                            <BbFieldLabel>CNPJ</BbFieldLabel>
+                            <BbInput @bind-Value="_novoCnpj" Placeholder="00.000.000/0000-00" />
+                        </BbField>
+                        <BbField Class="col-span-6">
+                            <BbFieldLabel>Nome da base</BbFieldLabel>
+                            <BbInput Value="@_novoBanco" ValueChanged="@((string v) => { _novoBanco = v; _bancoEditado = true; })"
+                                     Placeholder="mesh_exemplo" Class="font-mono" />
+                        </BbField>
+                        <BbField Class="col-span-6">
+                            <BbFieldLabel>Senha inicial dos usuários</BbFieldLabel>
+                            <BbInput @bind-Value="_novaSenha" Type="InputType.Password" Placeholder="Mínimo de 8 caracteres" />
+                        </BbField>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between gap-4">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Usuários</span>
+                            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" IconPosition="IconPosition.Start"
+                                      OnClick="@(() => _novosUsuarios.Add(new LinhaUsuarioNovo { Papel = _papeisDisponiveis.FirstOrDefault(p => p != "Administrador") ?? "" }))">
+                                <ChildContent>Adicionar usuário</ChildContent>
+                                <Icon><LucideIcon Name="plus" Size="14" /></Icon>
+                            </BbButton>
+                        </div>
+                        <BbSeparator Class="mt-1.5 mb-2" />
+
+                        <table class="erp-table w-full">
+                            <thead>
+                                <tr><th>Nome</th><th>Sobrenome</th><th>E-mail</th><th class="w-[11rem]">Papel</th><th class="w-[3rem]"></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var u in _novosUsuarios)
+                                {
+                                    <tr>
+                                        <td><BbInput @bind-Value="u.Nome" Placeholder="Nome" /></td>
+                                        <td><BbInput @bind-Value="u.Sobrenome" Placeholder="Sobrenome" /></td>
+                                        <td><BbInput @bind-Value="u.Email" Placeholder="pessoa@empresa.com" /></td>
+                                        <td>
+                                            <select @bind="u.Papel"
+                                                    class="w-full h-9 rounded-md border border-input bg-background px-2 text-sm">
+                                                @foreach (var papel in _papeisDisponiveis)
+                                                {
+                                                    <option value="@papel">@papel</option>
+                                                }
+                                            </select>
+                                        </td>
+                                        <td>
+                                            @if (_novosUsuarios.Count > 1)
+                                            {
+                                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                          OnClick="() => _novosUsuarios.Remove(u)" aria-label="Remover">
+                                                    <LucideIcon Name="trash-2" Size="15" Class="text-destructive" />
+                                                </BbButton>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <BbButton Variant="ButtonVariant.Outline" Disabled="@_provisionando" OnClick="() => _novoTenantAberto = false">Cancelar</BbButton>
+                    <BbButton Disabled="@_provisionando" OnClick="CriarTenant">
+                        @(_provisionando ? "Criando…" : "Criar tenant")
+                    </BbButton>
+                </div>
+            }
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+<BbDialog Open="@(_restringir is not null)" OpenChanged="@(aberto => { if (!aberto) _restringir = null; })">
+    <BbDialogContent Class="max-w-md p-6">
+        <div class="flex flex-col gap-4">
+            <BbDialogTitle>Restringir acesso de @_restringir?.Nome</BbDialogTitle>
+            <p class="text-sm text-muted-foreground">O login é recusado e a sessão aberta cai em até 5 minutos.</p>
+
+            <div class="flex flex-wrap gap-2">
+                @foreach (var (chave, titulo) in Duracoes)
+                {
+                    <button type="button" @onclick="() => _duracao = chave"
+                            class="px-3 py-1.5 text-sm rounded-md border cursor-pointer transition-colors
+                                   @(_duracao == chave ? "border-primary bg-accent" : "border-border text-muted-foreground hover:text-foreground")">
+                        @titulo
+                    </button>
+                }
+            </div>
+
+            <BbField>
+                <BbFieldLabel>Motivo</BbFieldLabel>
+                <BbInput @bind-Value="_motivoRestricao" Placeholder="Opcional — fica no log" />
+            </BbField>
+
+            <div class="flex justify-end gap-2">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => _restringir = null">Cancelar</BbButton>
+                <BbButton Variant="ButtonVariant.Destructive" OnClick="ConfirmarRestricao">Restringir</BbButton>
+            </div>
+        </div>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState> EstadoAutenticacao { get; set; } = default!;
+
+    private static readonly (string Chave, string Titulo)[] Abas =
+    [
+        ("visao", "Tenants"),
+        ("comunicados", "Comunicados"),
+        ("saude", "Saúde da aplicação"),
+        ("observabilidade", "Observabilidade"),
+        ("usuarios", "Métricas dos usuários"),
+    ];
+
+    private string _aba = "visao";
+    private Guid? _tenantAberto;
+    private PlataformaRepository.Tenant? _confirmarTenant;
+    private PlataformaRepository.UsuarioDoTenant? _restringir;
+
+    // ---- Novo tenant ----
+    private sealed class LinhaUsuarioNovo
+    {
+        public string Nome { get; set; } = "";
+        public string Sobrenome { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Papel { get; set; } = "";
+    }
+
+    private bool _novoTenantAberto;
+    private bool _provisionando;
+    private bool _bancoEditado;
+    private string _novoEmpresa = "";
+    private string? _novoCnpj;
+    private string _novoBanco = "";
+    private string? _novaSenha;
+    private List<LinhaUsuarioNovo> _novosUsuarios = new();
+    private List<string> _papeisDisponiveis = new();
+    private List<string> _passos = new();
+    private string? _erroProvisionamento;
+    private Erp.Service.Plataforma.ProvisionamentoTenant.Resultado? _resultadoTenant;
+
+    // ---- Comunicados ----
+    private static readonly (Erp.Model.Notificacao.TipoNotificacao Tipo, string Titulo, string Icone)[] TiposComunicado =
+    [
+        (Erp.Model.Notificacao.TipoNotificacao.Recado, "Recado", "megaphone"),
+        (Erp.Model.Notificacao.TipoNotificacao.NotaAtualizacao, "Notas da atualização", "sparkles"),
+    ];
+
+    private static readonly (PlataformaRepository.DestinoComunicado Destino, string Titulo)[] Destinos =
+    [
+        (PlataformaRepository.DestinoComunicado.Todos, "Todos os usuários"),
+        (PlataformaRepository.DestinoComunicado.Tenant, "Um tenant"),
+        (PlataformaRepository.DestinoComunicado.Usuarios, "Usuários específicos"),
+    ];
+
+    private Erp.Model.Notificacao.TipoNotificacao _tipoComunicado = Erp.Model.Notificacao.TipoNotificacao.Recado;
+    private PlataformaRepository.DestinoComunicado _destino = PlataformaRepository.DestinoComunicado.Todos;
+    private Guid? _tenantComunicado;
+    private HashSet<Guid> _selecionados = new();
+    private string? _tituloComunicado;
+    private string? _mensagemComunicado;
+    private bool _enviando;
+    private List<PlataformaRepository.ComunicadoEnviado> _enviados = new();
+    private string _duracao = "1d";
+    private string? _motivoRestricao;
+
+    private static readonly (string Chave, string Titulo)[] Duracoes =
+    [
+        ("1d", "24 horas"), ("7d", "7 dias"), ("30d", "30 dias"), ("sempre", "Até liberar"),
+    ];
+    private PlataformaRepository.VisaoTenants? _tenants;
+    private PlataformaRepository.Origens? _origens;
+    private bool _redesenharMapa = true;
+    private IJSObjectReference? _mapa;
+    private Timer? _timer;
+    private int _ciclos;
+
+    private sealed class Processo
+    {
+        public long Memoria, Heap;
+        public int Threads, Gen0, Gen1, Gen2;
+    }
+
+    private sealed class ResumoRequisicoes
+    {
+        public int Total, Erros5xx;
+        public double PorMinuto, P50, P95, Taxa5xx;
+    }
+
+    private sealed class LinhaRota
+    {
+        public string Caminho = "";
+        public int Chamadas, Erros;
+        public double P50, P95;
+    }
+
+    // Linhas dos gráficos — o BbBarChart lê as propriedades pelo nome.
+    private sealed class PontoMinuto { public string Minuto { get; set; } = ""; public int Sucesso { get; set; } public int Erro { get; set; } }
+    private sealed class PontoHora { public string Hora { get; set; } = ""; public int Excecoes { get; set; } public int Falhos { get; set; } }
+    private sealed class PontoDia { public string Dia { get; set; } = ""; public int Ativos { get; set; } }
+    private sealed class PontoModulo { public string Modulo { get; set; } = ""; public int Acoes { get; set; } }
+    private sealed class PontoTabela { public string Tabela { get; set; } = ""; public long Linhas { get; set; } }
+
+    private Processo _processo = new();
+    private double _cpu;
+    private ResumoRequisicoes _req = new();
+    private List<LinhaRota> _rotas = new();
+    private List<PontoMinuto> _porMinuto = new();
+    private List<PontoHora> _porHora = new();
+    private List<PontoDia> _ativosDia = new();
+    private List<PontoModulo> _porModulo = new();
+    private List<PontoTabela> _tabelas = new();
+
+    private PlataformaRepository.SaudeBanco? _banco;
+    private PlataformaRepository.ResumoEventos? _eventos;
+    private PlataformaRepository.UsoUsuarios? _uso;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AtualizarMemoria();
+        await CarregarBanco();
+
+        // Métrica em memória é barata: a cada 5 s. Banco a cada 30 s.
+        _timer = new Timer(_ => _ = InvokeAsync(async () =>
+        {
+            AtualizarMemoria();
+            if (++_ciclos % 6 == 0)
+                await CarregarBanco();
+            StateHasChanged();
+        }), null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    private async Task TrocarAba(string aba)
+    {
+        _aba = aba;
+        _redesenharMapa = true;
+        await CarregarBanco();
+    }
+
+    private static string Assinatura(PlataformaRepository.Origens o) =>
+        string.Join('|', o.Pontos.Select(p => $"{p.Lat}:{p.Lon}:{p.Acessos}"));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_aba != "visao" || !_redesenharMapa || _origens is null)
+            return;
+
+        _redesenharMapa = false;
+
+        try
+        {
+            _mapa ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/mapa-origens.js");
+            await _mapa.InvokeVoidAsync("desenhar", "mapa-origens",
+                _origens.Pontos.Select(p => new { nome = p.Nome, lat = p.Lat, lon = p.Lon, acessos = p.Acessos, usuarios = p.Usuarios }));
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private int DestinatariosPrevistos()
+    {
+        var tenants = _tenants?.Tenants ?? new();
+        return _destino switch
+        {
+            PlataformaRepository.DestinoComunicado.Todos => tenants.Sum(t => t.Usuarios.Count(u => u.Ativo)),
+            PlataformaRepository.DestinoComunicado.Tenant =>
+                tenants.FirstOrDefault(t => t.Id == _tenantComunicado)?.Usuarios.Count(u => u.Ativo) ?? 0,
+            _ => _selecionados.Count,
+        };
+    }
+
+    private void RecadoPara(PlataformaRepository.UsuarioDoTenant usuario)
+    {
+        _aba = "comunicados";
+        _tipoComunicado = Erp.Model.Notificacao.TipoNotificacao.Recado;
+        _destino = PlataformaRepository.DestinoComunicado.Usuarios;
+        _selecionados = new() { usuario.Id };
+    }
+
+    private async Task EnviarComunicado()
+    {
+        _enviando = true;
+        try
+        {
+            var total = await Plataforma.EnviarComunicado(
+                _tipoComunicado, _tituloComunicado ?? "", _mensagemComunicado ?? "",
+                _destino, _tenantComunicado, _selecionados.ToList(), await QuemSou());
+
+            Toasts.Success("Comunicado enviado", $"{total} {(total == 1 ? "usuário recebeu" : "usuários receberam")}.");
+            _tituloComunicado = null;
+            _mensagemComunicado = null;
+            _selecionados = new();
+            _enviados = await Plataforma.ComunicadosEnviados();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível enviar", ex.Message);
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+
+    private async Task AbrirNovoTenant()
+    {
+        _papeisDisponiveis = await Provisionamento.PapeisDisponiveis();
+        _novoEmpresa = "";
+        _novoCnpj = null;
+        _novoBanco = "";
+        _bancoEditado = false;
+        _novaSenha = null;
+        _passos = new();
+        _erroProvisionamento = null;
+        _resultadoTenant = null;
+        _novosUsuarios = new()
+        {
+            new LinhaUsuarioNovo { Papel = _papeisDisponiveis.Contains("Administrador") ? "Administrador" : _papeisDisponiveis.FirstOrDefault() ?? "" },
+        };
+        _novoTenantAberto = true;
+    }
+
+    private void TrocarNomeEmpresa(string nome)
+    {
+        _novoEmpresa = nome;
+        if (!_bancoEditado)
+            _novoBanco = string.IsNullOrWhiteSpace(nome) ? "" : Erp.Service.Plataforma.ProvisionamentoTenant.SugerirBanco(nome);
+    }
+
+    private async Task CriarTenant()
+    {
+        _provisionando = true;
+        _passos = new();
+        _erroProvisionamento = null;
+
+        try
+        {
+            var pedido = new Erp.Service.Plataforma.ProvisionamentoTenant.Pedido(
+                _novoEmpresa, _novoCnpj ?? "", (_novoBanco ?? "").Trim(), _novaSenha ?? "",
+                _novosUsuarios
+                    .Where(u => !string.IsNullOrWhiteSpace(u.Email))
+                    .Select(u => new Erp.Service.Plataforma.ProvisionamentoTenant.NovoUsuario(u.Nome, u.Sobrenome, u.Email, u.Papel))
+                    .ToList());
+
+            _resultadoTenant = await Provisionamento.Provisionar(pedido, await QuemSou(), async passo =>
+            {
+                _passos.Add(passo);
+                await InvokeAsync(StateHasChanged);
+            });
+
+            Toasts.Success("Tenant criado", _novoEmpresa);
+            await CarregarBanco();
+        }
+        catch (Exception ex)
+        {
+            _erroProvisionamento = ex.Message;
+            if (_passos.Count == 0)
+                _passos.Add("Validação");
+        }
+        finally
+        {
+            _provisionando = false;
+        }
+    }
+
+    private void AbrirRestricao(PlataformaRepository.UsuarioDoTenant usuario)
+    {
+        _restringir = usuario;
+        _duracao = "1d";
+        _motivoRestricao = null;
+    }
+
+    private async Task<Guid> QuemSou()
+    {
+        var usuario = (await EstadoAutenticacao).User;
+        Guid.TryParse(usuario.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var quem);
+        return quem;
+    }
+
+    private async Task ConfirmarRestricao()
+    {
+        if (_restringir is not { } alvo)
+            return;
+
+        DateTimeOffset? ate = _duracao switch
+        {
+            "1d" => DateTimeOffset.UtcNow.AddDays(1),
+            "7d" => DateTimeOffset.UtcNow.AddDays(7),
+            "30d" => DateTimeOffset.UtcNow.AddDays(30),
+            _ => null,
+        };
+
+        try
+        {
+            await Plataforma.RestringirAcesso(alvo.Id, ate, _motivoRestricao, await QuemSou());
+            Toasts.Success("Acesso restrito", alvo.Nome);
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível restringir", ex.Message);
+        }
+
+        _restringir = null;
+        await CarregarBanco();
+    }
+
+    private async Task Liberar(PlataformaRepository.UsuarioDoTenant usuario)
+    {
+        try
+        {
+            await Plataforma.LiberarAcesso(usuario.Id, await QuemSou());
+            Toasts.Success("Acesso liberado", usuario.Nome);
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível liberar", ex.Message);
+        }
+
+        await CarregarBanco();
+    }
+
+    private async Task AlternarTenant()
+    {
+        if (_confirmarTenant is not { } tenant)
+            return;
+
+        try
+        {
+            var usuario = (await EstadoAutenticacao).User;
+            Guid.TryParse(usuario.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var quem);
+
+            await Plataforma.DefinirSituacao(tenant.Id, !tenant.Ativa, quem);
+            Toasts.Success(tenant.Ativa ? "Tenant suspenso" : "Tenant reativado", tenant.Nome);
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Não foi possível alterar", ex.Message);
+        }
+
+        _confirmarTenant = null;
+        await CarregarBanco();
+    }
+
+    private async Task CarregarBanco()
+    {
+        _banco = await Plataforma.Banco();
+        _eventos = await Plataforma.Eventos(DateTime.UtcNow.AddHours(-24));
+        _uso = await Plataforma.Uso(30);
+        _tenants = await Plataforma.Tenants();
+        _enviados = await Plataforma.ComunicadosEnviados();
+
+        var origens = await Plataforma.OrigensDosAcessos(30);
+        if (_origens is null || Assinatura(origens) != Assinatura(_origens))
+            _redesenharMapa = true;
+        _origens = origens;
+
+        _tabelas = _banco.MaioresTabelas.Select(t => new PontoTabela { Tabela = t.Tabela, Linhas = t.Linhas }).ToList();
+        _porHora = _eventos.PorHora.Select(h => new PontoHora { Hora = h.Hora.ToString("HH'h'"), Excecoes = h.Excecoes, Falhos = h.Falhos }).ToList();
+        _ativosDia = _uso.AtivosPorDia.Select(d => new PontoDia { Dia = d.Dia.ToString("dd/MM"), Ativos = d.Ativos }).ToList();
+        _porModulo = _uso.AcoesPorModulo.Select(m => new PontoModulo { Modulo = m.Modulo, Acoes = m.Acoes }).ToList();
+    }
+
+    private void AtualizarMemoria()
+    {
+        using var processo = Process.GetCurrentProcess();
+        _processo = new Processo
+        {
+            Memoria = processo.WorkingSet64,
+            Heap = GC.GetTotalMemory(false),
+            Threads = processo.Threads.Count,
+            Gen0 = GC.CollectionCount(0),
+            Gen1 = GC.CollectionCount(1),
+            Gen2 = GC.CollectionCount(2),
+        };
+        _cpu = Metricas.CpuPercentual();
+
+        var requisicoes = Metricas.Requisicoes();
+        var agora = DateTime.UtcNow;
+        var ultimos5 = requisicoes.Count(r => r.Quando >= agora.AddMinutes(-5));
+        var erros5xx = requisicoes.Count(r => r.Status >= 500);
+
+        _req = new ResumoRequisicoes
+        {
+            Total = requisicoes.Count,
+            PorMinuto = ultimos5 / 5.0,
+            P50 = Percentil(requisicoes.Select(r => r.Ms), 50),
+            P95 = Percentil(requisicoes.Select(r => r.Ms), 95),
+            Erros5xx = erros5xx,
+            Taxa5xx = requisicoes.Count == 0 ? 0 : erros5xx * 100.0 / requisicoes.Count,
+        };
+
+        _rotas = requisicoes
+            .GroupBy(r => $"{r.Metodo} {r.Rota}")
+            .Select(g => new LinhaRota
+            {
+                Caminho = g.Key,
+                Chamadas = g.Count(),
+                Erros = g.Count(r => r.Status >= 500),
+                P50 = Percentil(g.Select(r => r.Ms), 50),
+                P95 = Percentil(g.Select(r => r.Ms), 95),
+            })
+            .OrderByDescending(r => r.Chamadas)
+            .Take(12)
+            .ToList();
+
+        var inicio = agora.AddMinutes(-29);
+        inicio = new DateTime(inicio.Year, inicio.Month, inicio.Day, inicio.Hour, inicio.Minute, 0, DateTimeKind.Utc);
+
+        _porMinuto = Enumerable.Range(0, 30)
+            .Select(m => inicio.AddMinutes(m))
+            .Select(minuto =>
+            {
+                var noMinuto = requisicoes.Where(r => r.Quando >= minuto && r.Quando < minuto.AddMinutes(1)).ToList();
+                return new PontoMinuto
+                {
+                    Minuto = minuto.ToLocalTime().ToString("HH:mm"),
+                    Sucesso = noMinuto.Count(r => r.Status < 400),
+                    Erro = noMinuto.Count(r => r.Status >= 400),
+                };
+            })
+            .ToList();
+    }
+
+    private int Contar(TipoEventoSistema tipo) =>
+        _eventos?.PorTipo.TryGetValue(tipo, out var total) == true ? total : 0;
+
+    private (string Titulo, string Detalhe, string Icone, string Classe) StatusGeral()
+    {
+        if (_banco is { Online: false })
+            return ("Fora do ar", "O banco de dados não responde.", "circle-x",
+                    "border-destructive/50 bg-destructive/10 text-destructive");
+
+        var alertas = new List<string>();
+        if (_banco?.MigracoesPendentes.Count > 0) alertas.Add("migrations pendentes");
+        if (_req.Taxa5xx >= 5) alertas.Add($"{_req.Taxa5xx:0}% de erros 5xx");
+        if (_banco?.LatenciaMs > 200) alertas.Add("banco lento");
+        if (_cpu > 85) alertas.Add("CPU alta");
+
+        return alertas.Count == 0
+            ? ("Saudável", "Banco conectado, sem migrations pendentes e sem erros 5xx relevantes.", "circle-check",
+               "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400")
+            : ("Atenção", string.Join(" · ", alertas), "triangle-alert",
+               "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400");
+    }
+
+    private static double Percentil(IEnumerable<double> valores, int p)
+    {
+        var ordenados = valores.OrderBy(v => v).ToList();
+        if (ordenados.Count == 0)
+            return 0;
+
+        var indice = (int)Math.Ceiling(p / 100.0 * ordenados.Count) - 1;
+        return ordenados[Math.Clamp(indice, 0, ordenados.Count - 1)];
+    }
+
+    private static string Bytes(long bytes) => bytes switch
+    {
+        >= 1L << 30 => $"{bytes / (double)(1L << 30):0.0} GB",
+        >= 1L << 20 => $"{bytes / (double)(1L << 20):0.0} MB",
+        >= 1L << 10 => $"{bytes / (double)(1L << 10):0} KB",
+        _ => $"{bytes} B",
+    };
+
+    private static string Duracao(TimeSpan t) =>
+        t.TotalDays >= 1 ? $"{(int)t.TotalDays} d {t.Hours} h"
+        : t.TotalHours >= 1 ? $"{(int)t.TotalHours} h {t.Minutes} min"
+        : $"{t.Minutes} min {t.Seconds} s";
+
+    private static string Relativo(DateTime utc)
+    {
+        var t = DateTime.UtcNow - utc;
+        return t.TotalSeconds < 60 ? "agora"
+             : t.TotalMinutes < 60 ? $"há {(int)t.TotalMinutes} min"
+             : t.TotalHours < 24 ? $"há {(int)t.TotalHours} h"
+             : utc.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+        _ = _mapa?.DisposeAsync().AsTask();
+    }
+}
